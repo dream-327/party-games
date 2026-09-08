@@ -23,6 +23,7 @@
   let selectedVoteTargetId = null;
   let lastRenderedPhase = null;
   let lastRenderedRound = null;
+  let lastAnnouncedSpeakerId = null;
   let currentTimerStartTime = null;
   let speechTimerInterval = null;
   let customWordPairs = [];
@@ -248,9 +249,22 @@
     const isRoundChanged = lastRenderedRound !== room.gameState.round;
 
     if (isPhaseChanged) {
+      lastAnnouncedSpeakerId = null;
       // 仅在真实切换阶段时才重置投票选定目标
       if (phase === 'VOTING' || phase === 'PK_VOTING' || phase === 'LOBBY' || phase === 'SPEAKING' || phase === 'CARD_VIEW') {
         selectedVoteTargetId = null;
+      }
+      // TTS 阶段语音播报
+      if (phase === 'CARD_VIEW') {
+        window.sfx.speak('游戏开始，请查看你的底牌词语，注意防窥');
+      } else if (phase === 'SPEAKING') {
+        window.sfx.speak(`第 ${room.gameState.round} 轮发言开始`);
+      } else if (phase === 'VOTING') {
+        window.sfx.speak('发言结束，请大家投票找出卧底');
+      } else if (phase === 'PK_SPEAKING') {
+        window.sfx.speak('出现平票，请平票候选人依次辩解');
+      } else if (phase === 'PK_VOTING') {
+        window.sfx.speak('辩解结束，请未平票玩家再次投票');
       }
     }
 
@@ -292,13 +306,14 @@
     room.players.forEach(p => {
       const box = document.createElement('div');
       box.className = `player-box ${p.isHost ? 'is-host' : ''}`;
-      const offlineBadge = !p.isOnline ? '<span style="font-size: 11px; color: #f43f5e; margin-left: 4px; font-weight: 700;">(离线)</span>' : '';
+      const aiBadge = p.isAi ? '<span class="ai-badge">AI</span>' : '';
+      const offlineBadge = (!p.isOnline && !p.isAi) ? '<span style="font-size: 11px; color: #f43f5e; margin-left: 4px; font-weight: 700;">(离线)</span>' : '';
       box.innerHTML = `
         <div class="player-avatar">
           ${p.avatar}
           ${p.isHost ? '<span class="host-crown">👑</span>' : ''}
         </div>
-        <div class="player-name">${escapeHtml(p.name)}${p.id === myPlayerId ? ' (我)' : ''}${offlineBadge}</div>
+        <div class="player-name">${escapeHtml(p.name)}${p.id === myPlayerId ? ' (我)' : ''}${aiBadge}${offlineBadge}</div>
         ${(isHost && p.id !== myPlayerId) ? `<button class="kick-btn" data-id="${p.id}" title="移出玩家">✕</button>` : ''}
       `;
 
@@ -331,6 +346,23 @@
       hostControls.classList.add('hidden');
       guestWaiting.classList.remove('hidden');
     }
+  }
+
+  // 房主添加/移除电脑
+  const btnAddAi = document.getElementById('btn-add-ai');
+  if (btnAddAi) {
+    btnAddAi.addEventListener('click', () => {
+      window.sfx.playClick();
+      socket.emit('add_ai');
+    });
+  }
+
+  const btnRemoveAi = document.getElementById('btn-remove-ai');
+  if (btnRemoveAi) {
+    btnRemoveAi.addEventListener('click', () => {
+      window.sfx.playClick();
+      socket.emit('remove_ai');
+    });
   }
 
   // 房主点击开始游戏
@@ -422,6 +454,25 @@
         speakerBox.classList.remove('is-me');
         tipText.innerText = `正在认真听 ${currentSpeaker.name} 发言...`;
       }
+
+      if (lastAnnouncedSpeakerId !== currentSpeakerId) {
+        lastAnnouncedSpeakerId = currentSpeakerId;
+        if (isMeSpeaking) {
+          window.sfx.speak('轮到你发言了，请描述你的词语');
+        } else {
+          window.sfx.speak(`请 ${currentSpeaker.name} 发言`);
+        }
+      }
+    }
+
+    // 轮到自己发言时显示打字描述输入框
+    const clueContainer = document.getElementById('my-speech-input-container');
+    if (clueContainer) {
+      if (isMeSpeaking) {
+        clueContainer.classList.remove('hidden');
+      } else {
+        clueContainer.classList.add('hidden');
+      }
     }
 
     // 发言顺序列表
@@ -498,6 +549,38 @@
     update();
     speechTimerInterval = setInterval(update, 1000);
   }
+
+  // 发送打字描述词语
+  function handleSendClueText() {
+    const input = document.getElementById('input-speech-clue');
+    if (!input) return;
+    const text = input.value.trim();
+    if (!text) return;
+    window.sfx.playClick();
+    socket.emit('send_clue', text);
+    input.value = '';
+  }
+
+  const btnSendClue = document.getElementById('btn-send-speech-clue');
+  if (btnSendClue) {
+    btnSendClue.addEventListener('click', handleSendClueText);
+  }
+  const inputClue = document.getElementById('input-speech-clue');
+  if (inputClue) {
+    inputClue.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handleSendClueText();
+    });
+  }
+
+  // 监听发言线索
+  socket.on('speaker_clue', (data) => {
+    window.sfx.playPop();
+    const tipText = document.getElementById('speaker-tip-text');
+    if (tipText) {
+      tipText.innerHTML = `💬 <b style="color: #38bdf8;">${escapeHtml(data.playerName)}</b>：“${escapeHtml(data.clue)}”`;
+    }
+    window.sfx.speak(`${data.playerName}发言说：“${data.clue}”`);
+  });
 
   // 结束发言点击
   document.getElementById('btn-finish-speaking').addEventListener('click', () => {
@@ -633,26 +716,30 @@
   function renderElimination(room, isHost) {
     window.sfx.playElimination();
     const container = document.getElementById('eliminated-container');
-    const elim = room.gameState.eliminatedPlayer;
+    const elim = room.gameState.eliminatedPlayer || room.gameState.lastEliminated;
 
-    if (elim && elim.isTieNoElimination) {
+    if (elim && (elim.isTieNoElimination || elim.isTie)) {
       container.innerHTML = `
         <div style="font-size: 56px; margin-bottom: 12px;">⚖️</div>
         <div style="font-size: 22px; font-weight: 800; color: #f59e0b; margin-bottom: 8px;">PK 依然平票！</div>
-        <p style="color: var(--text-muted); font-size: 14px;">本轮无人被淘汰，游戏继续进行！</p>
+        <p style="color: var(--text-muted); font-size: 14px;">${escapeHtml(elim.message || '本轮无人被淘汰，游戏继续进行！')}</p>
       `;
+      window.sfx.speak(elim.message || '平票，本轮无人出局');
     } else if (elim) {
       const roleMap = {
         CIVILIAN: '<span class="role-tag CIVILIAN">平民</span>',
         UNDERCOVER: '<span class="role-tag UNDERCOVER">卧底 🕵️</span>',
         WHITEBOARD: '<span class="role-tag WHITEBOARD">白板 📄</span>'
       };
+      const votesText = (typeof elim.votes === 'number' && elim.votes > 0) ? `获得 ${elim.votes} 票` : '';
       container.innerHTML = `
         <div style="font-size: 56px; margin-bottom: 8px;">${elim.avatar}</div>
-        <div style="font-size: 22px; font-weight: 800; margin-bottom: 8px;">${elim.name} 被投出局！</div>
-        <div style="font-size: 14px; margin-bottom: 12px; color: #fca5a5;">获得 ${elim.votes} 票</div>
+        <div style="font-size: 22px; font-weight: 800; margin-bottom: 8px;">${escapeHtml(elim.name)} 被投出局！</div>
+        ${votesText ? `<div style="font-size: 14px; margin-bottom: 12px; color: #fca5a5;">${votesText}</div>` : ''}
         ${room.settings.revealRoleOnEliminate ? `<div style="font-size: 16px;">真实的身份是：${roleMap[elim.role] || elim.role}</div>` : ''}
       `;
+      const roleCn = elim.role === 'UNDERCOVER' ? '卧底' : (elim.role === 'WHITEBOARD' ? '白板' : '平民');
+      window.sfx.speak(`${elim.name} 被投出局，真实身份是 ${roleCn}`);
     }
 
     const hostNextBtn = document.getElementById('host-next-round-btn');
@@ -688,11 +775,13 @@
       titleEl.innerText = '平民大获全胜！';
       titleEl.className = 'victory-title civilians';
       descEl.innerText = '火眼金睛！成功揪出了所有潜伏的卧底！';
+      window.sfx.speak('游戏结束，平民大获全胜！');
     } else {
       iconEl.innerText = '🎭';
       titleEl.innerText = '卧底瞒天过海！';
       titleEl.className = 'victory-title undercovers';
       descEl.innerText = '演技炸裂！卧底成功潜伏到底，取得胜利！';
+      window.sfx.speak('游戏结束，卧底瞒天过海取得胜利！');
     }
 
     // 渲染全员词语真实底牌

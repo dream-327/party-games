@@ -186,6 +186,19 @@ class SoundEffects {
     osc.start();
     osc.stop(this.ctx.currentTime + 0.08);
   }
+
+  // 电子法官旁白朗读 (TTS 语音播报)
+  speak(text) {
+    if (!this.enabled || !window.speechSynthesis) return;
+    try {
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = 'zh-CN';
+      utter.rate = 1.05;
+      utter.pitch = 0.95;
+      window.speechSynthesis.speak(utter);
+    } catch (e) {}
+  }
 }
 
 window.sfx = new SoundEffects();

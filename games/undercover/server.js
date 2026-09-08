@@ -1,4 +1,4 @@
-﻿// Undercover Game Server (谁是卧底服务端逻辑模块)
+// Undercover Game Server (谁是卧底服务端逻辑模块)
 
 const path = require('path');
 const { wordCategories, punishments, getRandomWordPair, getRandomPunishment } = require('./words');
@@ -30,6 +30,18 @@ const PHASES = {
   GAME_OVER: 'GAME_OVER'
 };
 
+const AI_NAMES = ['机智阿福', '福尔摩斯', '侦探柯南', '名捕小包', '逻辑大师', '潜伏高手'];
+const AI_AVATARS = ['🕵️', '🧙‍♂️', '🧔', '🦊', '🦉', '🧝'];
+const AI_CLUES = [
+  '这个东西在日常生活中很常见。',
+  '很多人几乎每天都会接触或用到它。',
+  '我觉得这个词大家都非常熟悉。',
+  '它的实用性很强，功能比较明确。',
+  '这个通常在特定场合或者时间会用到。',
+  '我的这个词大众认知度很高。',
+  '可以说老少皆知，很有代表性。'
+];
+
 function escapeHtml(str) {
   if (typeof str !== 'string') return '';
   return str
@@ -50,8 +62,10 @@ function getSafeRoomData(room, targetPlayerId) {
       avatar: p.avatar,
       isHost: p.isHost,
       isOnline: p.isOnline,
+      isAi: p.isAi || false,
       isAlive: p.isAlive,
       hasVoted: p.hasVoted,
+      hasViewedCard: p.hasViewedCard || false,
       isSpectator: p.isSpectator || false,
       role: (isMe || isGameOver) ? p.role : null,
       word: (isMe || isGameOver) ? p.word : null
@@ -88,7 +102,9 @@ function getSafeRoomData(room, targetPlayerId) {
       pkSpeakingOrder: room.gameState.pkSpeakingOrder,
       currentPkSpeakerIndex: room.gameState.currentPkSpeakerIndex,
       currentPkSpeakerId: room.gameState.pkSpeakingOrder[room.gameState.currentPkSpeakerIndex] || null,
+      pkSpeakerId: room.gameState.pkSpeakingOrder[room.gameState.currentPkSpeakerIndex] || null,
       lastEliminated: room.gameState.lastEliminated,
+      eliminatedPlayer: room.gameState.lastEliminated,
       winner: room.gameState.winner,
       winningWord: room.gameState.winningWord,
       punishment: room.gameState.punishment,
@@ -142,6 +158,31 @@ function scheduleNextSpeaker(undercoverIo, room) {
   room.gameState.speechStartTime = Date.now();
   broadcastRoom(undercoverIo, room);
 
+  const speakerId = room.gameState.speakingOrder[room.gameState.currentSpeakerIndex];
+  const speaker = room.players.get(speakerId);
+  if (speaker && speaker.isAi) {
+    const aiDelay = 2200 + Math.floor(Math.random() * 800);
+    room.gameState.speechTimer = setTimeout(() => {
+      const clue = AI_CLUES[Math.floor(Math.random() * AI_CLUES.length)];
+      undercoverIo.to(room.code).emit('speaker_clue', {
+        playerId: speaker.id,
+        playerName: speaker.name,
+        avatar: speaker.avatar,
+        clue: clue
+      });
+      undercoverIo.to(room.code).emit('reaction_received', {
+        playerId: speaker.id,
+        playerName: speaker.name,
+        avatar: speaker.avatar,
+        emoji: clue
+      });
+      setTimeout(() => {
+        handleSpeakerDone(undercoverIo, room);
+      }, 1000);
+    }, aiDelay);
+    return;
+  }
+
   if (room.settings.speechTimeLimit > 0) {
     room.gameState.speechTimer = setTimeout(() => {
       handleSpeakerDone(undercoverIo, room);
@@ -168,12 +209,45 @@ function handleSpeakerDone(undercoverIo, room) {
   }
 }
 
+function scheduleAiVotes(undercoverIo, room, isPk) {
+  const aiVoters = Array.from(room.players.values()).filter(p => p.isAlive && !p.isSpectator && p.isAi && !p.hasVoted);
+  if (aiVoters.length === 0) return;
+
+  setTimeout(() => {
+    if (!room || (room.gameState.phase !== PHASES.VOTING && room.gameState.phase !== PHASES.PK_VOTING)) return;
+    const aliveTargets = Array.from(room.players.values()).filter(p => p.isAlive && !p.isSpectator);
+    const pkTargets = room.gameState.pkCandidates || [];
+
+    aiVoters.forEach(ai => {
+      if (ai.hasVoted) return;
+      let targetId = null;
+      if (isPk) {
+        const validCandidates = pkTargets.filter(id => id !== ai.id);
+        const pool = validCandidates.length > 0 ? validCandidates : pkTargets;
+        if (pool.length > 0) {
+          targetId = pool[Math.floor(Math.random() * pool.length)];
+        }
+      } else {
+        const validCandidates = aliveTargets.filter(p => p.id !== ai.id);
+        const pool = validCandidates.length > 0 ? validCandidates : aliveTargets;
+        if (pool.length > 0) {
+          targetId = pool[Math.floor(Math.random() * pool.length)].id;
+        }
+      }
+      if (targetId) {
+        processVote(undercoverIo, room, ai.id, targetId);
+      }
+    });
+  }, 1800 + Math.floor(Math.random() * 800));
+}
+
 function startVotingPhase(undercoverIo, room) {
   clearRoomTimers(room);
   room.gameState.phase = PHASES.VOTING;
   room.gameState.votes = {};
   room.players.forEach(p => { p.hasVoted = false; });
   broadcastRoom(undercoverIo, room);
+  scheduleAiVotes(undercoverIo, room, false);
 }
 
 function startPkSpeakingPhase(undercoverIo, room, candidateIds) {
@@ -190,6 +264,31 @@ function scheduleNextPkSpeaker(undercoverIo, room) {
   room.gameState.speechStartTime = Date.now();
   broadcastRoom(undercoverIo, room);
 
+  const pkSpeakerId = room.gameState.pkSpeakingOrder[room.gameState.currentPkSpeakerIndex];
+  const pkSpeaker = room.players.get(pkSpeakerId);
+  if (pkSpeaker && pkSpeaker.isAi) {
+    const aiDelay = 2000 + Math.floor(Math.random() * 800);
+    room.gameState.speechTimer = setTimeout(() => {
+      const pkClue = '我是真平民，大家千万别被带节奏，请相信我！';
+      undercoverIo.to(room.code).emit('speaker_clue', {
+        playerId: pkSpeaker.id,
+        playerName: pkSpeaker.name,
+        avatar: pkSpeaker.avatar,
+        clue: pkClue
+      });
+      undercoverIo.to(room.code).emit('reaction_received', {
+        playerId: pkSpeaker.id,
+        playerName: pkSpeaker.name,
+        avatar: pkSpeaker.avatar,
+        emoji: pkClue
+      });
+      setTimeout(() => {
+        handleSpeakerDone(undercoverIo, room);
+      }, 1000);
+    }, aiDelay);
+    return;
+  }
+
   const pkTimeLimit = Math.min(room.settings.speechTimeLimit || 30, 30);
   if (pkTimeLimit > 0) {
     room.gameState.speechTimer = setTimeout(() => {
@@ -204,6 +303,7 @@ function startPkVotingPhase(undercoverIo, room) {
   room.gameState.votes = {};
   room.players.forEach(p => { p.hasVoted = false; });
   broadcastRoom(undercoverIo, room);
+  scheduleAiVotes(undercoverIo, room, true);
 }
 
 function processVote(undercoverIo, room, voterId, targetId) {
@@ -265,17 +365,17 @@ function resolveVotes(undercoverIo, room) {
   const topCandidates = Object.keys(tally).filter(id => tally[id] === maxVotes);
 
   if (topCandidates.length === 1) {
-    eliminatePlayer(undercoverIo, room, topCandidates[0]);
+    eliminatePlayer(undercoverIo, room, topCandidates[0], null, maxVotes);
   } else {
     if (room.gameState.phase === PHASES.PK_VOTING) {
-      eliminatePlayer(undercoverIo, room, null, '平票且PK重投仍未决出，本轮无人出局！');
+      eliminatePlayer(undercoverIo, room, null, '平票且PK重投仍未决出，本轮无人出局！', maxVotes);
     } else {
       startPkSpeakingPhase(undercoverIo, room, topCandidates);
     }
   }
 }
 
-function eliminatePlayer(undercoverIo, room, playerId, tieMessage = null) {
+function eliminatePlayer(undercoverIo, room, playerId, tieMessage = null, votes = 0) {
   clearRoomTimers(room);
   room.gameState.phase = PHASES.ELIMINATION;
 
@@ -288,13 +388,17 @@ function eliminatePlayer(undercoverIo, room, playerId, tieMessage = null) {
         name: p.name,
         avatar: p.avatar,
         role: p.role,
-        word: p.word
+        word: p.word,
+        votes: votes,
+        isTieNoElimination: false
       };
     }
   } else {
     room.gameState.lastEliminated = {
       isTie: true,
-      message: tieMessage || '平票，本轮无人出局！'
+      isTieNoElimination: true,
+      message: tieMessage || '平票，本轮无人出局！',
+      votes: votes
     };
   }
 
@@ -359,12 +463,33 @@ function resetGameToLobby(undercoverIo, room) {
   room.players.forEach(p => {
     p.isAlive = true;
     p.hasVoted = false;
+    p.hasViewedCard = p.isAi || false;
     p.isSpectator = false;
     p.role = null;
     p.word = null;
   });
 
   broadcastRoom(undercoverIo, room);
+}
+
+function handlePlayerViewCard(undercoverIo, roomCode, playerId) {
+  if (!roomCode) return;
+  const room = rooms.get(roomCode);
+  if (!room || room.gameState.phase !== PHASES.CARD_VIEW) return;
+
+  const player = room.players.get(playerId);
+  if (player) {
+    player.hasViewedCard = true;
+  }
+
+  const alivePlayers = Array.from(room.players.values()).filter(p => p.isAlive && !p.isSpectator);
+  const allViewed = alivePlayers.length > 0 && alivePlayers.every(p => p.hasViewedCard);
+
+  if (allViewed) {
+    startSpeakingPhase(undercoverIo, room);
+  } else {
+    broadcastRoom(undercoverIo, room);
+  }
 }
 
 function setupUndercover(io, app) {
@@ -375,18 +500,22 @@ function setupUndercover(io, app) {
     let currentPlayerId = null;
 
     // 创建房间
-    socket.on('create_room', (playerData, callback) => {
+    socket.on('create_room', (data, callback) => {
       try {
+        const pData = (data && data.player) ? data.player : (data || {});
+        const sData = (data && data.settings) ? data.settings : {};
         const code = generateRoomCode();
         const player = {
-          id: playerData.id || `p_${Date.now()}`,
+          id: pData.id || `p_${Date.now()}`,
           socketId: socket.id,
-          name: escapeHtml(playerData.name || '玩家1'),
-          avatar: escapeHtml(playerData.avatar || '😎'),
+          name: escapeHtml(String(pData.name || '玩家1').trim().substring(0, 10)),
+          avatar: escapeHtml(String(pData.avatar || '😎').trim().substring(0, 4)),
           isHost: true,
           isOnline: true,
+          isAi: false,
           isAlive: true,
           hasVoted: false,
+          hasViewedCard: false,
           isSpectator: false,
           role: null,
           word: null
@@ -398,11 +527,12 @@ function setupUndercover(io, app) {
           createdAt: Date.now(),
           lastActiveTime: Date.now(),
           settings: {
-            undercoverCount: 1,
-            whiteboardCount: 0,
-            speechTimeLimit: 45,
-            category: 'all',
-            customWords: []
+            undercoverCount: Math.max(1, Math.min(4, sData.undercoverCount || 1)),
+            whiteboardCount: Math.max(0, Math.min(2, sData.whiteboardCount || 0)),
+            speechTimeLimit: typeof sData.speechTimeLimit === 'number' ? sData.speechTimeLimit : 45,
+            revealRoleOnEliminate: sData.revealRoleOnEliminate !== false,
+            category: sData.category || 'all',
+            customWords: Array.isArray(sData.customWords) ? sData.customWords : []
           },
           players: new Map([[player.id, player]]),
           gameState: {
@@ -466,8 +596,10 @@ function setupUndercover(io, app) {
             avatar: escapeHtml(String(player.avatar || '🤠').trim().substring(0, 4)),
             isHost: false,
             isOnline: true,
+            isAi: false,
             isAlive: !isSpectator,
             hasVoted: false,
+            hasViewedCard: false,
             isSpectator,
             role: null,
             word: null
@@ -504,6 +636,61 @@ function setupUndercover(io, app) {
       }
     });
 
+    // 添加电脑
+    socket.on('add_ai', () => {
+      try {
+        if (!currentRoomCode) return;
+        const room = rooms.get(currentRoomCode);
+        if (!room || room.hostId !== currentPlayerId) return;
+        if (room.gameState.phase !== PHASES.LOBBY) return;
+        if (room.players.size >= 10) return;
+
+        const aiCount = Array.from(room.players.values()).filter(p => p.isAi).length;
+        const nameIdx = aiCount % AI_NAMES.length;
+        const aiId = `ai_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+
+        const aiPlayer = {
+          id: aiId,
+          socketId: null,
+          name: AI_NAMES[nameIdx] || `电脑${aiCount + 1}`,
+          avatar: AI_AVATARS[nameIdx] || '🤖',
+          isHost: false,
+          isOnline: true,
+          isAi: true,
+          isAlive: true,
+          hasVoted: false,
+          hasViewedCard: true,
+          isSpectator: false,
+          role: null,
+          word: null
+        };
+
+        room.players.set(aiId, aiPlayer);
+        broadcastRoom(undercoverIo, room);
+      } catch (err) {
+        console.error('add_ai error:', err);
+      }
+    });
+
+    // 移除电脑
+    socket.on('remove_ai', () => {
+      try {
+        if (!currentRoomCode) return;
+        const room = rooms.get(currentRoomCode);
+        if (!room || room.hostId !== currentPlayerId) return;
+        if (room.gameState.phase !== PHASES.LOBBY) return;
+
+        const aiPlayers = Array.from(room.players.values()).filter(p => p.isAi);
+        if (aiPlayers.length > 0) {
+          const lastAi = aiPlayers[aiPlayers.length - 1];
+          room.players.delete(lastAi.id);
+          broadcastRoom(undercoverIo, room);
+        }
+      } catch (err) {
+        console.error('remove_ai error:', err);
+      }
+    });
+
     // 更新设置 (房主)
     socket.on('update_settings', (newSettings) => {
       try {
@@ -520,6 +707,9 @@ function setupUndercover(io, app) {
         }
         if (typeof newSettings.speechTimeLimit === 'number') {
           sanitized.speechTimeLimit = Math.max(0, Math.min(180, Math.floor(newSettings.speechTimeLimit)));
+        }
+        if (typeof newSettings.revealRoleOnEliminate === 'boolean') {
+          sanitized.revealRoleOnEliminate = newSettings.revealRoleOnEliminate;
         }
         if (typeof newSettings.category === 'string') {
           sanitized.category = newSettings.category.substring(0, 20);
@@ -547,7 +737,7 @@ function setupUndercover(io, app) {
 
         const playersList = Array.from(room.players.values()).filter(p => p.isOnline);
         if (playersList.length < 3) {
-          if (typeof callback === 'function') callback({ success: false, message: '至少需要 3 名玩家在线才能开始游戏！' });
+          if (typeof callback === 'function') callback({ success: false, message: '至少需要 3 名玩家在线（可添加电脑）才能开始游戏！' });
           return;
         }
 
@@ -581,6 +771,7 @@ function setupUndercover(io, app) {
           player.isAlive = true;
           player.hasVoted = false;
           player.isSpectator = false;
+          player.hasViewedCard = player.isAi || false;
           player.role = rolesArray[idx];
 
           if (player.role === ROLES.CIVILIAN) {
@@ -610,8 +801,19 @@ function setupUndercover(io, app) {
       }
     });
 
-    // 结束看牌，进入发言阶段
-    socket.on('finish_card_view', () => {
+    // 确认已看牌 (玩家)
+    const handleCardViewConfirm = () => {
+      try {
+        handlePlayerViewCard(undercoverIo, currentRoomCode, currentPlayerId);
+      } catch (err) {
+        console.error('view_card_confirm error:', err);
+      }
+    };
+    socket.on('view_card_confirm', handleCardViewConfirm);
+    socket.on('confirm_card_view', handleCardViewConfirm);
+
+    // 房主强制开始发言 / 结束看牌
+    const handleForceStartSpeaking = () => {
       try {
         if (!currentRoomCode) return;
         const room = rooms.get(currentRoomCode);
@@ -619,12 +821,14 @@ function setupUndercover(io, app) {
         if (room.gameState.phase !== PHASES.CARD_VIEW) return;
         startSpeakingPhase(undercoverIo, room);
       } catch (err) {
-        console.error('finish_card_view error:', err);
+        console.error('force_start_speaking error:', err);
       }
-    });
+    };
+    socket.on('force_start_speaking', handleForceStartSpeaking);
+    socket.on('finish_card_view', handleForceStartSpeaking);
 
-    // 结束当前玩家发言
-    socket.on('speaker_done', () => {
+    // 结束当前玩家发言 (发言者本人或房主均可点击)
+    const handleFinishSpeakingEvent = () => {
       try {
         if (!currentRoomCode) return;
         const room = rooms.get(currentRoomCode);
@@ -640,7 +844,32 @@ function setupUndercover(io, app) {
           handleSpeakerDone(undercoverIo, room);
         }
       } catch (err) {
-        console.error('speaker_done error:', err);
+        console.error('finish_speaking error:', err);
+      }
+    };
+    socket.on('finish_speaking', handleFinishSpeakingEvent);
+    socket.on('speaker_done', handleFinishSpeakingEvent);
+
+    // 发言文字线索发送 (支持文字描述与TTS播报)
+    socket.on('send_clue', (clueText) => {
+      try {
+        if (!currentRoomCode || !clueText) return;
+        const room = rooms.get(currentRoomCode);
+        if (!room) return;
+        const sender = room.players.get(currentPlayerId);
+        if (!sender) return;
+
+        const text = escapeHtml(String(clueText).trim().substring(0, 50));
+        if (!text) return;
+
+        undercoverIo.to(room.code).emit('speaker_clue', {
+          playerId: sender.id,
+          playerName: sender.name,
+          avatar: sender.avatar,
+          clue: text
+        });
+      } catch (err) {
+        console.error('send_clue error:', err);
       }
     });
 
@@ -680,29 +909,33 @@ function setupUndercover(io, app) {
       }
     });
 
-    // 房主重置房间
-    socket.on('reset_room_to_lobby', () => {
+    // 房主重置房间回到大厅
+    const handleResetToLobby = () => {
       try {
         if (!currentRoomCode) return;
         const room = rooms.get(currentRoomCode);
         if (!room || room.hostId !== currentPlayerId) return;
         resetGameToLobby(undercoverIo, room);
       } catch (err) {
-        console.error('reset_room_to_lobby error:', err);
+        console.error('reset_to_lobby error:', err);
       }
-    });
+    };
+    socket.on('reset_to_lobby', handleResetToLobby);
+    socket.on('reset_room_to_lobby', handleResetToLobby);
 
-    // 再来一局 (回到大厅)
-    socket.on('play_again', () => {
+    // 再来一局 (结算界面)
+    const handleRestartGame = () => {
       try {
         if (!currentRoomCode) return;
         const room = rooms.get(currentRoomCode);
         if (!room || room.hostId !== currentPlayerId) return;
         resetGameToLobby(undercoverIo, room);
       } catch (err) {
-        console.error('play_again error:', err);
+        console.error('restart_game error:', err);
       }
-    });
+    };
+    socket.on('restart_game', handleRestartGame);
+    socket.on('play_again', handleRestartGame);
 
     // 发送互动表情气泡
     socket.on('send_reaction', (emoji) => {
@@ -763,7 +996,7 @@ function setupUndercover(io, app) {
               setTimeout(() => {
                 const currentRoomObj = rooms.get(currentRoomCode);
                 if (currentRoomObj && currentRoomObj.hostId === currentPlayerId) {
-                  const nextHost = Array.from(currentRoomObj.players.values()).find(pl => pl.isOnline);
+                  const nextHost = Array.from(currentRoomObj.players.values()).find(pl => pl.isOnline && !pl.isAi);
                   if (nextHost) {
                     currentRoomObj.hostId = nextHost.id;
                     currentRoomObj.players.forEach(pl => { pl.isHost = (pl.id === nextHost.id); });
@@ -781,6 +1014,17 @@ function setupUndercover(io, app) {
       }
     });
   });
+
+  // 定时清理超过 1 小时无活动的房间
+  setInterval(() => {
+    const now = Date.now();
+    for (const [code, room] of rooms.entries()) {
+      if (now - (room.lastActiveTime || room.createdAt) > 60 * 60 * 1000) {
+        clearRoomTimers(room);
+        rooms.delete(code);
+      }
+    }
+  }, 10 * 60 * 1000).unref();
 }
 
 module.exports = { setupUndercover, wordCategories };
