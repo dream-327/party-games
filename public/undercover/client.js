@@ -807,44 +807,32 @@
     }
 
     if (isPublicOrigin) {
-      // 如果当前通过公网/穿透域名访问，优先置顶公网链接
+      // 线上公网环境，直接展示专属房间链接
       const joinUrl = buildJoinUrl(window.location.origin);
       const pubCard = document.createElement('div');
       pubCard.style.cssText = `
-        padding: 10px 12px;
-        background: rgba(168, 85, 247, 0.15);
-        border: 1px solid rgba(168, 85, 247, 0.5);
+        padding: 12px;
+        background: rgba(168, 85, 247, 0.12);
+        border: 1px solid rgba(168, 85, 247, 0.35);
         border-radius: 8px;
-        font-size: 13px;
-        cursor: pointer;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
+        text-align: center;
         margin-bottom: 8px;
       `;
       pubCard.innerHTML = `
-        <div>
-          <div style="font-weight: 700; color: #d8b4fe; font-size: 14px;">${joinUrl}</div>
-          <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
-            🌐 异地公网/穿透地址 <span style="color:#c084fc; font-weight:700;">(🌟 异地联机首选)</span>
-          </div>
+        <div style="font-weight: 700; color: #d8b4fe; font-size: 13px; word-break: break-all;">${joinUrl}</div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+          ✨ 专属房间链接已生成 · 好友手机浏览器或微信扫码即玩
         </div>
-        <button class="btn btn-secondary" style="width: auto; padding: 4px 8px; font-size: 11px;">生成此码</button>
       `;
-      pubCard.addEventListener('click', () => {
-        selectedUrl = window.location.origin;
-        drawQRCode(buildJoinUrl(selectedUrl));
-      });
       list.appendChild(pubCard);
+      drawQRCode(joinUrl);
+      return;
     }
 
     if (serverInfo && serverInfo.ipObjs && serverInfo.ipObjs.length > 0) {
-      // 局域网网卡列表
       const primaryItem = serverInfo.ipObjs.find(item => item.isPrimary) || serverInfo.ipObjs[0];
-      if (!isPublicOrigin) {
-        primaryUrl = `http://${primaryItem.address}:${serverInfo.port}`;
-        selectedUrl = primaryUrl;
-      }
+      primaryUrl = `http://${primaryItem.address}:${serverInfo.port}`;
+      selectedUrl = primaryUrl;
 
       serverInfo.ipObjs.forEach((item, idx) => {
         const itemUrl = `http://${item.address}:${serverInfo.port}`;
@@ -853,8 +841,8 @@
         const card = document.createElement('div');
         card.style.cssText = `
           padding: 10px 12px;
-          background: ${(!isPublicOrigin && item.isPrimary) ? 'rgba(6, 182, 212, 0.15)' : 'rgba(255,255,255,0.05)'};
-          border: 1px solid ${(!isPublicOrigin && item.isPrimary) ? 'rgba(6, 182, 212, 0.4)' : 'var(--border-color)'};
+          background: ${item.isPrimary ? 'rgba(6, 182, 212, 0.15)' : 'rgba(255,255,255,0.05)'};
+          border: 1px solid ${item.isPrimary ? 'rgba(6, 182, 212, 0.4)' : 'var(--border-color)'};
           border-radius: 8px;
           font-size: 13px;
           cursor: pointer;
@@ -865,9 +853,9 @@
         `;
         card.innerHTML = `
           <div>
-            <div style="font-weight: 700; color: ${(!isPublicOrigin && item.isPrimary) ? '#67e8f9' : '#ffffff'}; font-size: 14px;">${joinUrl}</div>
+            <div style="font-weight: 700; color: ${item.isPrimary ? '#67e8f9' : '#ffffff'}; font-size: 14px;">${joinUrl}</div>
             <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
-              网卡: ${item.name} ${item.isPrimary ? '<span style="color:#10b981; font-weight:700;">(局域网热点/WiFi)</span>' : ''}
+              ${item.name} ${item.isPrimary ? '<span style="color:#10b981; font-weight:700;">(推荐连接)</span>' : ''}
             </div>
           </div>
           <button class="btn btn-secondary" style="width: auto; padding: 4px 8px; font-size: 11px;">生成此码</button>

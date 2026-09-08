@@ -1,4 +1,4 @@
-﻿// 聚会狼人杀 - 客户端交互逻辑
+// 聚会狼人杀 - 客户端交互逻辑
 (function() {
   const socket = io('/werewolf');
 
@@ -493,16 +493,14 @@
     if (isPublic) {
       const pubUrl = buildUrl(window.location.origin);
       const card = document.createElement('div');
-      card.style.cssText = `padding: 10px; background: rgba(168,85,247,0.15); border: 1px solid rgba(168,85,247,0.4); border-radius: 8px; cursor: pointer; display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;`;
+      card.style.cssText = `padding: 12px; background: rgba(168,85,247,0.12); border: 1px solid rgba(168,85,247,0.35); border-radius: 8px; text-align: center; margin-bottom: 8px;`;
       card.innerHTML = `
-        <div>
-          <div style="font-weight:700; color:#d8b4fe; font-size:13px;">${pubUrl}</div>
-          <div style="font-size:11px; color:#94a3b8;">🌐 异地公网/穿透地址 (🌟 首选)</div>
-        </div>
-        <button class="btn btn-secondary" style="padding:4px 8px; font-size:11px;">生成此码</button>
+        <div style="font-weight:700; color:#d8b4fe; font-size:13px; word-break: break-all;">${pubUrl}</div>
+        <div style="font-size:11px; color:#94a3b8; margin-top: 4px;">✨ 专属房间链接已生成 · 微信或手机扫码即入</div>
       `;
-      card.addEventListener('click', () => drawQR(pubUrl));
       shareNetworkOptions.appendChild(card);
+      drawQR(pubUrl);
+      return;
     }
 
     if (serverInfo && serverInfo.ipObjs) {
@@ -513,7 +511,7 @@
         card.innerHTML = `
           <div>
             <div style="font-weight:700; color:#fff; font-size:13px;">${itemUrl}</div>
-            <div style="font-size:11px; color:#94a3b8;">网卡: ${item.name}</div>
+            <div style="font-size:11px; color:#94a3b8;">${item.name}</div>
           </div>
           <button class="btn btn-secondary" style="padding:4px 8px; font-size:11px;">生成此码</button>
         `;

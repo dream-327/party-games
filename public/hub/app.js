@@ -1,4 +1,4 @@
-﻿// Party Games Hub 前端交互
+// Party Games Hub 前端交互
 (function() {
   const btnShareHub = document.getElementById('btn-share-hub');
   const modalShareHub = document.getElementById('modal-share-hub');
@@ -15,9 +15,9 @@
     .then(info => {
       serverInfo = info;
       if (window.location.protocol === 'https:' || !['localhost', '127.0.0.1'].includes(window.location.hostname)) {
-        quickDomainPill.textContent = `公网: ${window.location.host}`;
-      } else if (info.ips && info.ips.length > 0) {
-        quickDomainPill.textContent = `局域网: ${info.ips[0]}:${info.port}`;
+        quickDomainPill.textContent = `在线: ${window.location.host}`;
+      } else {
+        quickDomainPill.textContent = `本地运行`;
       }
     })
     .catch(() => {});
@@ -53,16 +53,16 @@
     if (isPublicOrigin) {
       const pubUrl = window.location.origin;
       const card = document.createElement('div');
-      card.style.cssText = `padding: 10px; background: rgba(168,85,247,0.15); border: 1px solid rgba(168,85,247,0.4); border-radius: 8px; cursor: pointer; display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;`;
+      card.style.cssText = `padding: 12px; background: rgba(168,85,247,0.12); border: 1px solid rgba(168,85,247,0.35); border-radius: 8px; text-align: center; margin-bottom: 8px;`;
       card.innerHTML = `
-        <div>
-          <div style="font-weight:700; color:#d8b4fe; font-size:13px;">${pubUrl}</div>
-          <div style="font-size:11px; color:#94a3b8;">🌐 异地公网/穿透地址 (🌟 首选)</div>
+        <div style="font-size: 13px; color: #e2e8f0; font-weight: 600;">
+          📱 微信或手机浏览器扫码，直接进入游戏大厅
         </div>
-        <button class="btn btn-secondary" style="padding:4px 8px; font-size:11px;">生成此码</button>
+        <div style="font-size: 11px; color: #a855f7; margin-top: 4px;">全网联机 · 免下载即开即玩</div>
       `;
-      card.addEventListener('click', () => drawQR(pubUrl));
       hubNetworkList.appendChild(card);
+      drawQR(pubUrl);
+      return;
     }
 
     if (serverInfo && serverInfo.ipObjs) {
@@ -73,7 +73,7 @@
         card.innerHTML = `
           <div>
             <div style="font-weight:700; color:#fff; font-size:13px;">${itemUrl}</div>
-            <div style="font-size:11px; color:#94a3b8;">网卡: ${item.name}</div>
+            <div style="font-size:11px; color:#94a3b8;">${item.name}</div>
           </div>
           <button class="btn btn-secondary" style="padding:4px 8px; font-size:11px;">生成此码</button>
         `;

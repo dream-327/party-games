@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>谁是卧底 - 局域网聚会派对游戏</title>
+  <title>谁是卧底 - 多人在线聚会游戏</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -32,7 +32,7 @@
     <!-- 1. 首页 / 登录界面 -->
     <section id="view-home" class="card">
       <h1 class="title-xl">🕵️ 谁是卧底</h1>
-      <p class="subtitle">局域网多人实时聚会游戏</p>
+      <p class="subtitle">多人在线实时对决 · 扫码免下载直接玩</p>
 
       <div class="input-group">
         <label class="input-label">选择你的头像</label>
@@ -291,25 +291,25 @@
       <button class="reaction-btn" data-emoji="🏆">🏆</button>
     </div>
 
-    <!-- 弹窗：局域网连接与二维码 -->
+    <!-- 弹窗：邀请好友与二维码 -->
     <div class="modal-overlay hidden" id="modal-lan">
       <div class="modal-content">
         <div class="modal-header">
-          <h3 class="modal-title">📱 手机扫码联机</h3>
+          <h3 class="modal-title">📱 邀请好友加入房间</h3>
           <button class="close-btn" id="btn-close-lan">✕</button>
         </div>
         <div style="text-align: center;">
           <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
-            请确保所有玩家连接<strong>同一个 WiFi / 热点</strong>：
+            微信或手机浏览器扫码，直接进入当前房间：
           </p>
           <div id="qrcode-container" style="display: flex; justify-content: center; margin-bottom: 16px; background: white; padding: 12px; border-radius: var(--radius-md); width: fit-content; margin-left: auto; margin-right: auto;">
             <!-- 二维码 -->
           </div>
           <div id="lan-url-list" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
-            <!-- 局域网链接列表 -->
+            <!-- 链接列表 -->
           </div>
           <button id="btn-copy-link" class="btn btn-secondary" style="font-size: 14px;">
-            📋 复制游戏链接
+            📋 复制房间链接
           </button>
         </div>
       </div>
