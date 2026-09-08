@@ -452,6 +452,7 @@ function eliminatePlayer(undercoverIo, room, playerId, tieMessage = null, votes 
 
   const checkResult = checkGameStatus(room);
   if (checkResult.isOver) {
+    // 游戏结束：2.5秒后进入结算
     if (room.gameState.gameOverTimer) clearTimeout(room.gameState.gameOverTimer);
     room.gameState.gameOverTimer = setTimeout(() => {
       room.gameState.phase = PHASES.GAME_OVER;
@@ -459,6 +460,22 @@ function eliminatePlayer(undercoverIo, room, playerId, tieMessage = null, votes 
       room.gameState.punishment = getRandomPunishment();
       broadcastRoom(undercoverIo, room);
     }, 2500);
+  } else if (!playerId) {
+    // 平局无人出局：3秒后自动进入下一轮
+    if (room.gameState.gameOverTimer) clearTimeout(room.gameState.gameOverTimer);
+    room.gameState.gameOverTimer = setTimeout(() => {
+      if (room.gameState.phase === PHASES.ELIMINATION) {
+        proceedToNextRound(undercoverIo, room);
+      }
+    }, 3000);
+  } else {
+    // 正常淘汰且游戏未结束：4秒后自动进入下一轮，无需房主点击
+    if (room.gameState.gameOverTimer) clearTimeout(room.gameState.gameOverTimer);
+    room.gameState.gameOverTimer = setTimeout(() => {
+      if (room.gameState.phase === PHASES.ELIMINATION) {
+        proceedToNextRound(undercoverIo, room);
+      }
+    }, 4000);
   }
 
   broadcastRoom(undercoverIo, room);
@@ -1104,14 +1121,14 @@ function setupUndercover(io, app) {
         const currentHost = room.players.get(room.hostId);
         const isHostValid = currentHost && currentHost.isOnline && !currentHost.isAi;
 
-        // 如果原房主离线或处于大厅阶段，允许接任
-        if (!isHostValid || room.gameState.phase === PHASES.LOBBY) {
+        // 仅在原房主离线时允许接管（在线房主不能被顶替）
+        if (!isHostValid) {
           room.hostId = currentPlayerId;
           ensureRoomHost(room);
           broadcastRoom(undercoverIo, room);
           if (typeof callback === 'function') callback({ success: true });
         } else {
-          if (typeof callback === 'function') callback({ success: false, message: '当前房主正在线' });
+          if (typeof callback === 'function') callback({ success: false, message: '当前房主仍在线，无法接管' });
         }
       } catch (err) {
         console.error('claim_host error:', err);

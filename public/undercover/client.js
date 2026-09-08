@@ -969,6 +969,7 @@
     } else {
       hostNextBtn.classList.add('hidden');
       guestMsg.classList.remove('hidden');
+      if (guestMsg) guestMsg.innerText = '⏳ 4 秒后自动进入下一轮...';
     }
   }
 
@@ -1201,18 +1202,13 @@
   // 复制链接
   document.getElementById('btn-copy-link').addEventListener('click', () => {
     const roomCode = currentRoom ? currentRoom.code : '';
-    const isPublicOrigin = window.location.protocol === 'https:' || 
-      (!['localhost', '127.0.0.1'].includes(window.location.hostname) &&
-       !window.location.hostname.startsWith('192.168.') &&
-       !window.location.hostname.startsWith('10.') &&
-       !window.location.hostname.startsWith('172.'));
-
-    let primaryUrl = isPublicOrigin ? window.location.origin : ((serverInfo && serverInfo.urls && serverInfo.urls[0]) || window.location.origin);
-    const fullUrl = roomCode ? `${primaryUrl}/?room=${roomCode}` : primaryUrl;
-    navigator.clipboard.writeText(fullUrl).then(() => {
+    const joinUrl = roomCode
+      ? `${window.location.origin}/undercover/?room=${roomCode}`
+      : `${window.location.origin}/undercover/`;
+    navigator.clipboard.writeText(joinUrl).then(() => {
       alert('已复制游戏链接到剪贴板！');
     }).catch(() => {
-      prompt('请手动复制链接:', fullUrl);
+      prompt('请手动复制链接:', joinUrl);
     });
   });
 
