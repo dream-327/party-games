@@ -19,10 +19,12 @@
   let currentRoom = null;
   let selectedTargetId = null;
   let selectedCenterIndex = null;
+  let selectedCenterIndices = [];
   let selectedTroubleTarget1 = null;
   let selectedTroubleTarget2 = null;
   let timerInterval = null;
   let serverInfo = null;
+  let privateRoleData = null;
 
   // DOM 元素引用
   const viewHome = document.getElementById('view-home');
@@ -53,6 +55,11 @@
   const centerCardsZone = document.getElementById('center-cards-zone');
   const centerCardItems = document.querySelectorAll('.center-card-item');
 
+  // 卡牌池预览
+  const deckPoolBox = document.getElementById('deck-pool-box');
+  const deckPoolCount = document.getElementById('deck-pool-count');
+  const deckPoolTags = document.getElementById('deck-pool-tags');
+
   // 卡牌翻转
   const cardInner = document.getElementById('card-inner');
   const myRoleIcon = document.getElementById('my-role-icon');
@@ -63,13 +70,16 @@
   // 控制面板
   const panelLobby = document.getElementById('panel-lobby-actions');
   const btnAddAi = document.getElementById('btn-add-ai');
+  const btnRemoveAi = document.getElementById('btn-remove-ai');
   const btnStartGame = document.getElementById('btn-start-game');
 
   const panelNightAction = document.getElementById('panel-night-action');
   const nightActionPrompt = document.getElementById('night-action-prompt');
+  const btnSkipRobber = document.getElementById('btn-skip-robber');
   const btnConfirmNight = document.getElementById('btn-confirm-night');
 
   const panelDiscussion = document.getElementById('panel-discussion-actions');
+  const btnExtendDiscussion = document.getElementById('btn-extend-discussion');
   const btnAdvanceVoting = document.getElementById('btn-advance-voting');
 
   const panelVoting = document.getElementById('panel-voting-actions');
@@ -85,6 +95,12 @@
   const modalRules = document.getElementById('modal-rules');
   const btnCloseRules = document.getElementById('btn-close-rules');
 
+  const modalNightResult = document.getElementById('modal-night-result');
+  const resultModalTitle = document.getElementById('result-modal-title');
+  const resultDisplayBox = document.getElementById('result-display-box');
+  const btnCloseResult = document.getElementById('btn-close-result');
+  const btnAckResult = document.getElementById('btn-ack-result');
+
   const modalSettle = document.getElementById('modal-settle');
   const settleWinner = document.getElementById('settle-winner');
   const settleExecutedList = document.getElementById('settle-executed-list');
@@ -93,6 +109,27 @@
   const settleCenterSection = document.getElementById('settle-center-section');
   const settleCenterCards = document.getElementById('settle-center-cards');
   const btnPlayAgain = document.getElementById('btn-play-again');
+
+  function showToast(msg, duration = 2800) {
+    const t = document.createElement('div');
+    t.className = 'toast-box';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => {
+      t.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+      t.style.opacity = '0';
+      t.style.transform = 'translate(-50%, -15px)';
+      setTimeout(() => t.remove(), 300);
+    }, duration);
+  }
+
+  function showNightResult(title, contentHtml) {
+    if (!modalNightResult) return;
+    resultModalTitle.textContent = title;
+    resultDisplayBox.innerHTML = contentHtml;
+    modalNightResult.classList.remove('hidden');
+    window.sfx && window.sfx.playSwap();
+  }
 
   // 初始化个人信息选择
   function initProfileUI() {
@@ -202,7 +239,25 @@
       centerCardsZone.classList.add('hidden');
     }
 
-    // 5. 操作控制面板
+    // 5. 大厅卡牌配置池预览
+    if (room.deckPool && room.deckPool.length > 0 && room.gameState.phase === 'LOBBY') {
+      if (deckPoolBox && deckPoolCount && deckPoolTags) {
+        deckPoolBox.classList.remove('hidden');
+        deckPoolCount.textContent = room.deckPool.length;
+        deckPoolTags.innerHTML = '';
+        room.deckPool.forEach(roleId => {
+          const def = room.availableRoles[roleId] || { name: roleId, icon: '❓' };
+          const tag = document.createElement('span');
+          tag.className = 'deck-tag';
+          tag.innerHTML = `<span>${def.icon}</span> <span>${def.name}</span>`;
+          deckPoolTags.appendChild(tag);
+        });
+      }
+    } else if (deckPoolBox) {
+      deckPoolBox.classList.add('hidden');
+    }
+
+    // 6. 操作控制面板
     renderControls(room);
   }
 
@@ -253,6 +308,7 @@
         <div class="player-avatar-circle">${p.avatar}</div>
         <div class="player-name-text">${p.name} ${isMe ? '(我)' : ''}</div>
         ${p.isHost ? '<span class="badge-host">👑</span>' : ''}
+        ${p.isAi ? '<span class="badge-voted" style="background:#475569;">AI</span>' : ''}
         ${p.hasVoted && phase === 'VOTING' ? '<span class="badge-voted">已投</span>' : ''}
       `;
 
@@ -272,8 +328,14 @@
       renderPlayersGrid(currentRoom);
       window.sfx && window.sfx.playVote();
     } else if (phase === 'NIGHT') {
-      const myRole = currentRoom.myPlayer.initialRole;
-      if (myRole === 'SEER' || myRole === 'ROBBER') {
+      const myRole = currentRoom.myPlayer && currentRoom.myPlayer.initialRole;
+      if (myRole === 'SEER') {
+        selectedTargetId = targetId;
+        // 清空底牌多选
+        selectedCenterIndices = [];
+        updateCenterCardSelection();
+        renderPlayersGrid(currentRoom);
+      } else if (myRole === 'ROBBER') {
         selectedTargetId = targetId;
         renderPlayersGrid(currentRoom);
       } else if (myRole === 'TROUBLEMAKER') {
@@ -290,15 +352,44 @@
     }
   }
 
-  // 桌中底牌点击交互
+  // 桌中底牌点击交互 (支持预言家选2张，醉鬼/独狼选1张)
   centerCardItems.forEach(item => {
     item.addEventListener('click', () => {
       const idx = parseInt(item.dataset.index, 10);
-      selectedCenterIndex = idx;
-      centerCardItems.forEach(x => x.classList.remove('selected'));
-      item.classList.add('selected');
+      const myRole = currentRoom && currentRoom.myPlayer && currentRoom.myPlayer.initialRole;
+      const step = currentRoom && currentRoom.gameState && currentRoom.gameState.activeNightStep;
+
+      if (step === 'SEER' && myRole === 'SEER') {
+        selectedTargetId = null; // 清空查验玩家选择
+        renderPlayersGrid(currentRoom);
+
+        if (selectedCenterIndices.includes(idx)) {
+          selectedCenterIndices = selectedCenterIndices.filter(x => x !== idx);
+        } else {
+          if (selectedCenterIndices.length >= 2) {
+            selectedCenterIndices.shift();
+          }
+          selectedCenterIndices.push(idx);
+        }
+        updateCenterCardSelection();
+      } else {
+        selectedCenterIndices = [idx];
+        selectedCenterIndex = idx;
+        updateCenterCardSelection();
+      }
     });
   });
+
+  function updateCenterCardSelection() {
+    centerCardItems.forEach(x => {
+      const i = parseInt(x.dataset.index, 10);
+      if (selectedCenterIndices.includes(i)) {
+        x.classList.add('selected');
+      } else {
+        x.classList.remove('selected');
+      }
+    });
+  }
 
   function renderControls(room) {
     panelLobby.classList.add('hidden');
@@ -314,9 +405,15 @@
       if (isHost) {
         btnAddAi.classList.remove('hidden');
         btnStartGame.classList.remove('hidden');
+        if (btnRemoveAi) {
+          const hasAi = room.players.some(p => p.isAi);
+          if (hasAi) btnRemoveAi.classList.remove('hidden');
+          else btnRemoveAi.classList.add('hidden');
+        }
       } else {
         btnAddAi.classList.add('hidden');
         btnStartGame.classList.add('hidden');
+        if (btnRemoveAi) btnRemoveAi.classList.add('hidden');
       }
     } else if (phase === 'NIGHT') {
       const myRole = room.myPlayer && room.myPlayer.initialRole;
@@ -324,13 +421,20 @@
       if (myRole && myRole === step) {
         panelNightAction.classList.remove('hidden');
         nightActionPrompt.textContent = getActionPromptText(myRole);
+
+        if (btnSkipRobber) {
+          if (myRole === 'ROBBER') btnSkipRobber.classList.remove('hidden');
+          else btnSkipRobber.classList.add('hidden');
+        }
       }
     } else if (phase === 'DAY_DISCUSSION') {
       panelDiscussion.classList.remove('hidden');
       if (isHost) {
         btnAdvanceVoting.classList.remove('hidden');
+        if (btnExtendDiscussion) btnExtendDiscussion.classList.remove('hidden');
       } else {
         btnAdvanceVoting.classList.add('hidden');
+        if (btnExtendDiscussion) btnExtendDiscussion.classList.add('hidden');
       }
     } else if (phase === 'VOTING') {
       panelVoting.classList.remove('hidden');
@@ -338,9 +442,10 @@
   }
 
   function getActionPromptText(role) {
-    if (role === 'WEREWOLF') return '🐺 狼人请睁眼确认同伴。若是独狼可点击查看一张底牌！';
-    if (role === 'SEER') return '🔮 预言家：请在上方点击查验一名玩家，或点击两张底牌！';
-    if (role === 'ROBBER') return '🥷 强盗：点击选择一名玩家对调身份并查看新牌！';
+    if (role === 'WEREWOLF') return '🐺 狼人请确认同伴。若是独狼可点击查看一张底牌！';
+    if (role === 'MINION') return '🦹 爪牙效忠于恶狼，请查看谁是狼人同伴！';
+    if (role === 'SEER') return '🔮 预言家：请在上方点击查验一名玩家，或选择两张底牌！';
+    if (role === 'ROBBER') return '🥷 强盗：点击选择一名玩家对调身份并查看新牌，或点击放弃！';
     if (role === 'TROUBLEMAKER') return '🃏 捣蛋鬼：点击选择另外两名玩家调换其身份！';
     if (role === 'DRUNK') return '🍸 醉鬼：点击下方任意一张底牌与之调换！';
     if (role === 'INSOMNIAC') return '👀 失眠者：点击确认查看自己目前的最终牌！';
@@ -400,13 +505,23 @@
 
   btnAddAi.addEventListener('click', () => {
     socket.emit('add_ai', (res) => {
-      if (res && !res.success) alert(res.message);
+      if (res && !res.success) showToast(res.message);
     });
   });
 
+  if (btnRemoveAi) {
+    btnRemoveAi.addEventListener('click', () => {
+      if (!currentRoom) return;
+      const lastAi = [...currentRoom.players].reverse().find(p => p.isAi);
+      if (lastAi) {
+        socket.emit('kick_player', lastAi.id);
+      }
+    });
+  }
+
   btnStartGame.addEventListener('click', () => {
     socket.emit('start_game', (res) => {
-      if (res && !res.success) alert(res.message);
+      if (res && !res.success) showToast(res.message);
     });
   });
 
@@ -414,39 +529,133 @@
     socket.emit('advance_to_voting');
   });
 
+  if (btnExtendDiscussion) {
+    btnExtendDiscussion.addEventListener('click', () => {
+      socket.emit('extend_discussion');
+    });
+  }
+
+  if (btnSkipRobber) {
+    btnSkipRobber.addEventListener('click', () => {
+      socket.emit('night_action', { skip: true }, (res) => {
+        if (res && res.result) {
+          showNightResult('🥷 强盗行动', `
+            <div class="result-role-badge">
+              <div class="r-icon">🥷</div>
+              <div class="r-name">保持原样</div>
+            </div>
+            <div class="result-desc-text">${res.result}</div>
+          `);
+          panelNightAction.classList.add('hidden');
+        }
+      });
+    });
+  }
+
   // 夜晚技能提交
   btnConfirmNight.addEventListener('click', () => {
-    const myRole = currentRoom.myPlayer.initialRole;
+    const myRole = currentRoom && currentRoom.myPlayer && currentRoom.myPlayer.initialRole;
     let payload = {};
 
     if (myRole === 'SEER') {
       if (selectedTargetId) {
         payload = { type: 'PLAYER', targetId: selectedTargetId };
-      } else if (selectedCenterIndex !== null) {
-        payload = { type: 'CENTER', indices: [selectedCenterIndex, (selectedCenterIndex + 1) % 3] };
+      } else if (selectedCenterIndices.length > 0) {
+        payload = { type: 'CENTER', indices: selectedCenterIndices };
+      } else {
+        showToast('🔮 请点击一位玩家或点击两张底牌查验！');
+        return;
       }
     } else if (myRole === 'ROBBER') {
-      if (!selectedTargetId) { alert('请先选择要偷换身份的玩家！'); return; }
+      if (!selectedTargetId) {
+        showToast('🥷 请选择要偷换的玩家，或点击放弃偷换！');
+        return;
+      }
       payload = { targetId: selectedTargetId };
     } else if (myRole === 'TROUBLEMAKER') {
-      if (!selectedTroubleTarget1 || !selectedTroubleTarget2) { alert('请先选择两名调换的玩家！'); return; }
+      if (!selectedTroubleTarget1 || !selectedTroubleTarget2) {
+        showToast('🃏 请先选择两名要调换的玩家！');
+        return;
+      }
       payload = { target1: selectedTroubleTarget1, target2: selectedTroubleTarget2 };
     } else if (myRole === 'DRUNK') {
-      if (selectedCenterIndex === null) { alert('请选择一张底牌进行调换！'); return; }
-      payload = { centerIndex: selectedCenterIndex };
+      if (selectedCenterIndex === null && selectedCenterIndices.length === 0) {
+        showToast('🍸 请选择一张底牌进行盲换！');
+        return;
+      }
+      payload = { centerIndex: (selectedCenterIndices[0] !== undefined) ? selectedCenterIndices[0] : selectedCenterIndex };
     } else if (myRole === 'INSOMNIAC') {
       payload = {};
     } else if (myRole === 'WEREWOLF') {
-      payload = { centerIndex: selectedCenterIndex || 0 };
+      payload = { centerIndex: (selectedCenterIndices[0] !== undefined) ? selectedCenterIndices[0] : (selectedCenterIndex || 0) };
     }
 
     socket.emit('night_action', payload, (res) => {
       if (res && res.result) {
-        alert(res.result);
         panelNightAction.classList.add('hidden');
+        if (res.type === 'PLAYER' && res.role) {
+          showNightResult('🔮 预言家查验结果', `
+            <div style="font-size:14px; color:#cbd5e1;">查验目标: <strong>${res.targetName}</strong></div>
+            <div class="result-role-badge">
+              <div class="r-icon">${res.role.icon}</div>
+              <div class="r-name">${res.role.name}</div>
+              <div class="role-team-tag">${res.role.team === 'WEREWOLF' ? '狼人阵营 🐺' : (res.role.team === 'TANNER' ? '制皮匠 🧟' : '好人村民 🧑')}</div>
+            </div>
+            <div class="result-desc-text">${res.result}</div>
+          `);
+        } else if (res.type === 'CENTER' && res.cards) {
+          const cardsHtml = res.cards.map(c => `
+            <div class="result-role-badge" style="min-width:110px;">
+              <div style="font-size:11px; color:#94a3b8;">底牌 ${c.index + 1}</div>
+              <div class="r-icon">${c.role.icon}</div>
+              <div class="r-name">${c.role.name}</div>
+            </div>
+          `).join('');
+          showNightResult('🔮 预言家底牌查验', `
+            <div style="display:flex; gap:12px; justify-content:center;">${cardsHtml}</div>
+            <div class="result-desc-text">${res.result}</div>
+          `);
+        } else if (res.type === 'SWAP' && res.newRole) {
+          showNightResult('🥷 强盗偷换结果', `
+            <div style="font-size:14px; color:#cbd5e1;">你偷换了 <strong>[${res.targetName}]</strong> 的身份牌！</div>
+            <div class="result-role-badge">
+              <div style="font-size:11px; color:#fbbf24;">你的新身份</div>
+              <div class="r-icon">${res.newRole.icon}</div>
+              <div class="r-name">${res.newRole.name}</div>
+              <div class="role-team-tag">${res.newRole.team === 'WEREWOLF' ? '狼人阵营 🐺' : (res.newRole.team === 'TANNER' ? '制皮匠 🧟' : '好人村民 🧑')}</div>
+            </div>
+            <div class="result-desc-text">${res.result}</div>
+          `);
+        } else if (res.type === 'INSOMNIAC' && res.role) {
+          showNightResult('👀 失眠者确认身份', `
+            <div class="result-role-badge">
+              <div style="font-size:11px; color:#fbbf24;">你目前的最终身份</div>
+              <div class="r-icon">${res.role.icon}</div>
+              <div class="r-name">${res.role.name}</div>
+              <div class="role-team-tag">${res.role.team === 'WEREWOLF' ? '狼人阵营 🐺' : (res.role.team === 'TANNER' ? '制皮匠 🧟' : '好人村民 🧑')}</div>
+            </div>
+            <div class="result-desc-text">${res.result}</div>
+          `);
+        } else if (res.type === 'WEREWOLF_CENTER' && res.role) {
+          showNightResult('🐺 独狼偷看底牌', `
+            <div class="result-role-badge">
+              <div style="font-size:11px; color:#94a3b8;">底牌 ${res.centerIndex + 1}</div>
+              <div class="r-icon">${res.role.icon}</div>
+              <div class="r-name">${res.role.name}</div>
+            </div>
+            <div class="result-desc-text">${res.result}</div>
+          `);
+        } else {
+          showNightResult('🌙 行动完成', `
+            <div class="result-desc-text" style="font-size:15px; margin: 15px 0;">${res.result}</div>
+          `);
+        }
       }
     });
   });
+
+  if (btnCloseResult) btnCloseResult.addEventListener('click', () => modalNightResult.classList.add('hidden'));
+  if (btnAckResult) btnAckResult.addEventListener('click', () => modalNightResult.classList.add('hidden'));
 
   // 投票处决
   btnConfirmVote.addEventListener('click', () => {
@@ -555,15 +764,72 @@
 
   socket.on('night_fallen', () => {
     window.sfx && window.sfx.playHowl();
+    window.sfx && window.sfx.speak('夜幕降临，天黑请闭眼。');
+  });
+
+  socket.on('night_step_start', ({ role, duration }) => {
+    selectedTargetId = null;
+    selectedCenterIndices = [];
+    selectedCenterIndex = null;
+    selectedTroubleTarget1 = null;
+    selectedTroubleTarget2 = null;
+    updateCenterCardSelection();
+
+    const announcerLines = {
+      WEREWOLF: '狼人请睁眼，确认你的狼同伴。若是独狼可查看一张底牌。',
+      MINION: '爪牙请睁眼，确认谁是恶狼同伴。',
+      SEER: '预言家请睁眼，查验一名玩家或两张底牌。',
+      ROBBER: '强盗请睁眼，选择一名玩家交换并查看新身份。',
+      TROUBLEMAKER: '捣蛋鬼请睁眼，调换另外两名玩家的身份。',
+      DRUNK: '醉鬼请睁眼，盲换一张桌中底牌。',
+      INSOMNIAC: '失眠者请睁眼，查看自己最终的身份。'
+    };
+    if (announcerLines[role] && window.sfx) {
+      window.sfx.speak(announcerLines[role]);
+    }
+  });
+
+  socket.on('my_role_night_turn', ({ role, privateData }) => {
+    privateRoleData = privateData;
+    if (role === 'WEREWOLF') {
+      if (privateData.isLoneWolf) {
+        showToast('🐺 你是唯一的独狼！可点击一张底牌查看。');
+        nightActionPrompt.textContent = '🐺 你是唯一的独狼！请点击下方一张底牌，然后点击确认行动查看。';
+      } else {
+        const partnerNames = (privateData.otherWolves || []).map(p => `${p.name} ${p.avatar}`).join('、');
+        showToast(`🐺 你的狼同伴是：${partnerNames}！`);
+        nightActionPrompt.textContent = `🐺 你的狼同伴是：${partnerNames}！请保持眼神默契。`;
+      }
+    } else if (role === 'MINION') {
+      const wolfNames = (privateData.werewolves || []).map(w => `${w.name} ${w.avatar}`).join('、');
+      showToast(wolfNames ? `🦹 效忠恶狼！场上恶狼是：${wolfNames}` : '🦹 今晚双狼都在底牌！');
+      nightActionPrompt.textContent = wolfNames ? `🦹 效忠恶狼！场上恶狼是：${wolfNames}。请掩护他们！` : '🦹 今晚双狼都在底牌！请全力伪装！';
+    } else if (role === 'INSOMNIAC') {
+      nightActionPrompt.textContent = '👀 点击确认行动，查看你今晚最新的最终身份牌！';
+    }
+  });
+
+  socket.on('discussion_extended', ({ seconds }) => {
+    showToast(`⏳ 白天辩论已延长 ${seconds} 秒！`);
+    window.sfx && window.sfx.speak('辩论时间延长一分钟，请各位玩家继续发言。');
   });
 
   socket.on('day_dawn', ({ message }) => {
     window.sfx && window.sfx.playDawn();
+    window.sfx && window.sfx.speak('天亮了，公鸡打鸣，请全员睁眼开始辩论！');
+    if (modalNightResult) modalNightResult.classList.add('hidden');
   });
 
-  socket.on('game_settled', ({ winnerTeam, winnerRole, executed, nightLogs }) => {
+  socket.on('voting_started', () => {
+    window.sfx && window.sfx.playGavel();
+    window.sfx && window.sfx.speak('讨论时间结束，请大家投票处决恶狼！');
+    showToast('⚖️ 投票开始！请在上方选择你要处决的目标！');
+  });
+
+  socket.on('game_settled', ({ winnerTeam, winnerRole, executed, nightLogs, centerCards }) => {
     settleWinner.textContent = winnerRole;
     window.sfx && window.sfx.playWin();
+    window.sfx && window.sfx.speak(winnerRole);
 
     // 处决名单
     settleExecutedList.innerHTML = '';
@@ -577,7 +843,7 @@
         settleExecutedList.appendChild(tag);
       });
     } else {
-      settleExecutedList.textContent = '🕊️ 全员平票，本局无人被处死';
+      settleExecutedList.textContent = '🕊️ 全员平票或弃投，本局无人被处死';
     }
 
     // 夜晚事件日志
@@ -607,6 +873,25 @@
       `;
       settleRolesGrid.appendChild(card);
     });
+
+    // 底牌揭晓 (一夜终极模式)
+    if (currentRoom.settings.mode === 'ONE_NIGHT' && centerCards && centerCards.length > 0) {
+      settleCenterSection.classList.remove('hidden');
+      settleCenterCards.innerHTML = '';
+      centerCards.forEach((c, idx) => {
+        const def = currentRoom.availableRoles[c.roleId] || { name: '未知', icon: '❓' };
+        const col = document.createElement('div');
+        col.className = 'center-reveal-item';
+        col.innerHTML = `
+          <div class="cr-idx">底牌 ${idx + 1}</div>
+          <div class="cr-icon">${def.icon}</div>
+          <div class="cr-name">${def.name}</div>
+        `;
+        settleCenterCards.appendChild(col);
+      });
+    } else {
+      settleCenterSection.classList.add('hidden');
+    }
 
     modalSettle.classList.remove('hidden');
   });

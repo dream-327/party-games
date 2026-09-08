@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -92,6 +92,12 @@
           <span id="room-code-badge" class="room-pill">房号: ----</span>
         </div>
         <div class="players-grid" id="players-grid"></div>
+
+        <!-- 大厅卡牌池实时预览 -->
+        <div id="deck-pool-box" class="deck-pool-box">
+          <div class="deck-pool-title">🎴 本局包含身份卡牌 (<span id="deck-pool-count">0</span>张):</div>
+          <div id="deck-pool-tags" class="deck-pool-tags"></div>
+        </div>
       </div>
 
       <!-- 一夜模式专用：桌中3张神秘底牌 -->
@@ -128,18 +134,21 @@
         <!-- 大厅阶段 -->
         <div id="panel-lobby-actions" class="footer-panel">
           <button id="btn-add-ai" class="btn btn-secondary">🤖 添加电脑</button>
+          <button id="btn-remove-ai" class="btn btn-secondary hidden">❌ 移除电脑</button>
           <button id="btn-start-game" class="btn btn-primary btn-lg">👑 开始游戏</button>
         </div>
 
         <!-- 夜晚行动提示与执行 -->
         <div id="panel-night-action" class="footer-panel hidden">
           <div class="night-action-prompt" id="night-action-prompt">轮到你的角色行动！请在上方选择目标。</div>
+          <button id="btn-skip-robber" class="btn btn-secondary hidden">不偷换 (保持原牌)</button>
           <button id="btn-confirm-night" class="btn btn-gold">确认行动</button>
         </div>
 
         <!-- 白天讨论 -->
         <div id="panel-discussion-actions" class="footer-panel hidden">
           <div class="disc-tip">🗣️ 请全员开麦或面对面自由辩论！</div>
+          <button id="btn-extend-discussion" class="btn btn-secondary">⏳ 加时 60s</button>
           <button id="btn-advance-voting" class="btn btn-primary">提前进入投票 ➜</button>
         </div>
 
@@ -150,6 +159,22 @@
       </div>
 
     </main>
+
+    <!-- 弹窗4: 专属查验与行动结果弹窗 -->
+    <div id="modal-night-result" class="modal-backdrop hidden">
+      <div class="modal-card result-card">
+        <div class="modal-header">
+          <h3 id="result-modal-title">🔮 行动结果</h3>
+          <button class="modal-close" id="btn-close-result">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="result-display-box" id="result-display-box"></div>
+        </div>
+        <div class="modal-footer" style="margin-top:16px;">
+          <button id="btn-ack-result" class="btn btn-gold btn-lg" style="width:100%;">我知道了 (静待天亮)</button>
+        </div>
+      </div>
+    </div>
 
     <!-- 弹窗1: 扫码分享 -->
     <div id="modal-share" class="modal-backdrop hidden">

@@ -1,4 +1,4 @@
-﻿/* 聚会狼人杀 - 专属沉浸式暗黑古堡样式 */
+/* 聚会狼人杀 - 专属沉浸式暗黑古堡样式 */
 :root {
   --bg-dark: #090b14;
   --card-bg: rgba(20, 24, 40, 0.85);
@@ -707,6 +707,140 @@ body {
   color: #fff;
   font-size: 13px;
   outline: none;
+}
+
+/* 卡牌配置池预览 */
+.deck-pool-box {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-md);
+}
+
+.deck-pool-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  margin-bottom: 6px;
+}
+
+.deck-pool-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.deck-tag {
+  font-size: 11px;
+  padding: 3px 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 夜晚操作结果专属揭晓卡 */
+.result-card {
+  text-align: center;
+  background: linear-gradient(135deg, #1e1b4b, #0f172a);
+  border: 2px solid var(--gold-primary);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 20px rgba(251, 191, 36, 0.25);
+}
+
+.result-display-box {
+  padding: 16px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.result-role-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 20px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid var(--gold-primary);
+  border-radius: var(--radius-md);
+  min-width: 140px;
+}
+
+.result-role-badge .r-icon {
+  font-size: 38px;
+  margin-bottom: 4px;
+}
+
+.result-role-badge .r-name {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--gold-primary);
+}
+
+.result-desc-text {
+  font-size: 13px;
+  color: #cbd5e1;
+  line-height: 1.5;
+}
+
+.center-cards-reveal {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.center-reveal-item {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 8px;
+  text-align: center;
+}
+
+.center-reveal-item .cr-icon {
+  font-size: 24px;
+}
+
+.center-reveal-item .cr-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gold-primary);
+  margin-top: 2px;
+}
+
+.center-reveal-item .cr-idx {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+/* Toast 提示 */
+.toast-box {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid var(--gold-primary);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  pointer-events: none;
+  animation: toastFade 0.3s ease-out;
+}
+
+@keyframes toastFade {
+  from { opacity: 0; transform: translate(-50%, -10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
 }
 
 .hidden {

@@ -1,4 +1,4 @@
-﻿// Werewolf Game Server (聚会狼人杀服务端逻辑)
+// Werewolf Game Server (聚会狼人杀服务端逻辑)
 
 const { TEAMS, ROLES, getOneNightPreset, getClassicPreset } = require('./roles');
 
@@ -95,6 +95,10 @@ function getSafeRoomData(room, targetPlayerId) {
     };
   });
 
+  const deckPool = (room.settings.mode === 'ONE_NIGHT')
+    ? getOneNightPreset(room.players.size)
+    : getClassicPreset(room.players.size);
+
   return {
     code: room.code,
     hostId: room.hostId,
@@ -107,10 +111,12 @@ function getSafeRoomData(room, targetPlayerId) {
       isHost: myPlayer.isHost,
       isAlive: myPlayer.isAlive,
       hasVoted: myPlayer.hasVoted,
+      nightDone: myPlayer.nightDone,
       initialRole: myPlayer.initialRole,
       currentRole: isGameOver ? myPlayer.currentRole : null
     } : null,
     players: playersList,
+    deckPool,
     gameState: {
       phase: room.gameState.phase,
       mode: room.settings.mode,
@@ -234,6 +240,35 @@ function startOneNightSequence(werewolfIo, room) {
 
     // 检查是否有真实玩家拥有该行动角色
     const actors = Array.from(room.players.values()).filter(p => p.initialRole === currentRole && !p.isAi && p.isOnline);
+    const allWolves = Array.from(room.players.values()).filter(p => p.initialRole === 'WEREWOLF');
+
+    // 向拥有该行动角色的真实玩家推送专属私有数据
+    actors.forEach(actor => {
+      let privateData = {};
+      if (currentRole === 'WEREWOLF') {
+        const otherWolves = allWolves.filter(w => w.id !== actor.id);
+        privateData = {
+          isLoneWolf: otherWolves.length === 0,
+          otherWolves: otherWolves.map(w => ({ id: w.id, name: w.name, avatar: w.avatar }))
+        };
+      } else if (currentRole === 'MINION') {
+        privateData = {
+          werewolves: allWolves.map(w => ({ id: w.id, name: w.name, avatar: w.avatar }))
+        };
+      } else if (currentRole === 'INSOMNIAC') {
+        privateData = {
+          currentRole: actor.currentRole,
+          roleDef: ROLES[actor.currentRole]
+        };
+      }
+
+      if (actor.socketId) {
+        werewolfIo.to(actor.socketId).emit('my_role_night_turn', {
+          role: currentRole,
+          privateData
+        });
+      }
+    });
 
     // 若无该角色的真人玩家（在底牌或电脑），拟真延时 4~7 秒跳过，防止被时间长短推断！
     const stepDuration = (actors.length > 0) ? 14000 : (4000 + Math.floor(Math.random() * 3000));
@@ -430,31 +465,43 @@ function resolveVotes(werewolfIo, room) {
 
   const allFinalRoles = Array.from(room.players.values()).map(p => p.currentRole);
   const werewolvesInPlay = allFinalRoles.some(r => r === 'WEREWOLF');
+  const minionInPlay = allFinalRoles.some(r => r === 'MINION');
 
   let winnerTeam = TEAMS.VILLAGER;
-  let winnerRole = '好人村民阵营';
+  let winnerRole = '好人村民阵营获胜！';
 
-  // 1. 若制皮匠死亡 -> 制皮匠单独获胜！
-  if (deadRoles.includes('TANNER')) {
-    winnerTeam = TEAMS.TANNER;
-    winnerRole = '制皮匠 (成功一心求死，独自加冕！)';
+  const tannerKilled = deadRoles.includes('TANNER');
+  const wolfKilled = deadRoles.includes('WEREWOLF');
+  const minionKilled = deadRoles.includes('MINION');
+
+  // 1. 若制皮匠死亡
+  if (tannerKilled) {
+    if (wolfKilled) {
+      winnerTeam = TEAMS.TANNER;
+      winnerRole = '制皮匠 & 好人阵营共同获胜！(制皮匠求死成功，恶狼亦被处决！)';
+    } else {
+      winnerTeam = TEAMS.TANNER;
+      winnerRole = '制皮匠获胜！(成功一心求死，独自加冕！)';
+    }
   }
   // 2. 若场上有狼人
   else if (werewolvesInPlay) {
-    const wolfKilled = deadRoles.includes('WEREWOLF');
     if (wolfKilled) {
       winnerTeam = TEAMS.VILLAGER;
-      winnerRole = '好人村民阵营 (成功处决恶狼！)';
+      winnerRole = '好人村民阵营获胜！(成功驱逐恶狼！)';
     } else {
       winnerTeam = TEAMS.WEREWOLF;
-      winnerRole = '狼人阵营 (恶狼躲过审判，潜伏胜利！)';
+      winnerRole = '狼人阵营获胜！(恶狼躲过审判，潜伏胜利！)';
     }
   }
-  // 3. 若场上原本就无狼人（两只狼全在底牌）
+  // 3. 若场上原本就无狼人（双狼全在底牌）
   else {
     if (executed.length === 0) {
       winnerTeam = TEAMS.VILLAGER;
-      winnerRole = '好人村民阵营 (全员弃投保全，智慧获胜！)';
+      winnerRole = '好人村民阵营获胜！(场上无狼，全员弃投保全，智慧获胜！)';
+    } else if (minionInPlay && !minionKilled) {
+      winnerTeam = TEAMS.WEREWOLF;
+      winnerRole = '狼人爪牙获胜！(场上无狼，爪牙诱导处决了好人！)';
     } else {
       winnerTeam = TEAMS.WEREWOLF;
       winnerRole = '无狼对局 · 误杀好人 (全员失败，底牌恶狼狂喜！)';
@@ -470,7 +517,8 @@ function resolveVotes(werewolfIo, room) {
     winnerTeam,
     winnerRole,
     executed,
-    nightLogs: room.gameState.nightLogs
+    nightLogs: room.gameState.nightLogs,
+    centerCards: room.gameState.centerCards
   });
 }
 
@@ -486,7 +534,7 @@ setInterval(() => {
       console.log(`[狼人杀] 闲置房间 ${code} 已自动清理释放内存`);
     }
   }
-}, 10 * 60 * 1000);
+}, 10 * 60 * 1000).unref();
 
 function setupWerewolf(io, app) {
   const werewolfIo = io.of('/werewolf');
@@ -645,6 +693,21 @@ function setupWerewolf(io, app) {
       startVotingPhase(werewolfIo, room);
     });
 
+    // 延长白天讨论 (加时 60 秒)
+    socket.on('extend_discussion', () => {
+      const room = rooms.get(currentRoomCode);
+      if (!room || room.hostId !== currentPlayerId) return;
+      if (room.gameState.phase !== 'DAY_DISCUSSION') return;
+      clearRoomTimer(room);
+      room.gameState.timerDeadline = (room.gameState.timerDeadline || Date.now()) + 60 * 1000;
+      const remaining = Math.max(1, Math.ceil((room.gameState.timerDeadline - Date.now()) / 1000));
+      broadcastRoom(werewolfIo, room);
+      werewolfIo.to(room.code).emit('discussion_extended', { seconds: 60 });
+      room.timer = setTimeout(() => {
+        startVotingPhase(werewolfIo, room);
+      }, remaining * 1000);
+    });
+
     // 夜晚技能操作响应
     socket.on('night_action', (data, callback) => {
       const room = rooms.get(currentRoomCode);
@@ -653,36 +716,71 @@ function setupWerewolf(io, app) {
       if (!player) return;
 
       const role = player.initialRole;
+      player.nightDone = true;
 
       // 1. 预言家查验
       if (role === 'SEER') {
         if (data.type === 'PLAYER' && data.targetId) {
           const target = room.players.get(data.targetId);
           if (target) {
+            room.gameState.nightLogs.push(`预言家 [${player.name}] 查验了 [${target.name}] 的身份`);
             if (typeof callback === 'function') {
-              callback({ success: true, result: `玩家 [${target.name}] 的身份牌是: ${ROLES[target.currentRole].name} ${ROLES[target.currentRole].icon}` });
+              callback({
+                success: true,
+                type: 'PLAYER',
+                targetName: target.name,
+                role: ROLES[target.currentRole],
+                result: `查验结果：玩家 [${target.name}] 当前的身份是 [${ROLES[target.currentRole].name} ${ROLES[target.currentRole].icon}]！`
+              });
             }
           }
         } else if (data.type === 'CENTER' && Array.isArray(data.indices)) {
-          const cards = data.indices.slice(0, 2).map(i => {
+          const validIndices = data.indices.filter(i => typeof i === 'number' && i >= 0 && i < 3).slice(0, 2);
+          const cards = validIndices.map(i => {
             const c = room.gameState.centerCards[i];
-            return c ? `${ROLES[c.roleId].name} ${ROLES[c.roleId].icon}` : '未知';
+            return {
+              index: i,
+              role: c ? ROLES[c.roleId] : null
+            };
           });
+          room.gameState.nightLogs.push(`预言家 [${player.name}] 查验了桌中 2 张底牌`);
           if (typeof callback === 'function') {
-            callback({ success: true, result: `查看底牌结果: ${cards.join(' 和 ')}` });
+            callback({
+              success: true,
+              type: 'CENTER',
+              cards,
+              result: `底牌查验结果：${cards.map(c => `[底牌${c.index + 1}: ${c.role.name} ${c.role.icon}]`).join(' 和 ')}`
+            });
           }
         }
       }
       // 2. 强盗对调并查看
-      else if (role === 'ROBBER' && data.targetId) {
-        const target = room.players.get(data.targetId);
-        if (target && target.id !== player.id) {
-          const myOriginal = player.currentRole;
-          player.currentRole = target.currentRole;
-          target.currentRole = myOriginal;
-          room.gameState.nightLogs.push(`强盗 [${player.name}] 换走了 [${target.name}] 的牌`);
+      else if (role === 'ROBBER') {
+        if (data.skip) {
+          room.gameState.nightLogs.push(`强盗 [${player.name}] 放弃了偷换身份`);
           if (typeof callback === 'function') {
-            callback({ success: true, result: `你换到了 [${target.name}] 的身份: ${ROLES[player.currentRole].name} ${ROLES[player.currentRole].icon}！` });
+            callback({
+              success: true,
+              type: 'SKIP',
+              result: '你选择放弃偷换，保持原有强盗身份。'
+            });
+          }
+        } else if (data.targetId) {
+          const target = room.players.get(data.targetId);
+          if (target && target.id !== player.id) {
+            const myOriginal = player.currentRole;
+            player.currentRole = target.currentRole;
+            target.currentRole = myOriginal;
+            room.gameState.nightLogs.push(`强盗 [${player.name}] 偷换了 [${target.name}] 的身份牌并查看了新牌`);
+            if (typeof callback === 'function') {
+              callback({
+                success: true,
+                type: 'SWAP',
+                targetName: target.name,
+                newRole: ROLES[player.currentRole],
+                result: `偷换成功！你换到了 [${target.name}] 的身份牌: [${ROLES[player.currentRole].name} ${ROLES[player.currentRole].icon}]！`
+              });
+            }
           }
         }
       }
@@ -690,13 +788,17 @@ function setupWerewolf(io, app) {
       else if (role === 'TROUBLEMAKER' && data.target1 && data.target2) {
         const p1 = room.players.get(data.target1);
         const p2 = room.players.get(data.target2);
-        if (p1 && p2 && p1.id !== player.id && p2.id !== player.id) {
+        if (p1 && p2 && p1.id !== player.id && p2.id !== player.id && p1.id !== p2.id) {
           const temp = p1.currentRole;
           p1.currentRole = p2.currentRole;
           p2.currentRole = temp;
-          room.gameState.nightLogs.push(`捣蛋鬼 [${player.name}] 调换了 [${p1.name}] 与 [${p2.name}] 的身份`);
+          room.gameState.nightLogs.push(`捣蛋鬼 [${player.name}] 调换了 [${p1.name}] 与 [${p2.name}] 的身份牌`);
           if (typeof callback === 'function') {
-            callback({ success: true, result: `成功调换了 [${p1.name}] 与 [${p2.name}] 的身份！` });
+            callback({
+              success: true,
+              type: 'TROUBLE',
+              result: `成功将 [${p1.name}] 与 [${p2.name}] 的身份牌互换！你不知晓两人的具体牌面。`
+            });
           }
         }
       }
@@ -709,22 +811,40 @@ function setupWerewolf(io, app) {
           center.roleId = temp;
           room.gameState.nightLogs.push(`醉鬼 [${player.name}] 盲换了第 ${data.centerIndex + 1} 张底牌`);
           if (typeof callback === 'function') {
-            callback({ success: true, result: `你已将自己的牌与底牌对调（不能看换到了什么）！` });
+            callback({
+              success: true,
+              type: 'DRUNK',
+              centerIndex: data.centerIndex,
+              result: `你已将自己的牌与第 ${data.centerIndex + 1} 张底牌盲目对调（不能看换到了什么）！`
+            });
           }
         }
       }
       // 5. 失眠者查看自己当前牌
       else if (role === 'INSOMNIAC') {
+        room.gameState.nightLogs.push(`失眠者 [${player.name}] 醒来确认了自己的身份`);
         if (typeof callback === 'function') {
-          callback({ success: true, result: `你目前的最新身份是: ${ROLES[player.currentRole].name} ${ROLES[player.currentRole].icon}` });
+          callback({
+            success: true,
+            type: 'INSOMNIAC',
+            role: ROLES[player.currentRole],
+            result: `你目前的最新最终身份牌是: [${ROLES[player.currentRole].name} ${ROLES[player.currentRole].icon}]！`
+          });
         }
       }
-      // 6. 狼人单独看底牌
+      // 6. 狼人独狼单独看底牌
       else if (role === 'WEREWOLF' && typeof data.centerIndex === 'number') {
         const center = room.gameState.centerCards[data.centerIndex];
         if (center) {
+          room.gameState.nightLogs.push(`独狼 [${player.name}] 偷看了一张桌中底牌`);
           if (typeof callback === 'function') {
-            callback({ success: true, result: `独狼查看底牌: ${ROLES[center.roleId].name} ${ROLES[center.roleId].icon}` });
+            callback({
+              success: true,
+              type: 'WEREWOLF_CENTER',
+              centerIndex: data.centerIndex,
+              role: ROLES[center.roleId],
+              result: `独狼查看桌中第 ${data.centerIndex + 1} 张底牌为: [${ROLES[center.roleId].name} ${ROLES[center.roleId].icon}]`
+            });
           }
         }
       }

@@ -1,4 +1,4 @@
-﻿// Werewolf Sound Effects Engine (纯 Web Audio 原生合成音效)
+// Werewolf Sound Effects Engine (纯 Web Audio 原生合成音效)
 (function() {
   let audioCtx = null;
   let isSoundEnabled = true;
@@ -122,6 +122,19 @@
       notes.forEach((freq, idx) => {
         setTimeout(() => playTone(freq, 'triangle', 0.35, 0.25), idx * 140);
       });
+    },
+
+    // 电子法官旁白朗读 (TTS 语音播报)
+    speak: function(text) {
+      if (!isSoundEnabled || !window.speechSynthesis) return;
+      try {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'zh-CN';
+        utter.rate = 1.05;
+        utter.pitch = 0.92;
+        window.speechSynthesis.speak(utter);
+      } catch (e) {}
     }
   };
 
