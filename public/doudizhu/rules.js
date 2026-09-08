@@ -354,7 +354,16 @@
       return picked.length === count ? picked : null;
     }
 
-    // 1. 如果桌面为空（主动出牌轮），推荐单顺、双顺、三张、对子或最小单张
+    // 0. 最高优先级：如果当前整手手牌本身就是一个合规牌型且能直接打出，将其作为第一推荐（一杆清台/直接绝杀获胜）
+    const wholeHandParsed = parseHand(myCards);
+    const canPlayWholeHand = (!tableHand || tableHand.type === CARD_TYPES.INVALID) 
+      ? (wholeHandParsed.type !== CARD_TYPES.INVALID)
+      : canBeat(wholeHandParsed, tableHand);
+    if (canPlayWholeHand) {
+      results.push([...myCards]);
+    }
+
+    // 1. 如果桌面为空（主动出牌轮），推荐单顺、双顺、三张、对子、炸弹或最小单张
     if (!tableHand || tableHand.type === CARD_TYPES.INVALID) {
       // 检查是否有顺子
       for (let len = 12; len >= 5; len--) {
@@ -416,7 +425,25 @@
         results.push(pickCards(distinctVals[0], 1));
       }
 
-      return results.filter(Boolean);
+      // 推荐炸弹与王炸 (手牌只剩炸弹或王炸时必须能打出)
+      for (const v of distinctVals) {
+        if (rankCounts.get(v) === 4) results.push(pickCards(v, 4));
+      }
+      if (rankCounts.has(16) && rankCounts.has(17)) {
+        results.push([...pickCards(16, 1), ...pickCards(17, 1)]);
+      }
+
+      const uniqueResults = [];
+      const seenKey = new Set();
+      for (const combo of results) {
+        if (!combo || combo.length === 0) continue;
+        const key = combo.map(c => c.id).sort().join(',');
+        if (!seenKey.has(key)) {
+          seenKey.add(key);
+          uniqueResults.push(combo);
+        }
+      }
+      return uniqueResults;
     }
 
     // 2. 针对桌面牌型寻找同类压制牌

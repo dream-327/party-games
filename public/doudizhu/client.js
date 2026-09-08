@@ -120,6 +120,10 @@
   const btnSubmitPlay = document.getElementById('btn-submit-play');
   const btnResetCards = document.getElementById('btn-reset-cards-selection');
 
+  const panelGameover = document.getElementById('panel-gameover-actions');
+  const btnShowSettleModal = document.getElementById('btn-show-settle-modal');
+  const btnQuickPlayAgain = document.getElementById('btn-quick-play-again');
+
   // 弹窗元素
   const modalShare = document.getElementById('modal-share');
   const btnCloseShare = document.getElementById('btn-close-share');
@@ -131,6 +135,7 @@
   const btnCloseRules = document.getElementById('btn-close-rules');
 
   const modalSettle = document.getElementById('modal-settle');
+  const btnCloseSettle = document.getElementById('btn-close-settle');
   const settleTitle = document.getElementById('settle-title');
   const settleSubtitle = document.getElementById('settle-subtitle');
   const settleScoresGrid = document.getElementById('settle-scores-grid');
@@ -553,6 +558,7 @@
     panelLobby.classList.add('hidden');
     panelBid.classList.add('hidden');
     panelPlay.classList.add('hidden');
+    if (panelGameover) panelGameover.classList.add('hidden');
 
     if (mySeat === -1) return; // 观战者不显示操作按钮
 
@@ -593,6 +599,8 @@
         btnPassPlay.style.opacity = mustPlay ? '0.4' : '1';
         updateSelectedCardHUD();
       }
+    } else if (room.gameState.phase === 'GAME_OVER') {
+      if (panelGameover) panelGameover.classList.remove('hidden');
     }
   }
 
@@ -810,11 +818,33 @@
   btnRules.addEventListener('click', () => modalRules.classList.remove('hidden'));
   btnCloseRules.addEventListener('click', () => modalRules.classList.add('hidden'));
 
-  // 再来一局
+  // 再来一局 (弹窗按钮)
   btnPlayAgain.addEventListener('click', () => {
     modalSettle.classList.add('hidden');
     socket.emit('play_again');
+    showToast('🔄 正在开启新对局...');
   });
+
+  // 牌桌底部的结算与再来一局快捷按钮
+  if (btnShowSettleModal) {
+    btnShowSettleModal.addEventListener('click', () => {
+      modalSettle.classList.remove('hidden');
+    });
+  }
+
+  if (btnQuickPlayAgain) {
+    btnQuickPlayAgain.addEventListener('click', () => {
+      modalSettle.classList.add('hidden');
+      socket.emit('play_again');
+      showToast('🔄 正在开启新对局...');
+    });
+  }
+
+  if (btnCloseSettle) {
+    btnCloseSettle.addEventListener('click', () => {
+      modalSettle.classList.add('hidden');
+    });
+  }
 
   // 扫码邀请弹窗
   btnQuickInvite.addEventListener('click', () => {
@@ -903,6 +933,7 @@
   });
 
   socket.on('cards_dealt', () => {
+    modalSettle.classList.add('hidden');
     window.sfx && window.sfx.playDeal();
     showToast('🎴 开始发牌！理牌中...');
   });
@@ -991,7 +1022,7 @@
     }
   });
 
-  socket.on('game_over_announced', ({ winnerSeat, winnerRole, spring, springType, multiplier, scores }) => {
+  socket.on('game_over_announced', ({ winnerSeat, winnerRole, spring, springType, multiplier, scores, revealedSeats }) => {
     const isMeWinner = (currentRoom && currentRoom.mySeatIndex === winnerSeat) ||
       (winnerRole === 'FARMER' && currentRoom && currentRoom.mySeatIndex !== currentRoom.gameState.landlordSeat);
 
@@ -1005,40 +1036,60 @@
       window.sfx && window.sfx.playSpring();
     }
 
+    // 牌桌中央横幅提示
+    const winTitle = winnerRole === 'LANDLORD' ? '👑 游戏结束！地主获胜！' : '👨‍🌾 游戏结束！农民获胜！';
+    if (bannerText && tableBannerAlert) {
+      bannerText.textContent = spring ? `${winTitle} (${springType})` : winTitle;
+      tableBannerAlert.classList.remove('hidden');
+      setTimeout(() => tableBannerAlert.classList.add('hidden'), 3500);
+    }
+    showToast(winTitle, 3500);
+
     // 渲染结算弹窗
     settleTitle.textContent = winnerRole === 'LANDLORD' ? '👑 地主获胜' : '👨‍🌾 农民获胜';
     settleSubtitle.textContent = spring ? `${springType} · ${multiplier}倍结算` : `经典结算 · ${multiplier}倍底分`;
 
+    // 使用服务端打包的 revealedSeats，若没有则回退到 currentRoom.seats
+    const seatList = revealedSeats || (currentRoom && currentRoom.seats) || [];
+
     settleScoresGrid.innerHTML = '';
-    currentRoom.seats.forEach((s, idx) => {
+    seatList.forEach((s, idx) => {
       if (!s) return;
-      const score = scores[idx] || 0;
+      const score = (scores && scores[idx] !== undefined) ? scores[idx] : (s.score || 0);
       const col = document.createElement('div');
       col.className = `score-col ${idx === winnerSeat ? 'winner' : ''}`;
       col.innerHTML = `
-        <div style="font-size:24px;">${s.avatar}</div>
-        <div style="font-size:12px; font-weight:700; margin-top:2px;">${s.name}</div>
+        <div style="font-size:24px;">${s.avatar || '👤'}</div>
+        <div style="font-size:12px; font-weight:700; margin-top:2px;">${s.name || `玩家${idx+1}`}${s.isLandlord ? ' (地主)' : ''}</div>
         <div class="score-val ${score >= 0 ? 'positive' : 'negative'}">${score >= 0 ? '+' : ''}${score}</div>
       `;
       settleScoresGrid.appendChild(col);
     });
 
-    // 揭示全员手牌
+    // 揭示全员手牌复盘
     settleRevealedHands.innerHTML = '<div style="font-weight:700; margin-bottom:6px; color:#cbd5e1;">全员手牌复盘:</div>';
-    currentRoom.seats.forEach((s, idx) => {
+    seatList.forEach((s, idx) => {
       if (!s) return;
       const row = document.createElement('div');
       row.className = 'revealed-row';
       const cardsDiv = document.createElement('div');
       cardsDiv.className = 'revealed-row-cards';
-      (s.handCards || []).forEach(c => cardsDiv.appendChild(createCardElement(c, true)));
+      const handCards = s.handCards || [];
+      if (handCards.length === 0) {
+        cardsDiv.innerHTML = '<span style="color:#4ade80; font-size:12px; font-weight:700;">🎉 手牌已全部出完</span>';
+      } else {
+        handCards.forEach(c => cardsDiv.appendChild(createCardElement(c, true)));
+      }
 
-      row.innerHTML = `<div><strong>${s.name}</strong> (${(s.handCards || []).length}张):</div>`;
+      row.innerHTML = `<div><strong>${s.name || `玩家${idx+1}`}</strong> (${handCards.length}张):</div>`;
       row.appendChild(cardsDiv);
       settleRevealedHands.appendChild(row);
     });
 
-    modalSettle.classList.remove('hidden');
+    // 500ms 丝滑平滑过渡后弹出结算弹窗，确保最后一张牌的出牌动画和桌面渲染完毕
+    setTimeout(() => {
+      modalSettle.classList.remove('hidden');
+    }, 500);
   });
 
   function getBubbleBySeat(seatIndex) {

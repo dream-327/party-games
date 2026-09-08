@@ -184,6 +184,12 @@
             <button id="btn-hint-play" class="btn btn-info">💡 提示</button>
             <button id="btn-submit-play" class="btn btn-primary">出牌</button>
           </div>
+
+          <!-- 结算复盘阶段操作 -->
+          <div id="panel-gameover-actions" class="control-panel hidden">
+            <button id="btn-show-settle-modal" class="btn btn-secondary">📊 对局战绩</button>
+            <button id="btn-quick-play-again" class="btn btn-gold">🔄 再来一局</button>
+          </div>
         </div>
 
         <!-- 下方我的个人标识与手牌展示 -->
@@ -255,8 +261,11 @@
     <!-- 弹窗3: 结算对局复盘 -->
     <div id="modal-settle" class="modal-backdrop hidden">
       <div class="modal-card settle-card">
+        <div class="modal-header" style="justify-content: flex-end; margin-bottom: 0; padding-bottom: 0;">
+          <button class="modal-close" id="btn-close-settle" title="查看桌面">✕</button>
+        </div>
         <div class="settle-header" id="settle-title-box">
-          <h2 id="settle-title">👑 地主胜利</h2>
+          <h2 id="settle-title">👑 地主获胜</h2>
           <div id="settle-subtitle" class="settle-sub">春天加成 · 4倍底分</div>
         </div>
         <div class="modal-body">

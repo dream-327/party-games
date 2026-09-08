@@ -67,6 +67,12 @@ function decidePlay(myHand, tableHand, myRole, tableRole, landlordRemainingCards
     return null; // 无牌可压，必须不出
   }
 
+  // 0. 最高优先级绝杀法则：如果手里有任何出法能够直接清空手牌打完，立即打出直接获胜！
+  const winningPlay = candidates.find(c => c.length === myHand.length);
+  if (winningPlay) {
+    return winningPlay;
+  }
+
   const isFarmer = (myRole === 'FARMER');
   const isTeammate = (isFarmer && tableRole === 'FARMER');
 

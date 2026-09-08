@@ -386,6 +386,17 @@ function handleGameOver(doudizhuIo, room, winnerSeat) {
     }
   });
 
+  // 打包全员手牌复盘数据，彻底避免客户端时序不一致问题
+  const revealedSeats = room.seats.map((s, idx) => ({
+    seatIndex: idx,
+    name: s ? s.name : '',
+    avatar: s ? s.avatar : '',
+    isAi: s ? s.isAi : false,
+    isLandlord: idx === room.gameState.landlordSeat,
+    score: scores[idx] || 0,
+    handCards: room.gameState.hands[idx] || []
+  }));
+
   broadcastRoom(doudizhuIo, room);
 
   doudizhuIo.to(room.code).emit('game_over_announced', {
@@ -394,7 +405,8 @@ function handleGameOver(doudizhuIo, room, winnerSeat) {
     spring,
     springType,
     multiplier: totalMult,
-    scores
+    scores,
+    revealedSeats
   });
 }
 
@@ -610,7 +622,7 @@ setInterval(() => {
       console.log(`[斗地主] 闲置房间 ${code} 已自动清理`);
     }
   }
-}, 10 * 60 * 1000);
+}, 10 * 60 * 1000).unref();
 
 /**
  * 导出斗地主 Socket.io 服务安装函数
@@ -838,18 +850,31 @@ function setupDoudizhu(io, app) {
       }
     });
 
-    // 再来一局 (回到等待准备状态)
+    // 再来一局 (智能自动准备与秒开对局)
     socket.on('play_again', () => {
       const room = rooms.get(currentRoomCode);
       if (!room || room.gameState.phase !== 'GAME_OVER') return;
 
-      room.gameState.phase = 'LOBBY';
+      const mySeat = room.seats.find(s => s && s.id === currentPlayerId);
+      if (mySeat) {
+        mySeat.isReady = true;
+      }
+      // AI 电脑全部自动标记已就绪
       room.seats.forEach(s => {
-        if (s) {
-          s.isReady = s.isAi ? true : false;
+        if (s && s.isAi) {
+          s.isReady = true;
         }
       });
-      broadcastRoom(doudizhuIo, room);
+
+      const allSeated = room.seats.every(s => s !== null);
+      const allReady = room.seats.every(s => s && s.isReady);
+
+      if (allSeated && allReady) {
+        startNewGame(doudizhuIo, room);
+      } else {
+        room.gameState.phase = 'LOBBY';
+        broadcastRoom(doudizhuIo, room);
+      }
     });
 
     // 发送互动表情 / 快捷短语
