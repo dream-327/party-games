@@ -148,6 +148,10 @@ function broadcastRoom(undercoverIo, room) {
 }
 
 function clearRoomTimers(room) {
+  if (room.gameState.cardViewSafetyTimer) {
+    clearTimeout(room.gameState.cardViewSafetyTimer);
+    room.gameState.cardViewSafetyTimer = null;
+  }
   if (room.gameState.speechTimer) {
     clearTimeout(room.gameState.speechTimer);
     room.gameState.speechTimer = null;
@@ -549,9 +553,16 @@ function handlePlayerViewCard(undercoverIo, roomCode, playerId) {
   }
 
   const alivePlayers = Array.from(room.players.values()).filter(p => p.isAlive && !p.isSpectator);
-  const allViewed = alivePlayers.length > 0 && alivePlayers.every(p => p.hasViewedCard);
+  const onlineAlivePlayers = alivePlayers.filter(p => p.isOnline);
 
-  if (allViewed) {
+  const allViewed = alivePlayers.length > 0 && alivePlayers.every(p => p.hasViewedCard);
+  const onlineAllViewed = onlineAlivePlayers.length > 0 && onlineAlivePlayers.every(p => p.hasViewedCard);
+
+  if (allViewed || onlineAllViewed) {
+    if (room.gameState.cardViewSafetyTimer) {
+      clearTimeout(room.gameState.cardViewSafetyTimer);
+      room.gameState.cardViewSafetyTimer = null;
+    }
     startSpeakingPhase(undercoverIo, room);
   } else {
     broadcastRoom(undercoverIo, room);
@@ -568,13 +579,30 @@ function setupUndercover(io, app) {
     // 创建房间
     socket.on('create_room', (data, callback) => {
       try {
+        // 如果当前 socket 之前已在某个房间，先安全退出旧房间
+        if (currentRoomCode && rooms.has(currentRoomCode)) {
+          const oldRoom = rooms.get(currentRoomCode);
+          if (oldRoom && currentPlayerId) {
+            oldRoom.players.delete(currentPlayerId);
+            socket.leave(currentRoomCode);
+            ensureRoomHost(oldRoom);
+            if (Array.from(oldRoom.players.values()).filter(p => !p.isAi && p.isOnline).length === 0) {
+              clearRoomTimers(oldRoom);
+              rooms.delete(currentRoomCode);
+            } else {
+              broadcastRoom(undercoverIo, oldRoom);
+            }
+          }
+        }
+
         const pData = (data && data.player) ? data.player : (data || {});
         const sData = (data && data.settings) ? data.settings : {};
         const code = generateRoomCode();
+        const randomSuffix = Math.floor(100 + Math.random() * 900);
         const player = {
           id: pData.id || `p_${Date.now()}`,
           socketId: socket.id,
-          name: escapeHtml(String(pData.name || '玩家1').trim().substring(0, 10)),
+          name: escapeHtml(String(pData.name || `玩家${randomSuffix}`).trim().substring(0, 10)),
           avatar: escapeHtml(String(pData.avatar || '😎').trim().substring(0, 4)),
           isHost: true,
           isOnline: true,
@@ -608,6 +636,7 @@ function setupUndercover(io, app) {
             currentSpeakerIndex: 0,
             speechStartTime: null,
             speechTimer: null,
+            cardViewSafetyTimer: null,
             pkCandidates: [],
             pkSpeakingOrder: [],
             currentPkSpeakerIndex: 0,
@@ -652,6 +681,22 @@ function setupUndercover(io, app) {
           return;
         }
 
+        // 如果之前在其他房间，安全离开
+        if (currentRoomCode && currentRoomCode !== roomCode && rooms.has(currentRoomCode)) {
+          const oldRoom = rooms.get(currentRoomCode);
+          if (oldRoom && currentPlayerId) {
+            oldRoom.players.delete(currentPlayerId);
+            socket.leave(currentRoomCode);
+            ensureRoomHost(oldRoom);
+            if (Array.from(oldRoom.players.values()).filter(p => !p.isAi && p.isOnline).length === 0) {
+              clearRoomTimers(oldRoom);
+              rooms.delete(currentRoomCode);
+            } else {
+              broadcastRoom(undercoverIo, oldRoom);
+            }
+          }
+        }
+
         currentRoomCode = roomCode;
         currentPlayerId = pid;
         socket.join(roomCode);
@@ -670,10 +715,11 @@ function setupUndercover(io, app) {
             return;
           }
           const isSpectator = room.gameState.phase !== PHASES.LOBBY;
+          const randomSuffix = Math.floor(100 + Math.random() * 900);
           room.players.set(pid, {
             id: pid,
             socketId: socket.id,
-            name: escapeHtml(String(player.name || `玩家${room.players.size + 1}`).trim().substring(0, 10)),
+            name: escapeHtml(String(player.name || `玩家${randomSuffix}`).trim().substring(0, 10)),
             avatar: escapeHtml(String(player.avatar || '🤠').trim().substring(0, 4)),
             isHost: false,
             isOnline: true,
@@ -923,6 +969,15 @@ function setupUndercover(io, app) {
         room.gameState.winner = null;
         room.gameState.punishment = null;
 
+        // 25秒看牌安全兜底定时器：超时全员自动准备完毕并切入发言阶段
+        if (room.gameState.cardViewSafetyTimer) clearTimeout(room.gameState.cardViewSafetyTimer);
+        room.gameState.cardViewSafetyTimer = setTimeout(() => {
+          if (room.gameState.phase === PHASES.CARD_VIEW) {
+            room.players.forEach(p => { p.hasViewedCard = true; });
+            startSpeakingPhase(undercoverIo, room);
+          }
+        }, 25000);
+
         if (typeof callback === 'function') callback({ success: true });
         broadcastRoom(undercoverIo, room);
       } catch (err) {
@@ -932,9 +987,13 @@ function setupUndercover(io, app) {
     });
 
     // 确认已看牌 (玩家)
-    const handleCardViewConfirm = () => {
+    const handleCardViewConfirm = (data) => {
       try {
-        handlePlayerViewCard(undercoverIo, currentRoomCode, currentPlayerId);
+        const code = (data && data.roomCode) || currentRoomCode;
+        const pid = (data && data.playerId) || currentPlayerId;
+        if (code) currentRoomCode = code;
+        if (pid) currentPlayerId = pid;
+        handlePlayerViewCard(undercoverIo, code, pid);
       } catch (err) {
         console.error('view_card_confirm error:', err);
       }
@@ -943,12 +1002,20 @@ function setupUndercover(io, app) {
     socket.on('confirm_card_view', handleCardViewConfirm);
 
     // 房主强制开始发言 / 结束看牌
-    const handleForceStartSpeaking = () => {
+    const handleForceStartSpeaking = (data) => {
       try {
-        if (!currentRoomCode) return;
-        const room = rooms.get(currentRoomCode);
-        if (!room || room.hostId !== currentPlayerId) return;
+        const code = (data && data.roomCode) || currentRoomCode;
+        const pid = (data && data.playerId) || currentPlayerId;
+        if (!code) return;
+        const room = rooms.get(code);
+        if (!room) return;
+        ensureRoomHost(room);
+        if (room.hostId !== pid) return;
         if (room.gameState.phase !== PHASES.CARD_VIEW) return;
+        if (room.gameState.cardViewSafetyTimer) {
+          clearTimeout(room.gameState.cardViewSafetyTimer);
+          room.gameState.cardViewSafetyTimer = null;
+        }
         startSpeakingPhase(undercoverIo, room);
       } catch (err) {
         console.error('force_start_speaking error:', err);
@@ -958,17 +1025,19 @@ function setupUndercover(io, app) {
     socket.on('finish_card_view', handleForceStartSpeaking);
 
     // 结束当前玩家发言 (发言者本人或房主均可点击)
-    const handleFinishSpeakingEvent = () => {
+    const handleFinishSpeakingEvent = (data) => {
       try {
-        if (!currentRoomCode) return;
-        const room = rooms.get(currentRoomCode);
+        const code = (data && data.roomCode) || currentRoomCode;
+        const pid = (data && data.playerId) || currentPlayerId;
+        if (!code) return;
+        const room = rooms.get(code);
         if (!room) return;
 
         const isCurrentSpeaker = (room.gameState.phase === PHASES.SPEAKING &&
-          room.gameState.speakingOrder[room.gameState.currentSpeakerIndex] === currentPlayerId);
+          room.gameState.speakingOrder[room.gameState.currentSpeakerIndex] === pid);
         const isCurrentPkSpeaker = (room.gameState.phase === PHASES.PK_SPEAKING &&
-          room.gameState.pkSpeakingOrder[room.gameState.currentPkSpeakerIndex] === currentPlayerId);
-        const isHost = (room.hostId === currentPlayerId);
+          room.gameState.pkSpeakingOrder[room.gameState.currentPkSpeakerIndex] === pid);
+        const isHost = (room.hostId === pid);
 
         if (isCurrentSpeaker || isCurrentPkSpeaker || isHost) {
           handleSpeakerDone(undercoverIo, room);
@@ -1004,23 +1073,28 @@ function setupUndercover(io, app) {
     });
 
     // 投票
-    socket.on('cast_vote', (targetId) => {
+    socket.on('cast_vote', (data) => {
       try {
-        if (!currentRoomCode) return;
-        const room = rooms.get(currentRoomCode);
+        const targetId = (typeof data === 'object') ? data.targetId : data;
+        const code = (typeof data === 'object' && data.roomCode) ? data.roomCode : currentRoomCode;
+        const pid = (typeof data === 'object' && data.playerId) ? data.playerId : currentPlayerId;
+        if (!code) return;
+        const room = rooms.get(code);
         if (!room) return;
-        processVote(undercoverIo, room, currentPlayerId, targetId);
+        processVote(undercoverIo, room, pid, targetId);
       } catch (err) {
         console.error('cast_vote error:', err);
       }
     });
 
     // 房主强制提前结算投票
-    socket.on('force_resolve_votes', () => {
+    socket.on('force_resolve_votes', (data) => {
       try {
-        if (!currentRoomCode) return;
-        const room = rooms.get(currentRoomCode);
-        if (!room || room.hostId !== currentPlayerId) return;
+        const code = (data && data.roomCode) || currentRoomCode;
+        const pid = (data && data.playerId) || currentPlayerId;
+        if (!code) return;
+        const room = rooms.get(code);
+        if (!room || room.hostId !== pid) return;
         forceResolveVotes(undercoverIo, room);
       } catch (err) {
         console.error('force_resolve_votes error:', err);
@@ -1028,11 +1102,13 @@ function setupUndercover(io, app) {
     });
 
     // 继续下一轮 (房主)
-    socket.on('next_round', () => {
+    socket.on('next_round', (data) => {
       try {
-        if (!currentRoomCode) return;
-        const room = rooms.get(currentRoomCode);
-        if (!room || room.hostId !== currentPlayerId) return;
+        const code = (data && data.roomCode) || currentRoomCode;
+        const pid = (data && data.playerId) || currentPlayerId;
+        if (!code) return;
+        const room = rooms.get(code);
+        if (!room || room.hostId !== pid) return;
         proceedToNextRound(undercoverIo, room);
       } catch (err) {
         console.error('next_round error:', err);
@@ -1040,11 +1116,13 @@ function setupUndercover(io, app) {
     });
 
     // 房主重置房间回到大厅
-    const handleResetToLobby = () => {
+    const handleResetToLobby = (data) => {
       try {
-        if (!currentRoomCode) return;
-        const room = rooms.get(currentRoomCode);
-        if (!room || room.hostId !== currentPlayerId) return;
+        const code = (data && data.roomCode) || currentRoomCode;
+        const pid = (data && data.playerId) || currentPlayerId;
+        if (!code) return;
+        const room = rooms.get(code);
+        if (!room || room.hostId !== pid) return;
         resetGameToLobby(undercoverIo, room);
       } catch (err) {
         console.error('reset_to_lobby error:', err);
@@ -1054,11 +1132,13 @@ function setupUndercover(io, app) {
     socket.on('reset_room_to_lobby', handleResetToLobby);
 
     // 再来一局 (结算界面)
-    const handleRestartGame = () => {
+    const handleRestartGame = (data) => {
       try {
-        if (!currentRoomCode) return;
-        const room = rooms.get(currentRoomCode);
-        if (!room || room.hostId !== currentPlayerId) return;
+        const code = (data && data.roomCode) || currentRoomCode;
+        const pid = (data && data.playerId) || currentPlayerId;
+        if (!code) return;
+        const room = rooms.get(code);
+        if (!room || room.hostId !== pid) return;
         resetGameToLobby(undercoverIo, room);
       } catch (err) {
         console.error('restart_game error:', err);

@@ -17,9 +17,10 @@
     localStorage.setItem('undercover_pid', myPlayerId);
   }
 
-  let myNickname = localStorage.getItem('undercover_name') || `玩家${Math.floor(100 + Math.random() * 900)}`;
-  // 确保首次进入时也把默认名字写入 localStorage，重连时能读到一致的名字
-  if (!localStorage.getItem('undercover_name')) {
+  let myNickname = localStorage.getItem('undercover_name');
+  // 如果之前是旧版本的'玩家1'或者为空，重置为随机唯一的玩家名字
+  if (!myNickname || myNickname === '玩家1') {
+    myNickname = `玩家${Math.floor(100 + Math.random() * 900)}`;
     localStorage.setItem('undercover_name', myNickname);
   }
   let myAvatar = localStorage.getItem('undercover_avatar') || AVATARS[Math.floor(Math.random() * AVATARS.length)];
@@ -132,6 +133,8 @@
   // 创建房间
   document.getElementById('btn-create-room').addEventListener('click', () => {
     window.sfx.playClick();
+    sessionStorage.removeItem('undercover_room');
+    currentRoom = null;
     const name = document.getElementById('input-nickname').value.trim() || myNickname;
     socket.emit('create_room', {
       player: { id: myPlayerId, name, avatar: myAvatar },
@@ -597,13 +600,24 @@
   // 确认查看词语
   document.getElementById('btn-card-confirm').addEventListener('click', () => {
     window.sfx.playClick();
-    socket.emit('view_card_confirm');
+    const confirmBtn = document.getElementById('btn-card-confirm');
+    if (confirmBtn) {
+      confirmBtn.disabled = true;
+      confirmBtn.innerText = '✅ 已准备完毕，等待其他人...';
+    }
+    socket.emit('view_card_confirm', {
+      roomCode: currentRoom ? currentRoom.code : null,
+      playerId: myPlayerId
+    });
   });
 
   // 房主强制开始发言
   document.getElementById('btn-force-start-speaking').addEventListener('click', () => {
     window.sfx.playClick();
-    socket.emit('force_start_speaking');
+    socket.emit('force_start_speaking', {
+      roomCode: currentRoom ? currentRoom.code : null,
+      playerId: myPlayerId
+    });
   });
 
   // 渲染发言阶段
@@ -759,7 +773,10 @@
   // 结束发言点击
   document.getElementById('btn-finish-speaking').addEventListener('click', () => {
     window.sfx.playClick();
-    socket.emit('finish_speaking');
+    socket.emit('finish_speaking', {
+      roomCode: currentRoom ? currentRoom.code : null,
+      playerId: myPlayerId
+    });
   });
 
   // 渲染 PK 发言
@@ -783,7 +800,10 @@
 
   document.getElementById('btn-finish-pk-speaking').addEventListener('click', () => {
     window.sfx.playClick();
-    socket.emit('finish_speaking');
+    socket.emit('finish_speaking', {
+      roomCode: currentRoom ? currentRoom.code : null,
+      playerId: myPlayerId
+    });
   });
 
   // 渲染投票阶段 (支持正常投票与 PK 投票)
@@ -916,7 +936,11 @@
   document.getElementById('btn-submit-vote').addEventListener('click', () => {
     if (!selectedVoteTargetId) return;
     window.sfx.playVote();
-    socket.emit('cast_vote', selectedVoteTargetId);
+    socket.emit('cast_vote', {
+      targetId: selectedVoteTargetId,
+      roomCode: currentRoom ? currentRoom.code : null,
+      playerId: myPlayerId
+    });
   });
 
   // 房主强制提前结算投票 (跳过离线未投)
@@ -925,7 +949,10 @@
     forceResolveBtn.addEventListener('click', () => {
       if (confirm('确定要提前结算当前投票吗？未投票或离线的玩家将被视为弃票。')) {
         window.sfx.playClick();
-        socket.emit('force_resolve_votes');
+        socket.emit('force_resolve_votes', {
+          roomCode: currentRoom ? currentRoom.code : null,
+          playerId: myPlayerId
+        });
       }
     });
   }
@@ -976,7 +1003,10 @@
   // 房主点击进入下一轮
   document.getElementById('btn-next-round').addEventListener('click', () => {
     window.sfx.playClick();
-    socket.emit('next_round');
+    socket.emit('next_round', {
+      roomCode: currentRoom ? currentRoom.code : null,
+      playerId: myPlayerId
+    });
   });
 
   // 渲染游戏结束与胜负结算
@@ -1046,7 +1076,10 @@
   function requestResetToLobby() {
     window.sfx.playClick();
     if (confirm('确定要强制结束本局，重新回到房间大厅吗？\n（新加入的观战朋友也将一同加入游戏）')) {
-      socket.emit('reset_to_lobby');
+      socket.emit('reset_to_lobby', {
+        roomCode: currentRoom ? currentRoom.code : null,
+        playerId: myPlayerId
+      });
     }
   }
 
@@ -1060,7 +1093,10 @@
   // 再来一局 (结算页面)
   document.getElementById('btn-restart-game').addEventListener('click', () => {
     window.sfx.playClick();
-    socket.emit('restart_game');
+    socket.emit('restart_game', {
+      roomCode: currentRoom ? currentRoom.code : null,
+      playerId: myPlayerId
+    });
   });
 
   // 快捷互动表情
