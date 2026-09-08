@@ -123,6 +123,11 @@
         alert(res.message || '创建房间失败');
       } else {
         sessionStorage.setItem('undercover_room', res.roomCode);
+        if (res.roomData) {
+          currentRoom = res.roomData;
+          switchView('lobby');
+          renderRoom(res.roomData);
+        }
       }
     });
   });
@@ -302,6 +307,25 @@
 
   // 渲染大厅
   function renderLobby(room, isHost) {
+    // 房主信息及顶栏提示
+    const hostPlayer = room.players.find(p => p.id === room.hostId);
+    const hostName = hostPlayer ? hostPlayer.name : '未知';
+    const hostBanner = document.getElementById('lobby-host-banner');
+    const displayHostName = document.getElementById('display-host-name');
+    if (displayHostName) {
+      displayHostName.innerText = hostName;
+    }
+    if (hostBanner) {
+      if (isHost) {
+        hostBanner.innerHTML = `👑 <b>你是本房间房主</b>（拥有开始游戏与配置权限）`;
+      } else {
+        const hostStatus = (hostPlayer && hostPlayer.isOnline) 
+          ? '<span style="color:#34d399; font-weight: 600;">(在线)</span>' 
+          : '<span style="color:#f87171; font-weight: 600;">(已离线)</span>';
+        hostBanner.innerHTML = `👑 当前房主: <b>${escapeHtml(hostName)}</b> ${hostStatus}`;
+      }
+    }
+
     const playersGrid = document.getElementById('lobby-players-grid');
     playersGrid.innerHTML = '';
 
@@ -309,13 +333,18 @@
       const box = document.createElement('div');
       box.className = `player-box ${p.isHost ? 'is-host' : ''}`;
       const aiBadge = p.isAi ? '<span class="ai-badge">AI</span>' : '';
-      const offlineBadge = (!p.isOnline && !p.isAi) ? '<span style="font-size: 11px; color: #f43f5e; margin-left: 4px; font-weight: 700;">(离线)</span>' : '';
+      const hostBadge = p.isHost ? '<span class="host-badge">👑 房主</span>' : '';
+      const meBadge = (p.id === myPlayerId) ? '<span class="me-badge">我</span>' : '';
+      const offlineBadge = (!p.isOnline && !p.isAi) ? '<span class="offline-badge">离线</span>' : '';
       box.innerHTML = `
         <div class="player-avatar">
           ${p.avatar}
           ${p.isHost ? '<span class="host-crown">👑</span>' : ''}
         </div>
-        <div class="player-name">${escapeHtml(p.name)}${p.id === myPlayerId ? ' (我)' : ''}${aiBadge}${offlineBadge}</div>
+        <div class="player-name" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</div>
+        <div style="display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; margin-top: 4px;">
+          ${hostBadge}${meBadge}${aiBadge}${offlineBadge}
+        </div>
         ${(isHost && p.id !== myPlayerId) ? `<button class="kick-btn" data-id="${p.id}" title="移出玩家">✕</button>` : ''}
       `;
 
@@ -332,6 +361,8 @@
 
     const hostControls = document.getElementById('host-controls');
     const guestWaiting = document.getElementById('guest-waiting-msg');
+    const guestWaitingText = document.getElementById('guest-waiting-text');
+    const btnClaimHost = document.getElementById('btn-claim-host');
 
     if (isHost) {
       hostControls.classList.remove('hidden');
@@ -347,7 +378,67 @@
     } else {
       hostControls.classList.add('hidden');
       guestWaiting.classList.remove('hidden');
+
+      if (hostPlayer && hostPlayer.isOnline) {
+        if (guestWaitingText) {
+          guestWaitingText.innerHTML = `
+            <div style="font-size: 15px; color: #f1f5f9; font-weight: 600; margin-bottom: 4px;">
+              ⏳ 等待房主 <span style="color: #fbbf24;">👑 ${escapeHtml(hostName)}</span> 开始游戏...
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted);">
+              房主可配置词库、添加电脑玩家或直接开启对局
+            </div>
+          `;
+        }
+        if (btnClaimHost) {
+          btnClaimHost.classList.remove('hidden');
+          btnClaimHost.innerText = '👑 申请成为房主';
+        }
+      } else {
+        if (guestWaitingText) {
+          guestWaitingText.innerHTML = `
+            <div style="font-size: 14px; color: #f87171; font-weight: 600; margin-bottom: 6px;">
+              ⚠️ 当前房主 ${escapeHtml(hostName)} 已离线
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">
+              您可以直接接管房主主持游戏或调整设置
+            </div>
+          `;
+        }
+        if (btnClaimHost) {
+          btnClaimHost.classList.remove('hidden');
+          btnClaimHost.innerText = '👑 点击接管房主主持游戏';
+        }
+      }
     }
+  }
+
+  // 退出大厅房间
+  const btnLeaveLobby = document.getElementById('btn-leave-lobby');
+  if (btnLeaveLobby) {
+    btnLeaveLobby.addEventListener('click', () => {
+      window.sfx.playClick();
+      if (confirm('确定要退出当前房间吗？')) {
+        socket.emit('leave_room', () => {
+          currentRoom = null;
+          sessionStorage.removeItem('undercover_room');
+          switchView('home');
+        });
+      }
+    });
+  }
+
+  // 接管 / 申请成为房主
+  const btnClaimHost = document.getElementById('btn-claim-host');
+  if (btnClaimHost) {
+    btnClaimHost.addEventListener('click', () => {
+      window.sfx.playClick();
+      socket.emit('claim_host', (res) => {
+        if (res && !res.success) {
+          alert(res.message || '接管房主失败');
+        }
+      });
+    });
   }
 
   // 房主添加/移除电脑
@@ -359,6 +450,24 @@
     });
   }
 
+  // 补齐电脑(测试专用)
+  const btnQuickFillAi = document.getElementById('btn-quick-fill-ai');
+  if (btnQuickFillAi) {
+    btnQuickFillAi.addEventListener('click', () => {
+      window.sfx.playClick();
+      if (!currentRoom) return;
+      const count = currentRoom.players.filter(p => p.isOnline).length;
+      const need = Math.max(0, 3 - count);
+      if (need === 0) {
+        alert('当前已满 3 人以上，可直接点击【🚀 开始游戏】！');
+        return;
+      }
+      for (let i = 0; i < need; i++) {
+        socket.emit('add_ai');
+      }
+    });
+  }
+
   const btnRemoveAi = document.getElementById('btn-remove-ai');
   if (btnRemoveAi) {
     btnRemoveAi.addEventListener('click', () => {
@@ -367,10 +476,23 @@
     });
   }
 
-  // 房主点击开始游戏
+  // 房主点击开始游戏 (支持智能检测并一键补齐电脑)
   document.getElementById('btn-start-game').addEventListener('click', () => {
     window.sfx.playClick();
-    socket.emit('start_game', (res) => {
+    if (!currentRoom) return;
+    const onlineCount = currentRoom.players.filter(p => p.isOnline).length;
+    if (onlineCount < 3) {
+      if (confirm(`当前仅有 ${onlineCount} 名玩家，至少需要 3 人才能开局。\n是否立即自动添加电脑玩家并开始游戏？`)) {
+        socket.emit('start_game', { autoFill: true }, (res) => {
+          if (res && !res.success) {
+            alert(res.message || '无法开始游戏');
+          }
+        });
+      }
+      return;
+    }
+
+    socket.emit('start_game', {}, (res) => {
       if (res && !res.success) {
         alert(res.message || '无法开始游戏');
       }

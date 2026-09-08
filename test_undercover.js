@@ -186,8 +186,71 @@ async function runUndercoverTest() {
     }
     console.log('✅ 房间已完美重置回到大厅，全员重置完毕！');
 
+    // 10. 测试普通玩家加入与房主自动移交机制 (确保无死房/永远等待房主的问题)
+    console.log('👥 正在测试玩家2加入与房主继承机制...');
+    const guestSocket = Client(serverUrl, { reconnection: false, forceNew: true });
+    await waitEvent(guestSocket, 'connect');
+    let guestRoomData = null;
+    guestSocket.on('room_update', (d) => { guestRoomData = d; });
+
+    const joinRes = await new Promise((resolve) => {
+      guestSocket.emit('join_room', {
+        roomCode,
+        player: { id: 'p_guest_2', name: '小红同学', avatar: '👧' }
+      }, resolve);
+    });
+
+    if (!joinRes.success) throw new Error('玩家2加入房间失败');
+    await sleep(300);
+
+    const guestInList = guestRoomData.players.find(p => p.id === 'p_guest_2');
+    if (!guestInList || guestInList.isHost) {
+      throw new Error('新加入的玩家不应立即成为房主');
+    }
+    console.log('✅ 玩家2成功作为普通玩家加入，当前房主为原房主');
+
+    // 测试原房主离开房间
+    console.log('🚪 原房主主动离开房间，测试房主自动平滑移交给玩家2...');
+    await new Promise((resolve) => {
+      hostSocket.emit('leave_room', resolve);
+    });
     hostSocket.close();
-    console.log('\n🎉🎉 所有自动化测试用例全部通过！谁是卧底核心逻辑与体验极其稳定！');
+    await sleep(500);
+
+    // 此时 guestSocket 应收到更新，且 guestRoomData.hostId 应为 p_guest_2
+    if (!guestRoomData || guestRoomData.hostId !== 'p_guest_2') {
+      throw new Error(`房主自动移交失败！当前房主: ${guestRoomData ? guestRoomData.hostId : 'null'}, 期望: p_guest_2`);
+    }
+    const promotedGuest = guestRoomData.players.find(p => p.id === 'p_guest_2');
+    if (!promotedGuest || !promotedGuest.isHost) {
+      throw new Error('玩家2在 players 列表中未被标记为房主');
+    }
+    console.log('✅ 房主自动转移机制完美生效！玩家2已被无缝提升为新房主！');
+
+    // 11. 测试单人测试模式：少于3人时使用 autoFill 自动补齐电脑并开局
+    console.log('⚡ 测试一键补齐电脑并直接开始游戏 (单人测试无障碍)...');
+    // 先移除现有AI以模拟只有1人
+    while (guestRoomData.players.some(p => p.isAi)) {
+      guestSocket.emit('remove_ai');
+      await sleep(200);
+    }
+    console.log(`当前房间仅剩在线人数: ${guestRoomData.players.filter(p => p.isOnline).length}`);
+
+    const autoFillStartRes = await new Promise((resolve) => {
+      guestSocket.emit('start_game', { autoFill: true }, resolve);
+    });
+    if (!autoFillStartRes.success) {
+      throw new Error(`一键补齐电脑开局失败: ${autoFillStartRes.message}`);
+    }
+    await sleep(400);
+
+    if (guestRoomData.gameState.phase !== 'CARD_VIEW') {
+      throw new Error(`autoFill 开始游戏后阶段不正确: ${guestRoomData.gameState.phase}`);
+    }
+    console.log('✅ 一键补齐电脑开局成功！即便只有1名玩家测试也可瞬间开始游戏！');
+
+    guestSocket.close();
+    console.log('\n🎉🎉 所有自动化测试用例全部通过！谁是卧底房主控制与游戏体验极其稳定！');
   } finally {
     server.close();
   }

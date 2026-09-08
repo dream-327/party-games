@@ -52,7 +52,28 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
+function ensureRoomHost(room) {
+  if (!room) return;
+  const currentHost = room.players.get(room.hostId);
+  const isHostValid = currentHost && currentHost.isOnline && !currentHost.isAi;
+
+  if (!isHostValid) {
+    // 优先将房主转移给首位在线的人类玩家
+    const candidate = Array.from(room.players.values()).find(p => p.isOnline && !p.isAi);
+    if (candidate) {
+      room.hostId = candidate.id;
+    }
+  }
+
+  // 严格同步所有玩家的 isHost 属性与 room.hostId 对齐
+  room.players.forEach(p => {
+    p.isHost = (p.id === room.hostId);
+  });
+}
+
 function getSafeRoomData(room, targetPlayerId) {
+  ensureRoomHost(room);
+
   const playersList = Array.from(room.players.values()).map(p => {
     const isMe = p.id === targetPlayerId;
     const isGameOver = room.gameState.phase === PHASES.GAME_OVER;
@@ -60,7 +81,7 @@ function getSafeRoomData(room, targetPlayerId) {
       id: p.id,
       name: p.name,
       avatar: p.avatar,
-      isHost: p.isHost,
+      isHost: (p.id === room.hostId),
       isOnline: p.isOnline,
       isAi: p.isAi || false,
       isAlive: p.isAlive,
@@ -83,7 +104,7 @@ function getSafeRoomData(room, targetPlayerId) {
       id: myPlayer.id,
       name: myPlayer.name,
       avatar: myPlayer.avatar,
-      isHost: myPlayer.isHost,
+      isHost: (myPlayer.id === room.hostId),
       isAlive: myPlayer.isAlive,
       hasVoted: myPlayer.hasVoted,
       isSpectator: myPlayer.isSpectator || false,
@@ -117,6 +138,7 @@ function getSafeRoomData(room, targetPlayerId) {
 
 function broadcastRoom(undercoverIo, room) {
   if (!room) return;
+  ensureRoomHost(room);
   room.lastActiveTime = Date.now();
   room.players.forEach(player => {
     if (player.socketId && player.isOnline) {
@@ -137,6 +159,10 @@ function clearRoomTimers(room) {
   if (room.gameState.voteSafetyTimer) {
     clearTimeout(room.gameState.voteSafetyTimer);
     room.gameState.voteSafetyTimer = null;
+  }
+  if (room.gameState.gameOverTimer) {
+    clearTimeout(room.gameState.gameOverTimer);
+    room.gameState.gameOverTimer = null;
   }
 }
 
@@ -426,7 +452,8 @@ function eliminatePlayer(undercoverIo, room, playerId, tieMessage = null, votes 
 
   const checkResult = checkGameStatus(room);
   if (checkResult.isOver) {
-    setTimeout(() => {
+    if (room.gameState.gameOverTimer) clearTimeout(room.gameState.gameOverTimer);
+    room.gameState.gameOverTimer = setTimeout(() => {
       room.gameState.phase = PHASES.GAME_OVER;
       room.gameState.winner = checkResult.winner;
       room.gameState.punishment = getRandomPunishment();
@@ -632,6 +659,8 @@ function setupUndercover(io, app) {
           });
         }
 
+        ensureRoomHost(room);
+
         if (typeof callback === 'function') callback({
           success: true,
           roomCode,
@@ -658,6 +687,7 @@ function setupUndercover(io, app) {
             currentRoomCode = code;
             currentPlayerId = pid;
             socket.join(code);
+            ensureRoomHost(room);
             broadcastRoom(undercoverIo, room);
           }
         }
@@ -759,15 +789,57 @@ function setupUndercover(io, app) {
     });
 
     // 开始游戏 (房主)
-    socket.on('start_game', (callback) => {
+    socket.on('start_game', (options, callback) => {
+      if (typeof options === 'function') {
+        callback = options;
+        options = {};
+      }
       try {
         if (!currentRoomCode) return;
         const room = rooms.get(currentRoomCode);
-        if (!room || room.hostId !== currentPlayerId) return;
+        if (!room) return;
 
-        const playersList = Array.from(room.players.values()).filter(p => p.isOnline);
+        ensureRoomHost(room);
+        if (room.hostId !== currentPlayerId) {
+          if (typeof callback === 'function') callback({ success: false, message: '只有房主才能开始游戏' });
+          return;
+        }
+
+        let playersList = Array.from(room.players.values()).filter(p => p.isOnline);
+
+        // 如果请求自动补齐且少于3人，自动添加电脑玩家至满3人
+        if (playersList.length < 3 && options && options.autoFill) {
+          while (playersList.length < 3 && room.players.size < 10) {
+            const aiCount = Array.from(room.players.values()).filter(p => p.isAi).length;
+            const nameIdx = aiCount % AI_NAMES.length;
+            const aiId = `ai_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+            const aiPlayer = {
+              id: aiId,
+              socketId: null,
+              name: AI_NAMES[nameIdx] || `电脑${aiCount + 1}`,
+              avatar: AI_AVATARS[nameIdx] || '🤖',
+              isHost: false,
+              isOnline: true,
+              isAi: true,
+              isAlive: true,
+              hasVoted: false,
+              hasViewedCard: true,
+              isSpectator: false,
+              role: null,
+              word: null
+            };
+            room.players.set(aiId, aiPlayer);
+            playersList = Array.from(room.players.values()).filter(p => p.isOnline);
+          }
+        }
+
         if (playersList.length < 3) {
-          if (typeof callback === 'function') callback({ success: false, message: '至少需要 3 名玩家在线（可添加电脑）才能开始游戏！' });
+          if (typeof callback === 'function') callback({
+            success: false,
+            canAutoFill: true,
+            currentCount: playersList.length,
+            message: `至少需要 3 名玩家在线（可添加电脑）才能开始游戏！`
+          });
           return;
         }
 
@@ -1009,6 +1081,59 @@ function setupUndercover(io, app) {
       broadcastRoom(undercoverIo, room);
     });
 
+    // 玩家申请成为房主
+    socket.on('claim_host', (callback) => {
+      try {
+        if (!currentRoomCode || !currentPlayerId) return;
+        const room = rooms.get(currentRoomCode);
+        if (!room) return;
+        const p = room.players.get(currentPlayerId);
+        if (!p || p.isAi) return;
+
+        const currentHost = room.players.get(room.hostId);
+        const isHostValid = currentHost && currentHost.isOnline && !currentHost.isAi;
+
+        // 如果原房主离线或处于大厅阶段，允许接任
+        if (!isHostValid || room.gameState.phase === PHASES.LOBBY) {
+          room.hostId = currentPlayerId;
+          ensureRoomHost(room);
+          broadcastRoom(undercoverIo, room);
+          if (typeof callback === 'function') callback({ success: true });
+        } else {
+          if (typeof callback === 'function') callback({ success: false, message: '当前房主正在线' });
+        }
+      } catch (err) {
+        console.error('claim_host error:', err);
+      }
+    });
+
+    // 主动离开房间
+    socket.on('leave_room', (callback) => {
+      try {
+        if (currentRoomCode && currentPlayerId) {
+          const room = rooms.get(currentRoomCode);
+          if (room) {
+            room.players.delete(currentPlayerId);
+            socket.leave(currentRoomCode);
+            ensureRoomHost(room);
+            const remainingHumans = Array.from(room.players.values()).filter(p => !p.isAi && p.isOnline);
+            if (remainingHumans.length === 0) {
+              clearRoomTimers(room);
+              rooms.delete(currentRoomCode);
+            } else {
+              broadcastRoom(undercoverIo, room);
+            }
+          }
+        }
+        currentRoomCode = null;
+        currentPlayerId = null;
+        if (typeof callback === 'function') callback({ success: true });
+      } catch (err) {
+        console.error('leave_room error:', err);
+        if (typeof callback === 'function') callback({ success: false });
+      }
+    });
+
     // 断开连接处理
     socket.on('disconnect', () => {
       try {
@@ -1021,17 +1146,16 @@ function setupUndercover(io, app) {
               p.lastOfflineTime = Date.now();
             }
 
-            // 房主离线继承
-            if (room.hostId === currentPlayerId) {
+            // 若在大厅阶段，房主掉线立即自动转移给下一个在线人类
+            if (room.gameState.phase === PHASES.LOBBY) {
+              ensureRoomHost(room);
+            } else if (room.hostId === currentPlayerId) {
+              // 对局进行中给15秒重连宽限，若未重连再转移
               setTimeout(() => {
                 const currentRoomObj = rooms.get(currentRoomCode);
                 if (currentRoomObj && currentRoomObj.hostId === currentPlayerId) {
-                  const nextHost = Array.from(currentRoomObj.players.values()).find(pl => pl.isOnline && !pl.isAi);
-                  if (nextHost) {
-                    currentRoomObj.hostId = nextHost.id;
-                    currentRoomObj.players.forEach(pl => { pl.isHost = (pl.id === nextHost.id); });
-                    broadcastRoom(undercoverIo, currentRoomObj);
-                  }
+                  ensureRoomHost(currentRoomObj);
+                  broadcastRoom(undercoverIo, currentRoomObj);
                 }
               }, 15000);
             }
