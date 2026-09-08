@@ -886,6 +886,42 @@ function setupWerewolf(io, app) {
       broadcastRoom(werewolfIo, room);
     });
 
+    // 玩家退出房间
+    socket.on('leave_room', (callback) => {
+      try {
+        if (currentRoomCode && currentPlayerId) {
+          const room = rooms.get(currentRoomCode);
+          if (room) {
+            room.players.delete(currentPlayerId);
+            socket.leave(currentRoomCode);
+
+            // 房主顺位转移
+            if (room.hostId === currentPlayerId) {
+              const nextHost = Array.from(room.players.values()).find(p => p.isOnline && !p.isAi);
+              if (nextHost) {
+                room.hostId = nextHost.id;
+                room.players.forEach(p => { p.isHost = (p.id === nextHost.id); });
+              }
+            }
+
+            const activeHumans = Array.from(room.players.values()).filter(p => p.isOnline && !p.isAi);
+            if (activeHumans.length === 0) {
+              clearRoomTimer(room);
+              rooms.delete(currentRoomCode);
+            } else {
+              broadcastRoom(werewolfIo, room);
+            }
+          }
+        }
+        currentRoomCode = null;
+        currentPlayerId = null;
+        if (typeof callback === 'function') callback({ success: true });
+      } catch (err) {
+        console.error('werewolf leave_room error:', err);
+        if (typeof callback === 'function') callback({ success: false });
+      }
+    });
+
     // 掉线
     socket.on('disconnect', () => {
       if (!currentRoomCode || !currentPlayerId) return;

@@ -46,6 +46,8 @@
   const btnAutoToggle = document.getElementById('btn-auto-toggle');
   const btnRules = document.getElementById('btn-rules');
   const btnSound = document.getElementById('btn-sound');
+  const btnLeaveRoom = document.getElementById('btn-leave-room');
+  const btnSettleLeave = document.getElementById('btn-settle-leave');
 
   // 牌桌元素
   const gameTableFelt = document.querySelector('.game-table-felt');
@@ -229,6 +231,7 @@
     viewTable.classList.remove('hidden');
     roomCodeTag.classList.remove('hidden');
     btnAutoToggle.classList.remove('hidden');
+    if (btnLeaveRoom) btnLeaveRoom.classList.remove('hidden');
     currentRoomCodeEl.textContent = room.code;
 
     const mySeat = room.mySeatIndex;
@@ -1099,6 +1102,47 @@
     if (seatIndex === (mySeat + 1) % 3) return pLeft.bubble;
     if (seatIndex === (mySeat + 2) % 3) return pRight.bubble;
     return null;
+  }
+
+  // 退出房间处理
+  function exitToHome() {
+    currentRoom = null;
+    sessionStorage.removeItem('doudizhu_room');
+    viewHome.classList.remove('hidden');
+    viewTable.classList.add('hidden');
+    roomCodeTag.classList.add('hidden');
+    btnAutoToggle.classList.add('hidden');
+    if (btnLeaveRoom) btnLeaveRoom.classList.add('hidden');
+    if (modalSettle) modalSettle.classList.add('hidden');
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+  }
+
+  function confirmLeaveRoom() {
+    window.sfx && window.sfx.playClick();
+    if (confirm('确定要退出当前斗地主房间吗？')) {
+      socket.emit('leave_room', () => {});
+      exitToHome();
+    }
+  }
+
+  if (btnLeaveRoom) btnLeaveRoom.addEventListener('click', confirmLeaveRoom);
+  if (btnSettleLeave) btnSettleLeave.addEventListener('click', confirmLeaveRoom);
+
+  const homeLobbyLink = document.querySelector('header .header-left a[href="/"]');
+  if (homeLobbyLink) {
+    homeLobbyLink.addEventListener('click', (e) => {
+      if (currentRoom) {
+        e.preventDefault();
+        if (confirm('你正在房间中，确定要退出房间并返回游戏大厅吗？')) {
+          socket.emit('leave_room', () => {});
+          exitToHome();
+          window.location.href = '/';
+        }
+      }
+    });
   }
 
   // 检查 URL 是否带房间号自动加入

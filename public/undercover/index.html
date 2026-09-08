@@ -16,7 +16,8 @@
         <span>🕵️‍♂️</span> 谁是卧底 Party
       </div>
       <div class="header-actions">
-        <a href="/" class="icon-btn" title="返回游戏大厅" style="text-decoration:none; display:inline-flex; align-items:center; justify-content:center;">🏠</a>
+        <button id="btn-header-leave" class="icon-btn hidden" title="退出当前房间" style="background: rgba(244,63,94,0.18); border-color: rgba(244,63,94,0.4); color: #fca5a5;">🚪</button>
+        <a href="/" id="link-home-lobby" class="icon-btn" title="返回游戏大厅" style="text-decoration:none; display:inline-flex; align-items:center; justify-content:center;">🏠</a>
         <button id="btn-host-reset" class="icon-btn hidden" title="房主重置房间/重新开始" style="background: rgba(244,63,94,0.2); border-color: rgba(244,63,94,0.4); color: #fca5a5;">🔄</button>
         <button id="btn-lan-share" class="icon-btn" title="扫码邀请好友加入">📱</button>
         <button id="btn-help" class="icon-btn" title="游戏规则说明">❓</button>
@@ -317,6 +318,12 @@
       <div id="game-over-host-actions" class="hidden" style="margin-top: 16px;">
         <button id="btn-restart-game" class="btn btn-primary">
           🔄 再来一局 (保持房间)
+        </button>
+      </div>
+
+      <div style="margin-top: 10px;">
+        <button id="btn-gameover-leave" class="btn btn-secondary" style="width: 100%;">
+          🚪 退出当前房间
         </button>
       </div>
 

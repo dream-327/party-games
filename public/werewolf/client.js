@@ -46,6 +46,9 @@
   const btnQuickInvite = document.getElementById('btn-quick-invite');
   const btnRules = document.getElementById('btn-rules');
   const btnSound = document.getElementById('btn-sound');
+  const btnLeaveRoom = document.getElementById('btn-leave-room');
+  const btnLeaveLobby = document.getElementById('btn-leave-lobby');
+  const btnSettleLeave = document.getElementById('btn-settle-leave');
 
   // 会场元素
   const phaseTitle = document.getElementById('phase-title');
@@ -205,6 +208,7 @@
 
     viewHome.classList.add('hidden');
     viewGame.classList.remove('hidden');
+    if (btnLeaveRoom) btnLeaveRoom.classList.remove('hidden');
 
     modeTag.textContent = room.settings.mode === 'ONE_NIGHT' ? '🌙 一夜终极模式' : '🐺 经典多夜模式';
     roomCodeBadge.textContent = `房号: ${room.code}`;
@@ -895,6 +899,46 @@
 
     modalSettle.classList.remove('hidden');
   });
+
+  // 退出房间处理
+  function exitToHome() {
+    currentRoom = null;
+    sessionStorage.removeItem('werewolf_room');
+    viewHome.classList.remove('hidden');
+    viewGame.classList.add('hidden');
+    if (btnLeaveRoom) btnLeaveRoom.classList.add('hidden');
+    if (modalSettle) modalSettle.classList.add('hidden');
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+  }
+
+  function confirmLeaveRoom() {
+    window.sfx && window.sfx.playClick();
+    if (confirm('确定要退出当前狼人杀房间吗？')) {
+      socket.emit('leave_room', () => {});
+      exitToHome();
+    }
+  }
+
+  if (btnLeaveRoom) btnLeaveRoom.addEventListener('click', confirmLeaveRoom);
+  if (btnLeaveLobby) btnLeaveLobby.addEventListener('click', confirmLeaveRoom);
+  if (btnSettleLeave) btnSettleLeave.addEventListener('click', confirmLeaveRoom);
+
+  const homeLobbyLink = document.querySelector('header .header-left a[href="/"]');
+  if (homeLobbyLink) {
+    homeLobbyLink.addEventListener('click', (e) => {
+      if (currentRoom) {
+        e.preventDefault();
+        if (confirm('你正在房间中，确定要退出房间并返回游戏大厅吗？')) {
+          socket.emit('leave_room', () => {});
+          exitToHome();
+          window.location.href = '/';
+        }
+      }
+    });
+  }
 
   // 自动入房检测
   const urlParams = new URLSearchParams(window.location.search);

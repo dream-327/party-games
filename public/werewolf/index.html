@@ -21,6 +21,7 @@
       </div>
 
       <div class="header-actions">
+        <button id="btn-leave-room" class="icon-btn hidden" title="退出当前房间" style="background: rgba(244,63,94,0.18); border-color: rgba(244,63,94,0.4); color: #fca5a5;">🚪</button>
         <button id="btn-quick-invite" class="icon-btn" title="扫码邀请好友加入">📱</button>
         <button id="btn-rules" class="icon-btn" title="规则说明">❓</button>
         <button id="btn-sound" class="icon-btn" title="音效开关">🔊</button>
@@ -87,9 +88,12 @@
 
       <!-- 中间游戏区域: 玩家座位网格 -->
       <div class="players-zone">
-        <div class="section-title">
+        <div class="section-title" style="display: flex; justify-content: space-between; align-items: center;">
           <span>👥 参战玩家 (<span id="players-count-num">0</span>人)</span>
-          <span id="room-code-badge" class="room-pill">房号: ----</span>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <span id="room-code-badge" class="room-pill">房号: ----</span>
+            <button id="btn-leave-lobby" class="btn btn-secondary" style="width: auto; padding: 4px 10px; font-size: 12px; border-radius: 6px;">🚪 退出</button>
+          </div>
         </div>
         <div class="players-grid" id="players-grid"></div>
 
@@ -249,8 +253,9 @@
             <div id="settle-center-cards" class="center-cards-reveal"></div>
           </div>
         </div>
-        <div class="modal-footer">
-          <button id="btn-play-again" class="btn btn-gold btn-lg">再来一局</button>
+        <div class="modal-footer" style="display: flex; gap: 10px;">
+          <button id="btn-settle-leave" class="btn btn-secondary" style="flex: 1;">🚪 退出房间</button>
+          <button id="btn-play-again" class="btn btn-gold btn-lg" style="flex: 1.5;">再来一局</button>
         </div>
       </div>
     </div>

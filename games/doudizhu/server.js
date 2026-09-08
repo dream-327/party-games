@@ -893,6 +893,58 @@ function setupDoudizhu(io, app) {
       }
     });
 
+    // 玩家退出房间
+    socket.on('leave_room', (callback) => {
+      try {
+        if (currentRoomCode && currentPlayerId) {
+          const room = rooms.get(currentRoomCode);
+          if (room) {
+            const seatIndex = room.seats.findIndex(s => s && s.id === currentPlayerId);
+            if (seatIndex !== -1) {
+              if (room.gameState.phase === 'LOBBY' || room.gameState.phase === 'GAME_OVER') {
+                // 大厅或结算阶段直接清空座位
+                room.seats[seatIndex] = null;
+              } else {
+                // 对局进行中，座位转为AI托管代打
+                const s = room.seats[seatIndex];
+                s.isOnline = false;
+                s.isAuto = true;
+                s.socketId = null;
+                if (room.gameState.currentTurnSeat === seatIndex) {
+                  scheduleTurnAction(doudizhuIo, room);
+                }
+              }
+
+              // 房主顺位继承
+              if (room.hostId === currentPlayerId) {
+                const nextHost = room.seats.find(s => s && s.isOnline && !s.isAi);
+                if (nextHost) {
+                  room.hostId = nextHost.id;
+                  room.seats.forEach(s => { if (s) s.isHost = (s.id === nextHost.id); });
+                }
+              }
+            }
+            room.spectators.delete(currentPlayerId);
+            socket.leave(currentRoomCode);
+
+            const activeHumans = room.seats.filter(s => s && s.isOnline && !s.isAi);
+            if (activeHumans.length === 0 && room.spectators.size === 0) {
+              clearRoomTimer(room);
+              rooms.delete(currentRoomCode);
+            } else {
+              broadcastRoom(doudizhuIo, room);
+            }
+          }
+        }
+        currentRoomCode = null;
+        currentPlayerId = null;
+        if (typeof callback === 'function') callback({ success: true });
+      } catch (err) {
+        console.error('doudizhu leave_room error:', err);
+        if (typeof callback === 'function') callback({ success: false });
+      }
+    });
+
     // 断开连接
     socket.on('disconnect', () => {
       if (!currentRoomCode || !currentPlayerId) return;

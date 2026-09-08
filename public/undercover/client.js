@@ -61,6 +61,27 @@
         views[name].classList.add('hidden');
       }
     });
+
+    const headerLeaveBtn = document.getElementById('btn-header-leave');
+    if (headerLeaveBtn) {
+      if (activeViewName === 'home') {
+        headerLeaveBtn.classList.add('hidden');
+      } else {
+        headerLeaveBtn.classList.remove('hidden');
+      }
+    }
+  }
+
+  function confirmLeaveRoom() {
+    window.sfx.playClick();
+    if (confirm('确定要退出当前房间吗？')) {
+      socket.emit('leave_room', () => {});
+      currentRoom = null;
+      sessionStorage.removeItem('undercover_room');
+      switchView('home');
+      const hostResetBtn = document.getElementById('btn-host-reset');
+      if (hostResetBtn) hostResetBtn.classList.add('hidden');
+    }
   }
 
   // 初始化首页头像与数据
@@ -413,17 +434,33 @@
     }
   }
 
-  // 退出大厅房间
+  // 退出房间处理 (顶部栏退出、大厅退出、结算页退出、首页返回链接)
+  const btnHeaderLeave = document.getElementById('btn-header-leave');
+  if (btnHeaderLeave) {
+    btnHeaderLeave.addEventListener('click', confirmLeaveRoom);
+  }
+
   const btnLeaveLobby = document.getElementById('btn-leave-lobby');
   if (btnLeaveLobby) {
-    btnLeaveLobby.addEventListener('click', () => {
-      window.sfx.playClick();
-      if (confirm('确定要退出当前房间吗？')) {
-        socket.emit('leave_room', () => {
+    btnLeaveLobby.addEventListener('click', confirmLeaveRoom);
+  }
+
+  const btnGameOverLeave = document.getElementById('btn-gameover-leave');
+  if (btnGameOverLeave) {
+    btnGameOverLeave.addEventListener('click', confirmLeaveRoom);
+  }
+
+  const linkHomeLobby = document.getElementById('link-home-lobby');
+  if (linkHomeLobby) {
+    linkHomeLobby.addEventListener('click', (e) => {
+      if (currentRoom) {
+        e.preventDefault();
+        if (confirm('你正在房间中，确定要退出当前房间并返回游戏大厅吗？')) {
+          socket.emit('leave_room', () => {});
           currentRoom = null;
           sessionStorage.removeItem('undercover_room');
-          switchView('home');
-        });
+          window.location.href = '/';
+        }
       }
     });
   }

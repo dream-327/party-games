@@ -23,6 +23,7 @@
       </div>
 
       <div class="header-actions">
+        <button id="btn-leave-room" class="icon-btn hidden" title="退出当前房间" style="background: rgba(244,63,94,0.18); border-color: rgba(244,63,94,0.4); color: #fca5a5;">🚪</button>
         <button id="btn-quick-invite" class="icon-btn" title="扫码邀请好友加入">📱</button>
         <button id="btn-auto-toggle" class="icon-btn hidden" title="托管开关">🤖</button>
         <button id="btn-rules" class="icon-btn" title="牌型与规则说明">❓</button>
@@ -274,8 +275,9 @@
           <!-- 全员剩余手牌揭示 -->
           <div class="revealed-hands-list" id="settle-revealed-hands"></div>
         </div>
-        <div class="modal-footer">
-          <button id="btn-play-again" class="btn btn-gold btn-lg">再来一局</button>
+        <div class="modal-footer" style="display: flex; gap: 10px;">
+          <button id="btn-settle-leave" class="btn btn-secondary" style="flex: 1;">🚪 退出房间</button>
+          <button id="btn-play-again" class="btn btn-gold btn-lg" style="flex: 1.5;">再来一局</button>
         </div>
       </div>
     </div>
