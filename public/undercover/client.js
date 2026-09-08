@@ -1,0 +1,1088 @@
+// 谁是卧底 - 前端核心交互逻辑
+(function() {
+  const socket = io('/undercover');
+
+  // 可选头像库
+  const AVATARS = [
+    '😎', '🧐', '🤠', '🥷', '🦸‍♂️', '🧙‍♂️',
+    '🐶', '🐱', '🦊', '🐼', '🦁', '🐯',
+    '🐸', '🐵', '🦄', '🐲', '🤖', '👽',
+    '👻', '🧛‍♂️', '🥳', '🤩', '🚀', '💎'
+  ];
+
+  // 本地玩家信息
+  let myPlayerId = localStorage.getItem('undercover_pid');
+  if (!myPlayerId) {
+    myPlayerId = 'p_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+    localStorage.setItem('undercover_pid', myPlayerId);
+  }
+
+  let myNickname = localStorage.getItem('undercover_name') || `玩家${Math.floor(100 + Math.random() * 900)}`;
+  let myAvatar = localStorage.getItem('undercover_avatar') || AVATARS[Math.floor(Math.random() * AVATARS.length)];
+  let currentRoom = null;
+  let selectedVoteTargetId = null;
+  let lastRenderedPhase = null;
+  let lastRenderedRound = null;
+  let currentTimerStartTime = null;
+  let speechTimerInterval = null;
+  let customWordPairs = [];
+  let serverInfo = null;
+
+  // DOM 元素引用
+  const views = {
+    home: document.getElementById('view-home'),
+    lobby: document.getElementById('view-lobby'),
+    card: document.getElementById('view-card'),
+    speaking: document.getElementById('view-speaking'),
+    voting: document.getElementById('view-voting'),
+    pk: document.getElementById('view-pk'),
+    elimination: document.getElementById('view-elimination'),
+    gameOver: document.getElementById('view-game-over')
+  };
+
+  function escapeHtml(str) {
+    if (typeof str !== 'string') return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function switchView(activeViewName) {
+    Object.keys(views).forEach(name => {
+      if (name === activeViewName) {
+        views[name].classList.remove('hidden');
+      } else {
+        views[name].classList.add('hidden');
+      }
+    });
+  }
+
+  // 初始化首页头像与数据
+  function initHome() {
+    const avatarGrid = document.getElementById('home-avatar-grid');
+    avatarGrid.innerHTML = '';
+    AVATARS.forEach(emoji => {
+      const div = document.createElement('div');
+      div.className = `avatar-item ${emoji === myAvatar ? 'active' : ''}`;
+      div.innerText = emoji;
+      div.addEventListener('click', () => {
+        myAvatar = emoji;
+        localStorage.setItem('undercover_avatar', myAvatar);
+        document.querySelectorAll('.avatar-item').forEach(el => el.classList.remove('active'));
+        div.classList.add('active');
+        window.sfx.playClick();
+      });
+      avatarGrid.appendChild(div);
+    });
+
+    const nameInput = document.getElementById('input-nickname');
+    nameInput.value = myNickname;
+    nameInput.addEventListener('input', (e) => {
+      myNickname = e.target.value.trim() || '神秘人';
+      localStorage.setItem('undercover_name', myNickname);
+    });
+
+    // 检查 URL 是否带 room 参数
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomParam = urlParams.get('room');
+    if (roomParam) {
+      document.getElementById('input-room-code').value = roomParam;
+    }
+  }
+
+  // 获取服务器网络信息并准备二维码
+  fetch('/api/server-info')
+    .then(r => r.json())
+    .then(data => {
+      serverInfo = data;
+    })
+    .catch(() => {});
+
+  // 创建房间
+  document.getElementById('btn-create-room').addEventListener('click', () => {
+    window.sfx.playClick();
+    const name = document.getElementById('input-nickname').value.trim() || myNickname;
+    socket.emit('create_room', {
+      player: { id: myPlayerId, name, avatar: myAvatar },
+      settings: {
+        undercoverCount: 1,
+        whiteboardCount: 0,
+        category: 'all',
+        speechTimeLimit: 45,
+        revealRoleOnEliminate: true,
+        customWords: customWordPairs
+      }
+    }, (res) => {
+      if (!res.success) {
+        alert(res.message || '创建房间失败');
+      } else {
+        sessionStorage.setItem('undercover_room', res.roomCode);
+      }
+    });
+  });
+
+  // 加入房间
+  document.getElementById('btn-join-room').addEventListener('click', () => {
+    window.sfx.playClick();
+    const roomCode = document.getElementById('input-room-code').value.trim();
+    if (!roomCode || roomCode.length < 4) {
+      return alert('请输入正确的 4 位房间号');
+    }
+    const name = document.getElementById('input-nickname').value.trim() || myNickname;
+    sessionStorage.setItem('undercover_room', roomCode);
+    socket.emit('join_room', {
+      roomCode,
+      player: { id: myPlayerId, name, avatar: myAvatar }
+    }, (res) => {
+      if (!res.success) {
+        sessionStorage.removeItem('undercover_room');
+        alert(res.message || '加入房间失败');
+      } else if (res.roomData) {
+        currentRoom = res.roomData;
+        renderRoom(res.roomData);
+      }
+    });
+  });
+
+  // 房间状态更新总调度
+  socket.on('room_update', (roomData) => {
+    currentRoom = roomData;
+    if (roomData && roomData.code) {
+      sessionStorage.setItem('undercover_room', roomData.code);
+    }
+    renderRoom(roomData);
+  });
+
+  socket.on('kicked_from_room', () => {
+    alert('您已被房主移出房间');
+    currentRoom = null;
+    sessionStorage.removeItem('undercover_room');
+    switchView('home');
+  });
+
+  // 自动重新连接与全量状态同步机制 (针对手机熄屏、切后台等场景)
+  function autoSyncRoom() {
+    const savedRoomCode = (currentRoom && currentRoom.code) || sessionStorage.getItem('undercover_room');
+    if (savedRoomCode && socket.connected) {
+      const name = localStorage.getItem('undercover_name') || myNickname;
+      const avatar = localStorage.getItem('undercover_avatar') || myAvatar;
+      socket.emit('join_room', {
+        roomCode: savedRoomCode,
+        player: { id: myPlayerId, name, avatar }
+      }, (res) => {
+        if (res && res.success && res.roomData) {
+          currentRoom = res.roomData;
+          renderRoom(res.roomData);
+        } else if (res && !res.success) {
+          sessionStorage.removeItem('undercover_room');
+        }
+      });
+    }
+  }
+
+  // Socket 连接或重连成功时触发同步
+  socket.on('connect', () => {
+    autoSyncRoom();
+  });
+
+  // 当手机解锁屏幕、切换回浏览器页面时立即触发同步
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      if (!socket.connected) {
+        socket.connect();
+      }
+      autoSyncRoom();
+    }
+  });
+
+  window.addEventListener('focus', autoSyncRoom);
+  window.addEventListener('pageshow', autoSyncRoom);
+
+  // 定时心跳保活 (由 2s 降频为 15s)，避免频繁消耗服务器资源与 DOM 闪烁
+  setInterval(() => {
+    const savedRoomCode = (currentRoom && currentRoom.code) || sessionStorage.getItem('undercover_room');
+    if (savedRoomCode && socket.connected) {
+      socket.emit('sync_room', { roomCode: savedRoomCode, playerId: myPlayerId });
+    }
+  }, 15000);
+
+  // 渲染房间主函数
+  function renderRoom(room) {
+    const isHost = room.hostId === myPlayerId;
+    const me = room.players.find(p => p.id === myPlayerId);
+
+    // 1. 房间号展示
+    document.getElementById('display-room-code').innerText = room.code;
+    document.getElementById('lobby-player-count').innerText = room.players.length;
+
+    // 2. 观战提示控制
+    const spectatorBanner = document.getElementById('spectator-banner');
+    if (me && me.isSpectator && room.gameState.phase !== 'LOBBY' && room.gameState.phase !== 'GAME_OVER') {
+      spectatorBanner.classList.remove('hidden');
+    } else {
+      spectatorBanner.classList.add('hidden');
+    }
+
+    // 3. 房主重置按钮控制
+    const hostResetBtn = document.getElementById('btn-host-reset');
+    if (isHost && room.gameState.phase !== 'LOBBY') {
+      hostResetBtn.classList.remove('hidden');
+    } else {
+      hostResetBtn.classList.add('hidden');
+    }
+
+    document.querySelectorAll('.btn-host-reset-action').forEach(btn => {
+      if (isHost && room.gameState.phase !== 'LOBBY' && room.gameState.phase !== 'GAME_OVER') {
+        btn.classList.remove('hidden');
+      } else {
+        btn.classList.add('hidden');
+      }
+    });
+
+    // 4. 根据阶段渲染视图
+    const phase = room.gameState.phase;
+    const isPhaseChanged = lastRenderedPhase !== phase;
+    const isRoundChanged = lastRenderedRound !== room.gameState.round;
+
+    if (isPhaseChanged) {
+      // 仅在真实切换阶段时才重置投票选定目标
+      if (phase === 'VOTING' || phase === 'PK_VOTING' || phase === 'LOBBY' || phase === 'SPEAKING' || phase === 'CARD_VIEW') {
+        selectedVoteTargetId = null;
+      }
+    }
+
+    lastRenderedPhase = phase;
+    lastRenderedRound = room.gameState.round;
+
+    if (phase === 'LOBBY') {
+      switchView('lobby');
+      renderLobby(room, isHost);
+    } else if (phase === 'CARD_VIEW') {
+      switchView('card');
+      renderCardView(room, me, isHost, isPhaseChanged);
+    } else if (phase === 'SPEAKING') {
+      switchView('speaking');
+      renderSpeaking(room, me, isHost);
+    } else if (phase === 'VOTING') {
+      switchView('voting');
+      renderVoting(room, me, false);
+    } else if (phase === 'PK_SPEAKING') {
+      switchView('pk');
+      renderPKSpeaking(room, me, isHost);
+    } else if (phase === 'PK_VOTING') {
+      switchView('voting');
+      renderVoting(room, me, true);
+    } else if (phase === 'ELIMINATION') {
+      switchView('elimination');
+      renderElimination(room, isHost);
+    } else if (phase === 'GAME_OVER') {
+      switchView('gameOver');
+      renderGameOver(room, isHost);
+    }
+  }
+
+  // 渲染大厅
+  function renderLobby(room, isHost) {
+    const playersGrid = document.getElementById('lobby-players-grid');
+    playersGrid.innerHTML = '';
+
+    room.players.forEach(p => {
+      const box = document.createElement('div');
+      box.className = `player-box ${p.isHost ? 'is-host' : ''}`;
+      const offlineBadge = !p.isOnline ? '<span style="font-size: 11px; color: #f43f5e; margin-left: 4px; font-weight: 700;">(离线)</span>' : '';
+      box.innerHTML = `
+        <div class="player-avatar">
+          ${p.avatar}
+          ${p.isHost ? '<span class="host-crown">👑</span>' : ''}
+        </div>
+        <div class="player-name">${escapeHtml(p.name)}${p.id === myPlayerId ? ' (我)' : ''}${offlineBadge}</div>
+        ${(isHost && p.id !== myPlayerId) ? `<button class="kick-btn" data-id="${p.id}" title="移出玩家">✕</button>` : ''}
+      `;
+
+      if (isHost && p.id !== myPlayerId) {
+        box.querySelector('.kick-btn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (confirm(`确定要踢出 ${p.name} 吗？`)) {
+            socket.emit('kick_player', p.id);
+          }
+        });
+      }
+      playersGrid.appendChild(box);
+    });
+
+    const hostControls = document.getElementById('host-controls');
+    const guestWaiting = document.getElementById('guest-waiting-msg');
+
+    if (isHost) {
+      hostControls.classList.remove('hidden');
+      guestWaiting.classList.add('hidden');
+
+      const catMap = {
+        all: '综合随机', classic: '经典对决', life: '生活日常',
+        fun: '搞笑扎心', pop: '影视动漫', food: '吃货天下', custom_only: '自定义'
+      };
+      const catText = catMap[room.settings.category] || '综合随机';
+      document.getElementById('lobby-settings-summary').innerText = 
+        `${room.settings.undercoverCount}卧底 · ${room.settings.whiteboardCount}白板 · ${catText}`;
+    } else {
+      hostControls.classList.add('hidden');
+      guestWaiting.classList.remove('hidden');
+    }
+  }
+
+  // 房主点击开始游戏
+  document.getElementById('btn-start-game').addEventListener('click', () => {
+    window.sfx.playClick();
+    socket.emit('start_game', (res) => {
+      if (res && !res.success) {
+        alert(res.message || '无法开始游戏');
+      }
+    });
+  });
+
+  // 渲染查看卡片
+  function renderCardView(room, me, isHost, isPhaseChanged) {
+    const cardEl = document.getElementById('secret-card-element');
+    const wordEl = document.getElementById('my-secret-word');
+    
+    if (me && me.word) {
+      wordEl.innerText = me.word;
+    } else {
+      wordEl.innerText = '请等待分发...';
+    }
+
+    // 只有在刚切入看词阶段时才重置卡片翻转状态，避免别人看词更新时自己的卡片被自动盖上
+    if (isPhaseChanged) {
+      cardEl.classList.remove('flipped');
+    }
+
+    // 统计已查看人数
+    const viewedCount = room.players.filter(p => p.hasViewedCard).length;
+    document.getElementById('viewed-count').innerText = viewedCount;
+    document.getElementById('total-view-count').innerText = room.players.length;
+
+    const confirmBtn = document.getElementById('btn-card-confirm');
+    if (me && me.hasViewedCard) {
+      confirmBtn.disabled = true;
+      confirmBtn.innerText = '✅ 已准备完毕，等待其他人...';
+    } else {
+      confirmBtn.disabled = false;
+      confirmBtn.innerText = '✅ 我已经记住了，准备发言';
+    }
+
+    const forceStartBtn = document.getElementById('btn-force-start-speaking');
+    if (isHost) {
+      forceStartBtn.classList.remove('hidden');
+    } else {
+      forceStartBtn.classList.add('hidden');
+    }
+  }
+
+  // 卡片长按/点击翻转交互
+  const cardElement = document.getElementById('secret-card-element');
+  cardElement.addEventListener('click', () => {
+    cardElement.classList.toggle('flipped');
+    window.sfx.playFlip();
+  });
+
+  // 确认查看词语
+  document.getElementById('btn-card-confirm').addEventListener('click', () => {
+    window.sfx.playClick();
+    socket.emit('view_card_confirm');
+  });
+
+  // 房主强制开始发言
+  document.getElementById('btn-force-start-speaking').addEventListener('click', () => {
+    window.sfx.playClick();
+    socket.emit('force_start_speaking');
+  });
+
+  // 渲染发言阶段
+  function renderSpeaking(room, me, isHost) {
+    document.getElementById('speaking-round-num').innerText = room.gameState.round;
+    const currentSpeakerId = room.gameState.currentSpeakerId;
+    const currentSpeaker = room.players.find(p => p.id === currentSpeakerId);
+    const isMeSpeaking = currentSpeakerId === myPlayerId;
+
+    const speakerBox = document.getElementById('current-speaker-box');
+    const speakerAvatar = document.getElementById('current-speaker-avatar');
+    const speakerName = document.getElementById('current-speaker-name');
+    const tipText = document.getElementById('speaker-tip-text');
+
+    if (currentSpeaker) {
+      speakerAvatar.innerText = currentSpeaker.avatar;
+      speakerName.innerText = currentSpeaker.name + (isMeSpeaking ? ' (轮到你发言啦！)' : '');
+      if (isMeSpeaking) {
+        speakerBox.classList.add('is-me');
+        tipText.innerText = '🎯 请用一句话描述你的词语，不能直接说出词汇哦！';
+      } else {
+        speakerBox.classList.remove('is-me');
+        tipText.innerText = `正在认真听 ${currentSpeaker.name} 发言...`;
+      }
+    }
+
+    // 发言顺序列表
+    const orderGrid = document.getElementById('speaking-order-grid');
+    orderGrid.innerHTML = '';
+    room.gameState.speakingOrder.forEach((pid, idx) => {
+      const p = room.players.find(item => item.id === pid);
+      if (!p) return;
+      const isCurrent = idx === room.gameState.currentSpeakerIndex;
+      const isPast = idx < room.gameState.currentSpeakerIndex;
+
+      const box = document.createElement('div');
+      box.className = `player-box ${isCurrent ? 'is-host' : ''} ${isPast ? 'is-dead' : ''}`;
+      box.style.borderWidth = isCurrent ? '2px' : '1px';
+      box.innerHTML = `
+        <div style="position: absolute; top: 4px; left: 6px; font-size: 11px; font-weight: 800; color: ${isCurrent ? '#a855f7' : '#94a3b8'};">
+          #${idx + 1}
+        </div>
+        <div class="player-avatar">${p.avatar}</div>
+        <div class="player-name">${p.name}</div>
+        <div style="font-size: 11px; color: ${isCurrent ? '#38bdf8' : (isPast ? '#64748b' : '#94a3b8')}; margin-top: 2px;">
+          ${isCurrent ? '🎙️ 发言中' : (isPast ? '已发言' : '等待')}
+        </div>
+      `;
+      orderGrid.appendChild(box);
+    });
+
+    // 倒计时管理
+    startCountdownTimer(room.settings.speechTimeLimit, room.gameState.speechStartTime);
+
+    // 下一位发言按钮控制
+    const finishBtn = document.getElementById('btn-finish-speaking');
+    if (isMeSpeaking || isHost) {
+      finishBtn.disabled = false;
+      finishBtn.classList.remove('hidden');
+    } else {
+      finishBtn.disabled = true;
+      finishBtn.classList.add('hidden');
+    }
+  }
+
+  // 倒计时函数
+  function startCountdownTimer(timeLimit, startTime) {
+    if (currentTimerStartTime === startTime && speechTimerInterval) {
+      return; // 倒计时已经在运行，不重复重置定时器
+    }
+    currentTimerStartTime = startTime;
+    if (speechTimerInterval) clearInterval(speechTimerInterval);
+    const timerText = document.getElementById('speaker-timer-text');
+    
+    if (!timeLimit || timeLimit <= 0) {
+      timerText.innerText = '不限时';
+      return;
+    }
+
+    function update() {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      const remaining = Math.max(0, timeLimit - elapsed);
+      timerText.innerText = `${remaining}s`;
+
+      if (remaining <= 5 && remaining > 0) {
+        timerText.style.color = '#ef4444';
+        window.sfx.playTick();
+      } else {
+        timerText.style.color = '#f59e0b';
+      }
+
+      if (remaining <= 0) {
+        clearInterval(speechTimerInterval);
+        timerText.innerText = '时间到!';
+      }
+    }
+
+    update();
+    speechTimerInterval = setInterval(update, 1000);
+  }
+
+  // 结束发言点击
+  document.getElementById('btn-finish-speaking').addEventListener('click', () => {
+    window.sfx.playClick();
+    socket.emit('finish_speaking');
+  });
+
+  // 渲染 PK 发言
+  function renderPKSpeaking(room, me, isHost) {
+    const currentSpeakerId = room.gameState.pkSpeakerId;
+    const currentSpeaker = room.players.find(p => p.id === currentSpeakerId);
+    const isMe = currentSpeakerId === myPlayerId;
+
+    document.getElementById('pk-speaker-avatar').innerText = currentSpeaker ? currentSpeaker.avatar : '🔥';
+    document.getElementById('pk-speaker-name').innerText = (currentSpeaker ? currentSpeaker.name : '候选人') + (isMe ? ' (轮到你辩解！)' : '');
+
+    const finishBtn = document.getElementById('btn-finish-pk-speaking');
+    if (isMe || isHost) {
+      finishBtn.disabled = false;
+      finishBtn.classList.remove('hidden');
+    } else {
+      finishBtn.disabled = true;
+      finishBtn.classList.add('hidden');
+    }
+  }
+
+  document.getElementById('btn-finish-pk-speaking').addEventListener('click', () => {
+    window.sfx.playClick();
+    socket.emit('finish_speaking');
+  });
+
+  // 渲染投票阶段 (支持正常投票与 PK 投票)
+  function renderVoting(room, me, isPK) {
+    const grid = document.getElementById('voting-grid');
+    grid.innerHTML = '';
+
+    const submitBtn = document.getElementById('btn-submit-vote');
+
+    // 筛选出可以被投票的候选人
+    let candidates = room.players.filter(p => p.isAlive);
+    if (isPK) {
+      candidates = candidates.filter(p => room.gameState.pkCandidates.includes(p.id));
+    }
+
+    // 校验已选目标是否仍在候选人中
+    if (selectedVoteTargetId && !candidates.some(c => c.id === selectedVoteTargetId)) {
+      selectedVoteTargetId = null;
+    }
+
+    // 统计已投票数
+    const alivePlayers = room.players.filter(p => p.isAlive);
+    const votedCount = alivePlayers.filter(p => p.hasVoted).length;
+    document.getElementById('voted-count').innerText = votedCount;
+    document.getElementById('total-vote-count').innerText = alivePlayers.length;
+
+    // 获取当前选定目标（无论来自已提交还是本地待提交选中）
+    const effectiveSelectedId = (me && me.voteTarget) ? me.voteTarget : selectedVoteTargetId;
+
+    candidates.forEach(p => {
+      const card = document.createElement('div');
+      const isSelected = effectiveSelectedId === p.id;
+      card.className = `vote-card ${isSelected ? 'selected' : ''}`;
+      
+      card.innerHTML = `
+        <div style="font-size: 36px; margin-bottom: 6px;">${p.avatar}</div>
+        <div style="font-size: 15px; font-weight: 700; color: white;">${escapeHtml(p.name)}${p.id === myPlayerId ? ' (自己)' : ''}</div>
+        <div style="font-size: 12px; color: ${isSelected ? '#fca5a5' : 'var(--text-muted)'}; margin-top: 4px;">
+          ${isSelected ? '🎯 已选中此人' : '怀疑此人是卧底'}
+        </div>
+      `;
+
+      if (me && me.isAlive && !me.hasVoted) {
+        card.addEventListener('click', () => {
+          document.querySelectorAll('.vote-card').forEach(el => {
+            el.classList.remove('selected');
+            const sub = el.querySelector('div:last-child');
+            if (sub) sub.innerText = '怀疑此人是卧底';
+          });
+          card.classList.add('selected');
+          const sub = card.querySelector('div:last-child');
+          if (sub) sub.innerText = '🎯 已选中此人';
+
+          selectedVoteTargetId = p.id;
+          submitBtn.disabled = false;
+          submitBtn.innerText = '🔥 确认投TA一票';
+          window.sfx.playClick();
+        });
+      }
+
+      grid.appendChild(card);
+    });
+
+    const forceResolveBtn = document.getElementById('btn-force-resolve-votes');
+    if (forceResolveBtn) {
+      if (isHost && votedCount > 0) {
+        forceResolveBtn.classList.remove('hidden');
+      } else {
+        forceResolveBtn.classList.add('hidden');
+      }
+    }
+
+    if (me && me.hasVoted) {
+      submitBtn.disabled = true;
+      submitBtn.innerText = '✅ 已投票，等待其他人...';
+    } else if (me && !me.isAlive) {
+      submitBtn.disabled = true;
+      submitBtn.innerText = '👻 您已出局，观战中...';
+    } else {
+      submitBtn.disabled = !selectedVoteTargetId;
+      submitBtn.innerText = selectedVoteTargetId ? '🔥 确认投TA一票' : '👆 请先点击头像选择';
+    }
+  }
+
+  // 提交投票
+  document.getElementById('btn-submit-vote').addEventListener('click', () => {
+    if (!selectedVoteTargetId) return;
+    window.sfx.playVote();
+    socket.emit('cast_vote', selectedVoteTargetId);
+  });
+
+  // 房主强制提前结算投票 (跳过离线未投)
+  const forceResolveBtn = document.getElementById('btn-force-resolve-votes');
+  if (forceResolveBtn) {
+    forceResolveBtn.addEventListener('click', () => {
+      if (confirm('确定要提前结算当前投票吗？未投票或离线的玩家将被视为弃票。')) {
+        window.sfx.playClick();
+        socket.emit('force_resolve_votes');
+      }
+    });
+  }
+
+  // 渲染淘汰揭晓阶段
+  function renderElimination(room, isHost) {
+    window.sfx.playElimination();
+    const container = document.getElementById('eliminated-container');
+    const elim = room.gameState.eliminatedPlayer;
+
+    if (elim && elim.isTieNoElimination) {
+      container.innerHTML = `
+        <div style="font-size: 56px; margin-bottom: 12px;">⚖️</div>
+        <div style="font-size: 22px; font-weight: 800; color: #f59e0b; margin-bottom: 8px;">PK 依然平票！</div>
+        <p style="color: var(--text-muted); font-size: 14px;">本轮无人被淘汰，游戏继续进行！</p>
+      `;
+    } else if (elim) {
+      const roleMap = {
+        CIVILIAN: '<span class="role-tag CIVILIAN">平民</span>',
+        UNDERCOVER: '<span class="role-tag UNDERCOVER">卧底 🕵️</span>',
+        WHITEBOARD: '<span class="role-tag WHITEBOARD">白板 📄</span>'
+      };
+      container.innerHTML = `
+        <div style="font-size: 56px; margin-bottom: 8px;">${elim.avatar}</div>
+        <div style="font-size: 22px; font-weight: 800; margin-bottom: 8px;">${elim.name} 被投出局！</div>
+        <div style="font-size: 14px; margin-bottom: 12px; color: #fca5a5;">获得 ${elim.votes} 票</div>
+        ${room.settings.revealRoleOnEliminate ? `<div style="font-size: 16px;">真实的身份是：${roleMap[elim.role] || elim.role}</div>` : ''}
+      `;
+    }
+
+    const hostNextBtn = document.getElementById('host-next-round-btn');
+    const guestMsg = document.getElementById('guest-next-round-msg');
+
+    if (isHost) {
+      hostNextBtn.classList.remove('hidden');
+      guestMsg.classList.add('hidden');
+    } else {
+      hostNextBtn.classList.add('hidden');
+      guestMsg.classList.remove('hidden');
+    }
+  }
+
+  // 房主点击进入下一轮
+  document.getElementById('btn-next-round').addEventListener('click', () => {
+    window.sfx.playClick();
+    socket.emit('next_round');
+  });
+
+  // 渲染游戏结束与胜负结算
+  function renderGameOver(room, isHost) {
+    window.sfx.playVictory();
+    triggerConfetti();
+
+    const winner = room.gameState.winner;
+    const titleEl = document.getElementById('victory-title');
+    const descEl = document.getElementById('victory-desc');
+    const iconEl = document.getElementById('victory-icon');
+
+    if (winner === 'CIVILIAN') {
+      iconEl.innerText = '🏆';
+      titleEl.innerText = '平民大获全胜！';
+      titleEl.className = 'victory-title civilians';
+      descEl.innerText = '火眼金睛！成功揪出了所有潜伏的卧底！';
+    } else {
+      iconEl.innerText = '🎭';
+      titleEl.innerText = '卧底瞒天过海！';
+      titleEl.className = 'victory-title undercovers';
+      descEl.innerText = '演技炸裂！卧底成功潜伏到底，取得胜利！';
+    }
+
+    // 渲染全员词语真实底牌
+    const tbody = document.getElementById('game-over-players-tbody');
+    tbody.innerHTML = '';
+    room.players.forEach(p => {
+      const tr = document.createElement('tr');
+      const roleMap = {
+        CIVILIAN: '<span class="role-tag CIVILIAN">平民</span>',
+        UNDERCOVER: '<span class="role-tag UNDERCOVER">卧底</span>',
+        WHITEBOARD: '<span class="role-tag WHITEBOARD">白板</span>'
+      };
+      tr.innerHTML = `
+        <td><span style="font-size: 18px; margin-right: 4px;">${p.avatar}</span>${escapeHtml(p.name)}</td>
+        <td>${roleMap[p.role] || p.role}</td>
+        <td style="font-weight: 700; color: #67e8f9;">${escapeHtml(p.word || '-')}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    // 惩罚卡
+    const punishmentText = document.getElementById('punishment-text');
+    punishmentText.innerText = room.gameState.punishment || '模仿一种动物叫声！';
+
+    const hostActions = document.getElementById('game-over-host-actions');
+    if (isHost) {
+      hostActions.classList.remove('hidden');
+    } else {
+      hostActions.classList.add('hidden');
+    }
+  }
+
+  // 重新抽取惩罚
+  document.getElementById('btn-reroll-punishment').addEventListener('click', () => {
+    window.sfx.playClick();
+    socket.emit('reroll_punishment');
+  });
+
+  // 房主强制重置房间回到大厅（随时可用）
+  function requestResetToLobby() {
+    window.sfx.playClick();
+    if (confirm('确定要强制结束本局，重新回到房间大厅吗？\n（新加入的观战朋友也将一同加入游戏）')) {
+      socket.emit('reset_to_lobby');
+    }
+  }
+
+  const hostResetBtn = document.getElementById('btn-host-reset');
+  if (hostResetBtn) hostResetBtn.addEventListener('click', requestResetToLobby);
+
+  document.querySelectorAll('.btn-host-reset-action').forEach(btn => {
+    btn.addEventListener('click', requestResetToLobby);
+  });
+
+  // 再来一局 (结算页面)
+  document.getElementById('btn-restart-game').addEventListener('click', () => {
+    window.sfx.playClick();
+    socket.emit('restart_game');
+  });
+
+  // 快捷互动表情
+  document.querySelectorAll('.reaction-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const emoji = btn.dataset.emoji;
+      socket.emit('send_reaction', emoji);
+    });
+  });
+
+  socket.on('reaction_received', (data) => {
+    window.sfx.playPop();
+    spawnFloatingEmoji(data.emoji, data.playerName);
+  });
+
+  function spawnFloatingEmoji(emoji, senderName) {
+    const el = document.createElement('div');
+    el.className = 'floating-emoji';
+    el.innerText = emoji;
+    const randomX = Math.floor(Math.random() * (window.innerWidth - 60)) + 30;
+    el.style.left = `${randomX}px`;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 2500);
+  }
+
+  // 局域网分享与二维码弹窗
+  const modalLan = document.getElementById('modal-lan');
+  document.getElementById('btn-lan-share').addEventListener('click', () => {
+    window.sfx.playClick();
+    renderLanModal();
+    modalLan.classList.remove('hidden');
+  });
+
+  document.getElementById('btn-close-lan').addEventListener('click', () => {
+    modalLan.classList.add('hidden');
+  });
+
+  function renderLanModal() {
+    const list = document.getElementById('lan-url-list');
+    list.innerHTML = '';
+    const roomCode = currentRoom ? currentRoom.code : '';
+
+    const isPublicOrigin = window.location.protocol === 'https:' || 
+      (!['localhost', '127.0.0.1'].includes(window.location.hostname) &&
+       !window.location.hostname.startsWith('192.168.') &&
+       !window.location.hostname.startsWith('10.') &&
+       !window.location.hostname.startsWith('172.'));
+
+    const basePath = '/undercover';
+    let primaryUrl = window.location.origin;
+    let selectedUrl = primaryUrl;
+
+    function buildJoinUrl(baseUrl) {
+      return roomCode ? `${baseUrl}${basePath}/?room=${roomCode}` : `${baseUrl}${basePath}/`;
+    }
+
+    if (isPublicOrigin) {
+      // 如果当前通过公网/穿透域名访问，优先置顶公网链接
+      const joinUrl = buildJoinUrl(window.location.origin);
+      const pubCard = document.createElement('div');
+      pubCard.style.cssText = `
+        padding: 10px 12px;
+        background: rgba(168, 85, 247, 0.15);
+        border: 1px solid rgba(168, 85, 247, 0.5);
+        border-radius: 8px;
+        font-size: 13px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+      `;
+      pubCard.innerHTML = `
+        <div>
+          <div style="font-weight: 700; color: #d8b4fe; font-size: 14px;">${joinUrl}</div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+            🌐 异地公网/穿透地址 <span style="color:#c084fc; font-weight:700;">(🌟 异地联机首选)</span>
+          </div>
+        </div>
+        <button class="btn btn-secondary" style="width: auto; padding: 4px 8px; font-size: 11px;">生成此码</button>
+      `;
+      pubCard.addEventListener('click', () => {
+        selectedUrl = window.location.origin;
+        drawQRCode(buildJoinUrl(selectedUrl));
+      });
+      list.appendChild(pubCard);
+    }
+
+    if (serverInfo && serverInfo.ipObjs && serverInfo.ipObjs.length > 0) {
+      // 局域网网卡列表
+      const primaryItem = serverInfo.ipObjs.find(item => item.isPrimary) || serverInfo.ipObjs[0];
+      if (!isPublicOrigin) {
+        primaryUrl = `http://${primaryItem.address}:${serverInfo.port}`;
+        selectedUrl = primaryUrl;
+      }
+
+      serverInfo.ipObjs.forEach((item, idx) => {
+        const itemUrl = `http://${item.address}:${serverInfo.port}`;
+        const joinUrl = buildJoinUrl(itemUrl);
+        
+        const card = document.createElement('div');
+        card.style.cssText = `
+          padding: 10px 12px;
+          background: ${(!isPublicOrigin && item.isPrimary) ? 'rgba(6, 182, 212, 0.15)' : 'rgba(255,255,255,0.05)'};
+          border: 1px solid ${(!isPublicOrigin && item.isPrimary) ? 'rgba(6, 182, 212, 0.4)' : 'var(--border-color)'};
+          border-radius: 8px;
+          font-size: 13px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        `;
+        card.innerHTML = `
+          <div>
+            <div style="font-weight: 700; color: ${(!isPublicOrigin && item.isPrimary) ? '#67e8f9' : '#ffffff'}; font-size: 14px;">${joinUrl}</div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+              网卡: ${item.name} ${item.isPrimary ? '<span style="color:#10b981; font-weight:700;">(局域网热点/WiFi)</span>' : ''}
+            </div>
+          </div>
+          <button class="btn btn-secondary" style="width: auto; padding: 4px 8px; font-size: 11px;">生成此码</button>
+        `;
+
+        card.addEventListener('click', () => {
+          selectedUrl = itemUrl;
+          drawQRCode(buildJoinUrl(selectedUrl));
+        });
+
+        list.appendChild(card);
+      });
+    }
+
+    // 默认绘制主地址二维码
+    drawQRCode(buildJoinUrl(primaryUrl));
+  }
+
+  function drawQRCode(urlToEncode) {
+    const qrContainer = document.getElementById('qrcode-container');
+    qrContainer.innerHTML = '';
+    if (window.QRCode) {
+      new window.QRCode(qrContainer, {
+        text: urlToEncode,
+        width: 180,
+        height: 180,
+        colorDark: "#0f172a",
+        colorLight: "#ffffff"
+      });
+    }
+  }
+
+  // 复制链接
+  document.getElementById('btn-copy-link').addEventListener('click', () => {
+    const roomCode = currentRoom ? currentRoom.code : '';
+    const isPublicOrigin = window.location.protocol === 'https:' || 
+      (!['localhost', '127.0.0.1'].includes(window.location.hostname) &&
+       !window.location.hostname.startsWith('192.168.') &&
+       !window.location.hostname.startsWith('10.') &&
+       !window.location.hostname.startsWith('172.'));
+
+    let primaryUrl = isPublicOrigin ? window.location.origin : ((serverInfo && serverInfo.urls && serverInfo.urls[0]) || window.location.origin);
+    const fullUrl = roomCode ? `${primaryUrl}/?room=${roomCode}` : primaryUrl;
+    navigator.clipboard.writeText(fullUrl).then(() => {
+      alert('已复制游戏链接到剪贴板！');
+    }).catch(() => {
+      prompt('请手动复制链接:', fullUrl);
+    });
+  });
+
+  // 点击房间号快捷复制
+  document.getElementById('lobby-room-code').addEventListener('click', () => {
+    if (currentRoom) {
+      navigator.clipboard.writeText(currentRoom.code).then(() => {
+        alert(`房间号 ${currentRoom.code} 已复制！`);
+      });
+    }
+  });
+
+  // 规则弹窗
+  const modalRules = document.getElementById('modal-rules');
+  document.getElementById('btn-help').addEventListener('click', () => {
+    window.sfx.playClick();
+    modalRules.classList.remove('hidden');
+  });
+  document.getElementById('btn-close-rules').addEventListener('click', () => {
+    modalRules.classList.add('hidden');
+  });
+
+  // 设置弹窗
+  const modalSettings = document.getElementById('modal-settings');
+  document.getElementById('btn-open-settings').addEventListener('click', () => {
+    window.sfx.playClick();
+    if (!currentRoom) return;
+    document.getElementById('val-spy-count').innerText = currentRoom.settings.undercoverCount;
+    document.getElementById('val-wb-count').innerText = currentRoom.settings.whiteboardCount;
+    document.getElementById('select-speech-timer').value = currentRoom.settings.speechTimeLimit;
+    document.getElementById('select-category').value = currentRoom.settings.category;
+    renderCustomWordsBadges();
+    modalSettings.classList.remove('hidden');
+  });
+
+  document.getElementById('btn-close-settings').addEventListener('click', () => {
+    modalSettings.classList.add('hidden');
+  });
+
+  // 步进器按钮
+  document.getElementById('btn-spy-minus').addEventListener('click', () => {
+    const el = document.getElementById('val-spy-count');
+    let val = parseInt(el.innerText);
+    if (val > 1) el.innerText = val - 1;
+  });
+  document.getElementById('btn-spy-plus').addEventListener('click', () => {
+    const el = document.getElementById('val-spy-count');
+    let val = parseInt(el.innerText);
+    if (val < 4) el.innerText = val + 1;
+  });
+
+  document.getElementById('btn-wb-minus').addEventListener('click', () => {
+    const el = document.getElementById('val-wb-count');
+    let val = parseInt(el.innerText);
+    if (val > 0) el.innerText = val - 1;
+  });
+  document.getElementById('btn-wb-plus').addEventListener('click', () => {
+    const el = document.getElementById('val-wb-count');
+    let val = parseInt(el.innerText);
+    if (val < 2) el.innerText = val + 1;
+  });
+
+  // 自定义词库添加
+  document.getElementById('btn-add-custom-word').addEventListener('click', () => {
+    const civ = document.getElementById('custom-word-civ').value.trim();
+    const spy = document.getElementById('custom-word-spy').value.trim();
+    if (!civ || !spy) return alert('请输入完整的平民词和卧底词');
+    customWordPairs.push({ civilian: civ, undercover: spy });
+    document.getElementById('custom-word-civ').value = '';
+    document.getElementById('custom-word-spy').value = '';
+    renderCustomWordsBadges();
+  });
+
+  function renderCustomWordsBadges() {
+    const list = document.getElementById('custom-words-badge-list');
+    list.innerHTML = '';
+    customWordPairs.forEach((item, idx) => {
+      const tag = document.createElement('div');
+      tag.style.cssText = 'padding: 4px 8px; background: rgba(168,85,247,0.2); border-radius: 6px; font-size: 12px; display: inline-flex; align-items: center; gap: 4px;';
+      tag.innerHTML = `${escapeHtml(item.civilian)} / ${escapeHtml(item.undercover)} <span style="cursor: pointer; color: #f43f5e;" data-idx="${idx}">✕</span>`;
+      tag.querySelector('span').addEventListener('click', () => {
+        customWordPairs.splice(idx, 1);
+        renderCustomWordsBadges();
+      });
+      list.appendChild(tag);
+    });
+  }
+
+  // 保存设置
+  document.getElementById('btn-save-settings').addEventListener('click', () => {
+    const newSettings = {
+      undercoverCount: parseInt(document.getElementById('val-spy-count').innerText),
+      whiteboardCount: parseInt(document.getElementById('val-wb-count').innerText),
+      speechTimeLimit: parseInt(document.getElementById('select-speech-timer').value),
+      category: document.getElementById('select-category').value,
+      customWords: customWordPairs
+    };
+    socket.emit('update_settings', newSettings);
+    modalSettings.classList.add('hidden');
+  });
+
+  // 音效开关
+  const soundBtn = document.getElementById('btn-sound');
+  soundBtn.addEventListener('click', () => {
+    window.sfx.enabled = !window.sfx.enabled;
+    soundBtn.innerText = window.sfx.enabled ? '🔊' : '🔇';
+    window.sfx.playClick();
+  });
+
+  // 纯 JS 纸屑烟花效果
+  function triggerConfetti() {
+    const canvas = document.getElementById('confetti-canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const particles = [];
+    const colors = ['#f43f5e', '#a855f7', '#06b6d4', '#10b981', '#f59e0b', '#ec4899'];
+
+    for (let i = 0; i < 120; i++) {
+      particles.push({
+        x: canvas.width / 2,
+        y: canvas.height / 2,
+        w: Math.random() * 8 + 4,
+        h: Math.random() * 8 + 4,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        vx: (Math.random() - 0.5) * 16,
+        vy: (Math.random() - 0.7) * 16,
+        gravity: 0.25,
+        rotation: Math.random() * 360,
+        rotSpeed: (Math.random() - 0.5) * 10,
+        opacity: 1
+      });
+    }
+
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let alive = false;
+
+      particles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += p.gravity;
+        p.rotation += p.rotSpeed;
+        p.opacity -= 0.008;
+
+        if (p.opacity > 0) {
+          alive = true;
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate((p.rotation * Math.PI) / 180);
+          ctx.globalAlpha = Math.max(0, p.opacity);
+          ctx.fillStyle = p.color;
+          ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+          ctx.restore();
+        }
+      });
+
+      if (alive) {
+        requestAnimationFrame(animate);
+      } else {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+
+    animate();
+  }
+
+  // 初始化
+  initHome();
+})();

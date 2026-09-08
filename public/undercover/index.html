@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>谁是卧底 - 局域网聚会派对游戏</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="confetti-canvas"></canvas>
+
+  <div id="app">
+    <!-- 顶部状态栏 -->
+    <header class="header-bar">
+      <div class="logo-badge">
+        <span>🕵️‍♂️</span> 谁是卧底 Party
+      </div>
+      <div class="header-actions">
+        <a href="/" class="icon-btn" title="返回游戏大厅" style="text-decoration:none; display:inline-flex; align-items:center; justify-content:center;">🏠</a>
+        <button id="btn-host-reset" class="icon-btn hidden" title="房主重置房间/重新开始" style="background: rgba(244,63,94,0.2); border-color: rgba(244,63,94,0.4); color: #fca5a5;">🔄</button>
+        <button id="btn-lan-share" class="icon-btn" title="扫码邀请好友加入">📱</button>
+        <button id="btn-help" class="icon-btn" title="游戏规则说明">❓</button>
+        <button id="btn-sound" class="icon-btn" title="音效开关">🔊</button>
+      </div>
+    </header>
+
+    <!-- 观战者专属全局横幅提示 -->
+    <div id="spectator-banner" class="hidden" style="padding: 10px 14px; background: rgba(168,85,247,0.2); border: 1px solid rgba(168,85,247,0.4); border-radius: var(--radius-md); font-size: 13px; color: #d8b4fe; text-align: center; margin-bottom: 14px; font-weight: 600;">
+      👀 您正在观战中，当前对局结束后下一局自动加入！
+    </div>
+
+    <!-- 1. 首页 / 登录界面 -->
+    <section id="view-home" class="card">
+      <h1 class="title-xl">🕵️ 谁是卧底</h1>
+      <p class="subtitle">局域网多人实时聚会游戏</p>
+
+      <div class="input-group">
+        <label class="input-label">选择你的头像</label>
+        <div class="avatar-grid" id="home-avatar-grid">
+          <!-- 动态渲染头像 -->
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label class="input-label" for="input-nickname">你的昵称</label>
+        <input type="text" id="input-nickname" class="text-input" placeholder="输入炫酷昵称..." maxlength="10">
+      </div>
+
+      <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 12px;">
+        <button id="btn-create-room" class="btn btn-primary">
+          <span>✨</span> 创建新房间
+        </button>
+
+        <div style="display: flex; gap: 10px; align-items: center; margin-top: 8px;">
+          <input type="text" id="input-room-code" class="text-input" placeholder="输入 4 位房间号..." maxlength="4" style="text-align: center; letter-spacing: 2px; font-weight: 700;">
+          <button id="btn-join-room" class="btn btn-secondary" style="width: 140px;">
+            进入房间
+          </button>
+        </div>
+      </div>
+
+      <div style="margin-top: 24px; padding: 12px; background: rgba(255,255,255,0.03); border-radius: var(--radius-md); font-size: 12px; color: var(--text-muted); text-align: center;">
+        💡 提示：所有手机连接同一个 WiFi，扫码或输入网址即可联机对战！
+      </div>
+    </section>
+
+    <!-- 2. 房间大厅界面 -->
+    <section id="view-lobby" class="card hidden">
+      <div class="room-header">
+        <div class="room-code-badge" id="lobby-room-code" title="点击复制房间号">
+          房间号: <span id="display-room-code">----</span> 📋
+        </div>
+        <div style="font-size: 13px; color: var(--text-muted); margin-top: 6px;">
+          已加入玩家 (<span id="lobby-player-count">0</span> 人)
+        </div>
+      </div>
+
+      <div class="players-grid" id="lobby-players-grid">
+        <!-- 动态渲染房间玩家 -->
+      </div>
+
+      <!-- 房主专属设置区域 -->
+      <div id="host-controls" class="hidden">
+        <div style="background: rgba(15,23,42,0.6); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 16px; font-size: 13px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="color: var(--text-muted);">游戏配置:</span>
+            <span id="lobby-settings-summary" style="color: #67e8f9; font-weight: 600;">1卧底 · 0白板 · 经典词库</span>
+          </div>
+          <button id="btn-open-settings" class="btn btn-secondary" style="padding: 8px; font-size: 13px;">
+            ⚙️ 修改游戏设置 / 词库
+          </button>
+        </div>
+
+        <button id="btn-start-game" class="btn btn-primary">
+          🚀 开始游戏
+        </button>
+      </div>
+
+      <!-- 普通玩家等待提示 -->
+      <div id="guest-waiting-msg" class="hidden" style="text-align: center; color: var(--text-muted); padding: 16px; font-size: 14px;">
+        ⏳ 等待房主开始游戏...
+      </div>
+    </section>
+
+    <!-- 3. 查看身份词语界面 -->
+    <section id="view-card" class="card hidden">
+      <h2 style="text-align: center; font-size: 20px; margin-bottom: 4px;">🎴 确认你的身份</h2>
+      <p class="subtitle" style="margin-bottom: 12px;">长按或点击卡片翻转，注意防窥！</p>
+
+      <div class="card-view-wrapper">
+        <div class="secret-card" id="secret-card-element">
+          <!-- 正面 (遮挡) -->
+          <div class="card-face card-front">
+            <div style="font-size: 48px; margin-bottom: 12px;">🤫</div>
+            <div style="font-size: 18px; font-weight: 700; color: #d8b4fe;">你的秘密词语</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">点击 / 长按翻开</div>
+          </div>
+          <!-- 背面 (词语) -->
+          <div class="card-face card-back">
+            <div class="card-word-title">你的底牌词语</div>
+            <div class="card-word" id="my-secret-word">???</div>
+            <div class="card-hint">
+              千万不要直接说出词语！<br>根据词语特征用一句话进行描述。
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button id="btn-card-confirm" class="btn btn-success">
+        ✅ 我已经记住了，准备发言
+      </button>
+
+      <div id="card-view-status" style="text-align: center; font-size: 13px; color: var(--text-muted); margin-top: 14px;">
+        等待其他玩家查看... (<span id="viewed-count">0</span>/<span id="total-view-count">0</span>)
+      </div>
+
+      <button id="btn-force-start-speaking" class="btn btn-secondary hidden" style="margin-top: 10px; padding: 8px; font-size: 13px;">
+        ⚡ 房主直接开始发言
+      </button>
+    </section>
+
+    <!-- 4. 发言阶段界面 -->
+    <section id="view-speaking" class="card hidden">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <span style="font-weight: 800; font-size: 16px; color: #a855f7;">第 <span id="speaking-round-num">1</span> 轮发言</span>
+        <span style="font-size: 13px; color: var(--text-muted);">按顺序轮流描述</span>
+      </div>
+
+      <div class="speaker-banner" id="current-speaker-box">
+        <div class="current-speaker-avatar" id="current-speaker-avatar">🧐</div>
+        <div class="speaker-name" id="current-speaker-name">当前发言玩家</div>
+        <div id="speaker-timer-container">
+          <div class="speaker-timer" id="speaker-timer-text">45s</div>
+        </div>
+        <div id="speaker-tip-text" style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+          请用一句话描述你的词语
+        </div>
+      </div>
+
+      <!-- 发言顺序网格 -->
+      <div class="input-label" style="margin-bottom: 10px;">本轮发言顺序:</div>
+      <div class="players-grid" id="speaking-order-grid" style="margin-bottom: 16px;">
+        <!-- 动态渲染发言顺序 -->
+      </div>
+
+      <button id="btn-finish-speaking" class="btn btn-primary">
+        🎤 发言完毕 / 下一位
+      </button>
+
+      <button class="btn btn-secondary btn-host-reset-action hidden" style="margin-top: 10px; padding: 8px; font-size: 12px; border-color: rgba(244,63,94,0.4); color: #fca5a5;">
+        🔄 房主重置本局 / 回到大厅
+      </button>
+    </section>
+
+    <!-- 5. 投票阶段界面 -->
+    <section id="view-voting" class="card hidden">
+      <h2 style="text-align: center; font-size: 20px; margin-bottom: 4px;">🗳️ 谁是卧底？</h2>
+      <p class="subtitle" style="margin-bottom: 16px;">选择你怀疑的卧底并投出宝贵一票</p>
+
+      <div class="vote-grid" id="voting-grid">
+        <!-- 动态渲染可投票的玩家卡片 -->
+      </div>
+
+      <button id="btn-submit-vote" class="btn btn-danger" disabled>
+        🔥 确认投票
+      </button>
+
+      <div id="voting-progress-text" style="text-align: center; font-size: 13px; color: var(--text-muted); margin-top: 14px;">
+        投票进行中... (已投 <span id="voted-count">0</span>/<span id="total-vote-count">0</span>)
+      <button id="btn-force-resolve-votes" class="btn btn-secondary hidden" style="margin-top: 10px; padding: 8px; font-size: 12px; border-color: rgba(245, 158, 11, 0.4); color: #fbbf24;">
+        ⚡ 房主提前结算投票 (跳过未投/离线)
+      </button>
+
+      <button class="btn btn-secondary btn-host-reset-action hidden" style="margin-top: 10px; padding: 8px; font-size: 12px; border-color: rgba(244,63,94,0.4); color: #fca5a5;">
+        🔄 房主重置本局 / 回到大厅
+      </button>
+    </section>
+
+    <!-- 6. PK 对决阶段界面 -->
+    <section id="view-pk" class="card hidden">
+      <div class="pk-banner">
+        <span style="font-size: 24px;">⚡</span>
+        <span class="pk-vs">PK 争辩对决</span>
+        <span style="font-size: 24px;">⚡</span>
+      </div>
+      <p class="subtitle" style="margin-bottom: 16px;">票数相同！平票候选人进行最后的辩解发言</p>
+
+      <div class="speaker-banner" id="pk-speaker-box">
+        <div class="current-speaker-avatar" id="pk-speaker-avatar">🔥</div>
+        <div class="speaker-name" id="pk-speaker-name">PK 发言中...</div>
+      </div>
+
+      <button id="btn-finish-pk-speaking" class="btn btn-primary" style="margin-top: 16px;">
+        🎤 辩解完毕 / 下一位
+      </button>
+
+      <button class="btn btn-secondary btn-host-reset-action hidden" style="margin-top: 10px; padding: 8px; font-size: 12px; border-color: rgba(244,63,94,0.4); color: #fca5a5;">
+        🔄 房主重置本局 / 回到大厅
+      </button>
+    </section>
+
+    <!-- 7. 淘汰揭晓阶段界面 -->
+    <section id="view-elimination" class="card hidden">
+      <h2 style="text-align: center; font-size: 22px; margin-bottom: 6px;">⚰️ 投票结果揭晓</h2>
+      
+      <div id="eliminated-container" style="text-align: center; padding: 20px 0;">
+        <!-- 动态渲染被淘汰玩家信息 -->
+      </div>
+
+      <div id="host-next-round-btn" class="hidden">
+        <button id="btn-next-round" class="btn btn-primary">
+          ➡️ 进入下一轮发言
+        </button>
+      </div>
+
+      <button class="btn btn-secondary btn-host-reset-action hidden" style="margin-top: 10px; padding: 8px; font-size: 12px; border-color: rgba(244,63,94,0.4); color: #fca5a5;">
+        🔄 房主重置本局 / 回到大厅
+      </button>
+
+      <div id="guest-next-round-msg" class="hidden" style="text-align: center; color: var(--text-muted); font-size: 13px;">
+        ⏳ 等待房主开启下一轮...
+      </div>
+    </section>
+
+    <!-- 8. 游戏结算与胜利界面 -->
+    <section id="view-game-over" class="card hidden">
+      <div class="victory-box">
+        <div class="victory-icon" id="victory-icon">🏆</div>
+        <div class="victory-title" id="victory-title">平民获胜！</div>
+        <p class="subtitle" id="victory-desc">成功揪出所有卧底！</p>
+      </div>
+
+      <!-- 身份与词语全揭晓表格 -->
+      <table class="words-reveal-table">
+        <thead>
+          <tr>
+            <th>玩家</th>
+            <th>角色</th>
+            <th>底牌词</th>
+          </tr>
+        </thead>
+        <tbody id="game-over-players-tbody">
+          <!-- 动态渲染所有玩家真实身份和词语 -->
+        </tbody>
+      </table>
+
+      <!-- 败者随机惩罚卡 -->
+      <div class="punishment-card">
+        <div class="punishment-title">🎲 输家大冒险 / 真心话惩罚</div>
+        <div class="punishment-text" id="punishment-text">正在抽取惩罚...</div>
+        <button id="btn-reroll-punishment" class="btn btn-secondary" style="margin-top: 10px; padding: 6px 12px; font-size: 12px; width: auto; display: inline-flex;">
+          🔄 换一个惩罚
+        </button>
+      </div>
+
+      <div id="game-over-host-actions" class="hidden" style="margin-top: 16px;">
+        <button id="btn-restart-game" class="btn btn-primary">
+          🔄 再来一局 (保持房间)
+        </button>
+      </div>
+    </section>
+
+    <!-- 底部快捷表情互动栏 -->
+    <div class="reaction-bar" id="reaction-bar">
+      <button class="reaction-btn" data-emoji="😂">😂</button>
+      <button class="reaction-btn" data-emoji="🧐">🧐</button>
+      <button class="reaction-btn" data-emoji="🤫">🤫</button>
+      <button class="reaction-btn" data-emoji="🔥">🔥</button>
+      <button class="reaction-btn" data-emoji="💣">💣</button>
+      <button class="reaction-btn" data-emoji="🍺">🍺</button>
+      <button class="reaction-btn" data-emoji="🏆">🏆</button>
+    </div>
+
+    <!-- 弹窗：局域网连接与二维码 -->
+    <div class="modal-overlay hidden" id="modal-lan">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title">📱 手机扫码联机</h3>
+          <button class="close-btn" id="btn-close-lan">✕</button>
+        </div>
+        <div style="text-align: center;">
+          <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+            请确保所有玩家连接<strong>同一个 WiFi / 热点</strong>：
+          </p>
+          <div id="qrcode-container" style="display: flex; justify-content: center; margin-bottom: 16px; background: white; padding: 12px; border-radius: var(--radius-md); width: fit-content; margin-left: auto; margin-right: auto;">
+            <!-- 二维码 -->
+          </div>
+          <div id="lan-url-list" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
+            <!-- 局域网链接列表 -->
+          </div>
+          <button id="btn-copy-link" class="btn btn-secondary" style="font-size: 14px;">
+            📋 复制游戏链接
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 弹窗：游戏设置 (房主) -->
+    <div class="modal-overlay hidden" id="modal-settings">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title">⚙️ 游戏房间配置</h3>
+          <button class="close-btn" id="btn-close-settings">✕</button>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">🕵️ 卧底人数</div>
+          <div class="stepper">
+            <button class="stepper-btn" id="btn-spy-minus">-</button>
+            <span class="stepper-value" id="val-spy-count">1</span>
+            <button class="stepper-btn" id="btn-spy-plus">+</button>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">📄 白板人数 (无词伪装)</div>
+          <div class="stepper">
+            <button class="stepper-btn" id="btn-wb-minus">-</button>
+            <span class="stepper-value" id="val-wb-count">0</span>
+            <button class="stepper-btn" id="btn-wb-plus">+</button>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">⏱️ 发言倒计时</div>
+          <select id="select-speech-timer" class="text-input" style="width: 120px; padding: 6px 10px; font-size: 13px;">
+            <option value="30">30 秒</option>
+            <option value="45" selected>45 秒</option>
+            <option value="60">60 秒</option>
+            <option value="90">90 秒</option>
+            <option value="0">不限时</option>
+          </select>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">📚 词库分类</div>
+          <select id="select-category" class="text-input" style="width: 130px; padding: 6px 10px; font-size: 13px;">
+            <option value="all">🌟 综合随机</option>
+            <option value="classic">⚔️ 经典对决</option>
+            <option value="life">☕ 生活日常</option>
+            <option value="fun">🤣 搞笑扎心</option>
+            <option value="pop">🎬 影视动漫</option>
+            <option value="food">🍔 吃货天下</option>
+            <option value="custom_only">✍️ 仅自定义词库</option>
+          </select>
+        </div>
+
+        <div style="margin-top: 16px;">
+          <div class="input-label">✍️ 添加自定义词对 (可选)</div>
+          <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+            <input type="text" id="custom-word-civ" class="text-input" placeholder="平民词 (如: 苹果)" style="font-size: 13px; padding: 8px;">
+            <input type="text" id="custom-word-spy" class="text-input" placeholder="卧底词 (如: 鸭梨)" style="font-size: 13px; padding: 8px;">
+            <button id="btn-add-custom-word" class="btn btn-secondary" style="width: 70px; padding: 8px; font-size: 13px;">添加</button>
+          </div>
+          <div id="custom-words-badge-list" style="display: flex; flex-wrap: wrap; gap: 6px; max-height: 80px; overflow-y: auto;">
+            <!-- 自定义词列表 -->
+          </div>
+        </div>
+
+        <button id="btn-save-settings" class="btn btn-primary" style="margin-top: 20px;">
+          保存设置
+        </button>
+      </div>
+    </div>
+
+    <!-- 弹窗：游戏规则说明 -->
+    <div class="modal-overlay hidden" id="modal-rules">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title">📖 游戏规则与玩法</h3>
+          <button class="close-btn" id="btn-close-rules">✕</button>
+        </div>
+        <div style="font-size: 14px; line-height: 1.6; color: var(--text-main); display: flex; flex-direction: column; gap: 12px;">
+          <div>
+            <strong style="color: #67e8f9;">1. 角色分配：</strong><br>
+            • <strong>平民</strong>：拿到平民词，人数占大多数。<br>
+            • <strong>卧底</strong>：拿到相似的卧底词，隐藏自己并找出同伴。<br>
+            • <strong>白板 (可选)</strong>：手中没有任何词语，全靠听别人发言伪装。
+          </div>
+          <div>
+            <strong style="color: #f59e0b;">2. 发言阶段：</strong><br>
+            每位玩家按顺序用<strong>一句话</strong>描述自己的词语，既不能让卧底察觉，也不能直接说出词语。
+          </div>
+          <div>
+            <strong style="color: #f43f5e;">3. 投票与淘汰：</strong><br>
+            每轮发言结束后全员投票，得票最多者出局。若出现平票，平票者进行 PK 辩解并重投。
+          </div>
+          <div>
+            <strong style="color: #a855f7;">4. 胜利条件：</strong><br>
+            • <strong>平民获胜</strong>：将所有卧底全部投票出局。<br>
+            • <strong>卧底获胜</strong>：卧底存活人数 ≥ 存活平民+白板人数。
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="qrcode.min.js"></script>
+  <script src="sfx.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>

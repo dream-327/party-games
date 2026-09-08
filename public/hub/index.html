@@ -1,0 +1,134 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>聚会游戏盒子 - Party Games Hub</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="glow-bg"></div>
+
+  <div class="hub-wrapper">
+    <!-- 头部导航 -->
+    <header class="hub-header">
+      <div class="brand">
+        <span class="brand-icon">🎮</span>
+        <div class="brand-text">
+          <h1>Party Games</h1>
+          <p>聚会游戏盒子 · 异地局域网畅玩</p>
+        </div>
+      </div>
+      <div class="header-tools">
+        <button id="btn-share-hub" class="tool-btn" title="扫码分享大厅">📱 邀请好友</button>
+      </div>
+    </header>
+
+    <!-- 网络状态栏 -->
+    <section class="network-badge-bar">
+      <div class="status-indicator">
+        <span class="status-dot"></span>
+        <span id="server-status-text">局域网 / 公网在线服务已就绪</span>
+      </div>
+      <div id="quick-domain-pill" class="domain-pill">端口: 3000</div>
+    </section>
+
+    <!-- 游戏合集列表 -->
+    <main class="games-grid">
+
+      <!-- 游戏1: 谁是卧底 -->
+      <div class="game-card card-undercover">
+        <div class="card-badge">人气聚会推理</div>
+        <div class="game-icon-box">🕵️‍♂️</div>
+        <div class="game-info">
+          <h2>谁是卧底</h2>
+          <p class="game-subtitle">Who is Undercover</p>
+          <div class="tags-row">
+            <span class="tag">4-12人</span>
+            <span class="tag">3D防窥翻牌</span>
+            <span class="tag">平票争辩PK</span>
+            <span class="tag">大冒险惩罚</span>
+          </div>
+          <p class="game-desc">
+            一部手机一台电脑即可开黑，防偷窥抽卡查看底牌，海量生活与搞笑词库，出局震撼揭晓与真心话惩罚！
+          </p>
+        </div>
+        <div class="card-footer">
+          <a href="/undercover/" class="btn btn-primary">进入游戏 ➜</a>
+        </div>
+      </div>
+
+      <!-- 游戏2: 欢乐斗地主 -->
+      <div class="game-card card-doudizhu">
+        <div class="card-badge new-badge">全新上线 🔥</div>
+        <div class="game-icon-box">🃏</div>
+        <div class="game-info">
+          <h2>欢乐斗地主</h2>
+          <p class="game-subtitle">Fight the Landlord</p>
+          <div class="tags-row">
+            <span class="tag">3人联机</span>
+            <span class="tag">智能AI补位</span>
+            <span class="tag">炸弹火箭翻倍</span>
+            <span class="tag">春天加成</span>
+          </div>
+          <p class="game-desc">
+            经典扑克玩法，叫地主抢地主倍数翻倍，支持电脑AI人机托管陪练，零延迟纯原生音效与丝滑出牌手感！
+          </p>
+        </div>
+        <div class="card-footer">
+          <a href="/doudizhu/" class="btn btn-gold">进入游戏 ➜</a>
+        </div>
+      </div>
+
+      <!-- 游戏3: 敬请期待 -->
+      <div class="game-card card-coming">
+        <div class="card-badge coming-badge">即将推出</div>
+        <div class="game-icon-box">🎲</div>
+        <div class="game-info">
+          <h2>更多派对游戏</h2>
+          <p class="game-subtitle">More Games Coming Soon</p>
+          <div class="tags-row">
+            <span class="tag">飞行棋</span>
+            <span class="tag">Uno 牌</span>
+            <span class="tag">阿瓦隆</span>
+            <span class="tag">猜画小歌</span>
+          </div>
+          <p class="game-desc">
+            更多精彩聚会桌游与益智对战游戏正在加速研发中，敬请期待...
+          </p>
+        </div>
+        <div class="card-footer">
+          <button class="btn btn-disabled" disabled>开发中...</button>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- 底部版权 -->
+    <footer class="hub-footer">
+      <p>🎉 Party Games Box · 由 Node.js & Socket.IO 强力驱动 · 支持局域网与公网穿透访问</p>
+    </footer>
+  </div>
+
+  <!-- 分享大厅二维码弹窗 -->
+  <div id="modal-share-hub" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>📱 分享游戏大厅</h3>
+        <button class="modal-close" id="btn-close-share-hub">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="qrcode-hub-container" class="qrcode-wrapper"></div>
+        <div class="share-url-box">
+          <input type="text" id="share-hub-input" readonly>
+          <button id="btn-copy-hub-link" class="btn btn-secondary">复制链接</button>
+        </div>
+        <div class="network-list" id="hub-network-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/undercover/qrcode.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
