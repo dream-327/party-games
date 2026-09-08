@@ -1,4 +1,4 @@
-// 欢乐斗地主 - 客户端核心逻辑
+// 欢乐斗地主 - 客户端核心逻辑 (沉浸感与丝滑对战体验版)
 (function() {
   const socket = io('/doudizhu');
 
@@ -25,6 +25,10 @@
   let timerInterval = null;
   let serverInfo = null;
 
+  // 滑牌选牌手势状态
+  let isPointerDragging = false;
+  let draggedCardIds = new Set();
+
   // DOM 元素引用
   const viewHome = document.getElementById('view-home');
   const viewTable = document.getElementById('view-table');
@@ -44,10 +48,22 @@
   const btnSound = document.getElementById('btn-sound');
 
   // 牌桌元素
+  const gameTableFelt = document.querySelector('.game-table-felt');
   const bottomCardsContainer = document.getElementById('bottom-cards-container');
   const tableMultiplierNum = document.getElementById('table-multiplier-num');
   const tableBannerAlert = document.getElementById('table-banner-alert');
   const bannerText = document.getElementById('banner-text');
+
+  // 全屏动画元素
+  const airplaneAnim = document.getElementById('airplane-anim');
+  const rocketAnim = document.getElementById('rocket-anim');
+  const bombAnim = document.getElementById('bomb-anim');
+  const toastContainer = document.getElementById('toast-container');
+
+  // 互动聊天元素
+  const btnOpenChat = document.getElementById('btn-open-chat');
+  const panelChatPopup = document.getElementById('panel-chat-popup');
+  const btnCloseChat = document.getElementById('btn-close-chat');
 
   // 左右玩家
   const pLeft = {
@@ -98,6 +114,7 @@
 
   const panelPlay = document.getElementById('panel-play-actions');
   const playTimer = document.getElementById('play-timer');
+  const selectedCardTypeTag = document.getElementById('selected-card-type-tag');
   const btnPassPlay = document.getElementById('btn-pass-play');
   const btnHintPlay = document.getElementById('btn-hint-play');
   const btnSubmitPlay = document.getElementById('btn-submit-play');
@@ -119,6 +136,21 @@
   const settleScoresGrid = document.getElementById('settle-scores-grid');
   const settleRevealedHands = document.getElementById('settle-revealed-hands');
   const btnPlayAgain = document.getElementById('btn-play-again');
+
+  // 优雅轻量级浮动 Toast 提示
+  function showToast(msg, duration = 2200) {
+    if (!toastContainer) return;
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.textContent = msg;
+    toastContainer.appendChild(t);
+    setTimeout(() => {
+      t.style.transition = 'all 0.3s ease';
+      t.style.opacity = '0';
+      t.style.transform = 'translateY(-15px)';
+      setTimeout(() => t.remove(), 300);
+    }, duration);
+  }
 
   // 初始化头像选择
   function initProfileUI() {
@@ -150,7 +182,7 @@
     .then(info => { serverInfo = info; })
     .catch(() => {});
 
-  // 渲染卡牌 DOM 组件
+  // 渲染单张卡牌 DOM 组件
   function createCardElement(card, isSmall = false, isSelected = false) {
     const el = document.createElement('div');
     const isRed = ['♥', '♦'].includes(card.suit) || card.rank === 'RJ';
@@ -306,28 +338,37 @@
       domElements.role.classList.add('hidden');
     }
 
-    // 托管
+    // 托管状态
     if (seatData.isAuto) {
       domElements.auto.classList.remove('hidden');
     } else {
       domElements.auto.classList.add('hidden');
     }
 
-    // 手牌张数
+    // 手牌张数与报单报双警报
     if (room.gameState.phase !== 'LOBBY') {
       domElements.count.classList.remove('hidden');
-      domElements.count.textContent = `${seatData.cardCount} 张`;
+      if (seatData.cardCount === 1) {
+        domElements.count.className = 'card-count-badge danger-single';
+        domElements.count.textContent = '⚠️ 剩 1 张!';
+      } else if (seatData.cardCount === 2) {
+        domElements.count.className = 'card-count-badge danger-double';
+        domElements.count.textContent = '⚠️ 剩 2 张';
+      } else {
+        domElements.count.className = 'card-count-badge';
+        domElements.count.textContent = `${seatData.cardCount} 张`;
+      }
     } else {
       domElements.count.classList.add('hidden');
     }
 
-    // 轮到此人回合时的倒计时
+    // 轮到此人回合时的光环与倒计时
     const isCurrentTurn = (room.gameState.phase === 'PLAYING' && room.gameState.currentTurnSeat === seatIdx) ||
                           (room.gameState.phase === 'BIDDING' && room.gameState.bidState.currentBidder === seatIdx);
 
     if (isCurrentTurn) {
       domElements.timer.classList.remove('hidden');
-      domElements.avatar.parentElement.style.boxShadow = '0 0 15px #fbbf24';
+      domElements.avatar.parentElement.style.boxShadow = '0 0 18px #fbbf24';
     } else {
       domElements.timer.classList.add('hidden');
       domElements.avatar.parentElement.style.boxShadow = 'none';
@@ -353,13 +394,31 @@
     }
   }
 
+  // 渲染我的手牌 (自适应扇形间距与滑选)
   function renderMyHandCards(cards) {
     pMy.cardsContainer.innerHTML = '';
-    cards.forEach(c => {
+    const total = cards.length;
+    const containerWidth = pMy.cardsContainer.clientWidth || 360;
+    const cardWidth = 58;
+
+    // 响应式负边距自适应排列
+    let marginOffset = -22;
+    if (total > 1) {
+      const maxSpan = Math.max(220, containerWidth - cardWidth - 24);
+      const step = Math.max(14, Math.min(32, maxSpan / (total - 1)));
+      marginOffset = -(cardWidth - step);
+    }
+
+    cards.forEach((c, idx) => {
       const isSelected = selectedCards.has(c.id);
       const cardEl = createCardElement(c, false, isSelected);
+      if (idx > 0) {
+        cardEl.style.marginLeft = `${marginOffset}px`;
+      }
+      cardEl.dataset.id = c.id;
 
-      cardEl.addEventListener('click', () => {
+      // 单击单选
+      cardEl.addEventListener('click', (e) => {
         if (selectedCards.has(c.id)) {
           selectedCards.delete(c.id);
           cardEl.classList.remove('selected');
@@ -368,11 +427,127 @@
           cardEl.classList.add('selected');
         }
         window.sfx && window.sfx.playCardSelect();
+        updateSelectedCardHUD();
       });
 
       pMy.cardsContainer.appendChild(cardEl);
     });
+
+    updateSelectedCardHUD();
   }
+
+  // 实时分析当前选牌的牌型，更新底部徽章与出牌按钮激活状态
+  function updateSelectedCardHUD() {
+    if (!currentRoom || currentRoom.mySeatIndex === -1) return;
+    const mySeat = currentRoom.mySeatIndex;
+    const myHand = (currentRoom.seats[mySeat] && currentRoom.seats[mySeat].handCards) || [];
+    const selectedList = myHand.filter(c => selectedCards.has(c.id));
+
+    if (selectedList.length === 0) {
+      selectedCardTypeTag.classList.add('hidden');
+      selectedCardTypeTag.className = 'card-type-pill hidden';
+      btnSubmitPlay.disabled = true;
+      btnSubmitPlay.classList.remove('can-play');
+      return;
+    }
+
+    selectedCardTypeTag.classList.remove('hidden');
+
+    if (!window.DouDizhuRules) {
+      selectedCardTypeTag.textContent = `已选 ${selectedList.length} 张`;
+      btnSubmitPlay.disabled = false;
+      return;
+    }
+
+    const parsed = window.DouDizhuRules.parseHand(selectedList);
+    const hasTable = currentRoom.gameState.lastValidPlay && currentRoom.gameState.passCount < 2;
+    const tableHand = hasTable ? currentRoom.gameState.lastValidPlay.parsed : null;
+
+    if (parsed.type === window.DouDizhuRules.CARD_TYPES.INVALID) {
+      selectedCardTypeTag.textContent = '❌ 不合规则';
+      selectedCardTypeTag.className = 'card-type-pill invalid';
+      btnSubmitPlay.disabled = true;
+      btnSubmitPlay.classList.remove('can-play');
+    } else {
+      const canBeat = window.DouDizhuRules.canBeat(parsed, tableHand);
+      if (canBeat) {
+        selectedCardTypeTag.textContent = `✨ ${parsed.name}`;
+        selectedCardTypeTag.className = 'card-type-pill valid';
+        btnSubmitPlay.disabled = false;
+        btnSubmitPlay.classList.add('can-play');
+      } else {
+        selectedCardTypeTag.textContent = `⚠️ 压不过 (${parsed.name})`;
+        selectedCardTypeTag.className = 'card-type-pill warning';
+        btnSubmitPlay.disabled = true;
+        btnSubmitPlay.classList.remove('can-play');
+      }
+    }
+  }
+
+  // 手牌容器绑定滑动划选（Swipe Drag Selection）
+  pMy.cardsContainer.addEventListener('pointerdown', (e) => {
+    const cardEl = e.target.closest('.card-item');
+    if (!cardEl) return;
+    isPointerDragging = true;
+    draggedCardIds.clear();
+    const id = cardEl.dataset.id;
+    if (id) {
+      draggedCardIds.add(id);
+      cardEl.classList.add('in-drag-select');
+    }
+  });
+
+  window.addEventListener('pointermove', (e) => {
+    if (!isPointerDragging) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (el) {
+      const cardEl = el.closest('.card-item');
+      if (cardEl && cardEl.parentElement === pMy.cardsContainer) {
+        const id = cardEl.dataset.id;
+        if (id && !draggedCardIds.has(id)) {
+          draggedCardIds.add(id);
+          cardEl.classList.add('in-drag-select');
+        }
+      }
+    }
+  });
+
+  window.addEventListener('pointerup', () => {
+    if (!isPointerDragging) return;
+    isPointerDragging = false;
+
+    if (draggedCardIds.size > 1) {
+      // 多选划牌生效
+      draggedCardIds.forEach(id => {
+        if (selectedCards.has(id)) selectedCards.delete(id);
+        else selectedCards.add(id);
+      });
+      window.sfx && window.sfx.playCardSelect();
+      if (currentRoom && currentRoom.mySeatIndex !== -1) {
+        renderMyHandCards(currentRoom.seats[currentRoom.mySeatIndex].handCards || []);
+      }
+    }
+
+    document.querySelectorAll('.card-item.in-drag-select').forEach(el => {
+      el.classList.remove('in-drag-select');
+    });
+    draggedCardIds.clear();
+  });
+
+  // 点击绿色桌面空白处自动取消选牌
+  gameTableFelt.addEventListener('click', (e) => {
+    if (!e.target.closest('.card-item') &&
+        !e.target.closest('.my-controls-bar') &&
+        !e.target.closest('.chat-popup') &&
+        !e.target.closest('.floating-chat-btn')) {
+      if (selectedCards.size > 0) {
+        selectedCards.clear();
+        if (currentRoom && currentRoom.mySeatIndex !== -1) {
+          renderMyHandCards(currentRoom.seats[currentRoom.mySeatIndex].handCards || []);
+        }
+      }
+    }
+  });
 
   function renderControlPanels(room, mySeat) {
     panelLobby.classList.add('hidden');
@@ -413,15 +588,15 @@
       const isMyTurn = room.gameState.currentTurnSeat === mySeat;
       if (isMyTurn) {
         panelPlay.classList.remove('hidden');
-        // 若桌面无牌或已连续两次不出，我必须主动出牌，禁用“不出”
         const mustPlay = !room.gameState.lastValidPlay || room.gameState.passCount >= 2;
         btnPassPlay.disabled = mustPlay;
         btnPassPlay.style.opacity = mustPlay ? '0.4' : '1';
+        updateSelectedCardHUD();
       }
     }
   }
 
-  // 倒计时更新定时器
+  // 倒计时更新与音效提醒
   clearInterval(timerInterval);
   timerInterval = setInterval(() => {
     if (!currentRoom || !currentRoom.gameState.turnDeadline) return;
@@ -433,10 +608,38 @@
       playTimer.textContent = `${remain}s`;
     }
 
-    if (remain <= 4 && remain > 0 && (currentRoom.gameState.currentTurnSeat === currentRoom.mySeatIndex || currentRoom.gameState.bidState.currentBidder === currentRoom.mySeatIndex)) {
+    const isMyAction = (currentRoom.gameState.phase === 'PLAYING' && currentRoom.gameState.currentTurnSeat === currentRoom.mySeatIndex) ||
+                       (currentRoom.gameState.phase === 'BIDDING' && currentRoom.gameState.bidState.currentBidder === currentRoom.mySeatIndex);
+
+    if (remain <= 5 && remain > 0 && isMyAction) {
       window.sfx && window.sfx.playUrgentTick();
     }
   }, 1000);
+
+  // 动画触发辅助函数
+  function triggerScreenShake() {
+    if (!gameTableFelt) return;
+    gameTableFelt.classList.add('screen-shake');
+    setTimeout(() => gameTableFelt.classList.remove('screen-shake'), 600);
+  }
+
+  function triggerAirplaneAnim() {
+    if (!airplaneAnim) return;
+    airplaneAnim.classList.remove('hidden');
+    setTimeout(() => airplaneAnim.classList.add('hidden'), 2000);
+  }
+
+  function triggerRocketAnim() {
+    if (!rocketAnim) return;
+    rocketAnim.classList.remove('hidden');
+    setTimeout(() => rocketAnim.classList.add('hidden'), 1800);
+  }
+
+  function triggerBombAnim() {
+    if (!bombAnim) return;
+    bombAnim.classList.remove('hidden');
+    setTimeout(() => bombAnim.classList.add('hidden'), 1400);
+  }
 
   // 绑定交互事件
   initProfileUI();
@@ -458,7 +661,7 @@
   btnJoinRoom.addEventListener('click', () => {
     const code = roomCodeInput.value.trim();
     if (code.length !== 4) {
-      alert('请输入 4 位房间号');
+      showToast('请输入 4 位房间号');
       return;
     }
     joinRoomByCode(code);
@@ -476,7 +679,7 @@
       if (res && res.success) {
         window.history.replaceState(null, '', `?room=${code}`);
       } else {
-        alert((res && res.message) || '加入房间失败');
+        showToast((res && res.message) || '加入房间失败');
       }
     });
   }
@@ -489,7 +692,7 @@
   // 房主添加电脑
   btnAddAi.addEventListener('click', () => {
     socket.emit('add_ai', (res) => {
-      if (res && !res.success) alert(res.message);
+      if (res && !res.success) showToast(res.message);
     });
   });
 
@@ -500,12 +703,10 @@
 
   // 叫地主 / 抢地主
   btnCallBid.addEventListener('click', () => {
-    window.sfx && window.sfx.playBid();
     socket.emit('bid', true);
   });
 
   btnPassBid.addEventListener('click', () => {
-    window.sfx && window.sfx.playPass();
     socket.emit('bid', false);
   });
 
@@ -513,15 +714,16 @@
   btnSubmitPlay.addEventListener('click', () => {
     const cardIds = Array.from(selectedCards);
     if (cardIds.length === 0) {
-      alert('请先选择要出的卡牌');
+      showToast('请先选择要出的卡牌');
       return;
     }
     socket.emit('play_cards', cardIds, (res) => {
       if (res && res.success) {
         selectedCards.clear();
         hintCandidates = [];
+        updateSelectedCardHUD();
       } else {
-        alert('选牌不符合规则或无法压过上家！');
+        showToast('选牌不符合规则或无法压过上家！');
       }
     });
   });
@@ -532,23 +734,27 @@
       if (res && res.success) {
         selectedCards.clear();
         hintCandidates = [];
-        window.sfx && window.sfx.playPass();
+        updateSelectedCardHUD();
       }
     });
   });
 
-  // 智能提示功能
+  // 智能提示功能 (全牌型循环推荐)
   btnHintPlay.addEventListener('click', () => {
-    if (!currentRoom) return;
+    if (!currentRoom || currentRoom.mySeatIndex === -1) return;
     const mySeat = currentRoom.mySeatIndex;
-    const myHand = currentRoom.seats[mySeat].handCards || [];
+    const myHand = (currentRoom.seats[mySeat] && currentRoom.seats[mySeat].handCards) || [];
     const lastPlay = currentRoom.gameState.lastValidPlay;
     const hasTable = lastPlay && currentRoom.gameState.passCount < 2;
+    const tableHand = hasTable ? lastPlay.parsed : null;
 
-    // 前端直接调用匹配逻辑
-    hintCandidates = findClientBeatingHands(myHand, hasTable ? lastPlay.parsed : null);
-    if (hintCandidates.length === 0) {
-      alert('没有可以大过上家的牌');
+    if (!window.DouDizhuRules) return;
+
+    hintCandidates = window.DouDizhuRules.findBeatingHands(myHand, tableHand);
+    if (!hintCandidates || hintCandidates.length === 0) {
+      showToast('没有牌大过上家，请点不出！');
+      btnPassPlay.style.boxShadow = '0 0 16px #f59e0b';
+      setTimeout(() => { btnPassPlay.style.boxShadow = 'none'; }, 1500);
       return;
     }
 
@@ -569,6 +775,25 @@
     }
   });
 
+  // 快捷互动弹窗开关
+  btnOpenChat.addEventListener('click', () => {
+    panelChatPopup.classList.toggle('hidden');
+  });
+
+  btnCloseChat.addEventListener('click', () => {
+    panelChatPopup.classList.add('hidden');
+  });
+
+  document.querySelectorAll('.chat-emoji-btn, .chat-phrase-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const text = btn.dataset.text;
+      if (text) {
+        socket.emit('send_reaction', text);
+        panelChatPopup.classList.add('hidden');
+      }
+    });
+  });
+
   // 托管开关
   btnAutoToggle.addEventListener('click', () => {
     socket.emit('toggle_auto');
@@ -578,6 +803,7 @@
   btnSound.addEventListener('click', () => {
     const enabled = window.sfx && window.sfx.toggleSound();
     btnSound.textContent = enabled ? '🔊' : '🔇';
+    showToast(enabled ? '🔊 音效与国语配音已开启' : '🔇 音效已静音');
   });
 
   // 规则弹窗
@@ -602,6 +828,7 @@
     navigator.clipboard.writeText(shareLinkInput.value).then(() => {
       btnCopyShareLink.textContent = '已复制！';
       setTimeout(() => { btnCopyShareLink.textContent = '复制链接'; }, 1500);
+      showToast('房间链接已复制到剪贴板');
     });
   });
 
@@ -677,6 +904,7 @@
 
   socket.on('cards_dealt', () => {
     window.sfx && window.sfx.playDeal();
+    showToast('🎴 开始发牌！理牌中...');
   });
 
   socket.on('bid_action_broadcast', ({ seatIndex, actionText, wantBid, multiplier }) => {
@@ -687,29 +915,53 @@
       bubble.classList.remove('hidden');
       setTimeout(() => bubble.classList.add('hidden'), 2000);
     }
+
+    if (actionText === '叫地主') {
+      window.sfx && window.sfx.playCallBid();
+    } else if (actionText === '不叫') {
+      window.sfx && window.sfx.playPassBid();
+    } else if (actionText === '抢地主') {
+      window.sfx && window.sfx.playRobBid();
+    } else if (actionText === '不抢') {
+      window.sfx && window.sfx.playPassRob();
+    }
   });
 
   socket.on('landlord_decided', ({ landlordSeat, multiplier }) => {
     tableMultiplierNum.textContent = multiplier;
-    bannerText.textContent = `👑 地主已诞生！进入对局！`;
+    const isMe = (currentRoom && currentRoom.mySeatIndex === landlordSeat);
+    bannerText.textContent = isMe ? '👑 你成为了地主！底牌已收入！' : '👑 地主已诞生！进入对局！';
     tableBannerAlert.classList.remove('hidden');
     setTimeout(() => tableBannerAlert.classList.add('hidden'), 2500);
-    window.sfx && window.sfx.playBid();
+    window.sfx && window.sfx.speak(isMe ? '你是地主！' : '进入对局！');
   });
 
-  socket.on('action_played', ({ seatIndex, isBomb, isRocket, cardType }) => {
-    window.sfx && window.sfx.playCardPlay();
+  socket.on('action_played', ({ seatIndex, isBomb, isRocket, cardType, cards, remainingCount }) => {
+    window.sfx && window.sfx.playCardCombo(cardType, cards ? cards.length : 0);
 
     if (isRocket) {
       bannerText.textContent = '🚀 王炸！秒杀一切！倍数翻倍！';
       tableBannerAlert.classList.remove('hidden');
-      window.sfx && window.sfx.playRocket();
+      triggerRocketAnim();
+      triggerScreenShake();
       setTimeout(() => tableBannerAlert.classList.add('hidden'), 2500);
     } else if (isBomb) {
       bannerText.textContent = '💣 炸弹！倍数翻倍！';
       tableBannerAlert.classList.remove('hidden');
-      window.sfx && window.sfx.playBomb();
+      triggerBombAnim();
+      triggerScreenShake();
       setTimeout(() => tableBannerAlert.classList.add('hidden'), 2500);
+    } else if (cardType && cardType.includes('AIRPLANE')) {
+      triggerAirplaneAnim();
+    }
+
+    // 报单与报双预警
+    if (remainingCount === 1) {
+      window.sfx && window.sfx.playAlertSingle();
+      showToast('⚠️ 警报：有玩家只剩 1 张牌了！');
+    } else if (remainingCount === 2) {
+      window.sfx && window.sfx.playAlertDouble();
+      showToast('⚠️ 注意：有玩家只剩 2 张牌了！');
     }
   });
 
@@ -721,6 +973,22 @@
       setTimeout(() => bubble.classList.add('hidden'), 1500);
     }
     window.sfx && window.sfx.playPass();
+  });
+
+  socket.on('reaction_received', ({ senderId, name, avatar, content }) => {
+    if (!currentRoom) return;
+    const seatIdx = currentRoom.seats.findIndex(s => s && s.id === senderId);
+    if (seatIdx !== -1) {
+      const bubble = getBubbleBySeat(seatIdx);
+      if (bubble) {
+        bubble.textContent = `${content}`;
+        bubble.classList.remove('hidden');
+        setTimeout(() => bubble.classList.add('hidden'), 3500);
+      }
+    }
+    if (content && content.length > 1 && window.sfx) {
+      window.sfx.speak(content);
+    }
   });
 
   socket.on('game_over_announced', ({ winnerSeat, winnerRole, spring, springType, multiplier, scores }) => {
@@ -748,7 +1016,7 @@
       const col = document.createElement('div');
       col.className = `score-col ${idx === winnerSeat ? 'winner' : ''}`;
       col.innerHTML = `
-        <div style="font-size:20px;">${s.avatar}</div>
+        <div style="font-size:24px;">${s.avatar}</div>
         <div style="font-size:12px; font-weight:700; margin-top:2px;">${s.name}</div>
         <div class="score-val ${score >= 0 ? 'positive' : 'negative'}">${score >= 0 ? '+' : ''}${score}</div>
       `;
@@ -780,33 +1048,6 @@
     if (seatIndex === (mySeat + 1) % 3) return pLeft.bubble;
     if (seatIndex === (mySeat + 2) % 3) return pRight.bubble;
     return null;
-  }
-
-  // 简易客户端提示匹配 (寻找能压过桌面的牌型)
-  function findClientBeatingHands(myHand, tableHand) {
-    if (!myHand || myHand.length === 0) return [];
-    // 桌面无牌，返回最小单张或对子
-    if (!tableHand) {
-      return [[myHand[myHand.length - 1]]];
-    }
-    // 简易寻找单张或对子比 tableHand.value 大的牌
-    const res = [];
-    if (tableHand.type === 'SINGLE') {
-      for (let i = myHand.length - 1; i >= 0; i--) {
-        if (myHand[i].value > tableHand.value) {
-          res.push([myHand[i]]);
-        }
-      }
-    } else if (tableHand.type === 'PAIR') {
-      const map = {};
-      myHand.forEach(c => { map[c.value] = map[c.value] || []; map[c.value].push(c); });
-      Object.keys(map).sort((a, b) => Number(a) - Number(b)).forEach(val => {
-        if (Number(val) > tableHand.value && map[val].length >= 2) {
-          res.push(map[val].slice(0, 2));
-        }
-      });
-    }
-    return res.length > 0 ? res : [];
   }
 
   // 检查 URL 是否带房间号自动加入

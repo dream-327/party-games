@@ -1,4 +1,4 @@
-﻿// Dou Dizhu Game Server (欢乐斗地主服务端逻辑)
+// Dou Dizhu Game Server (欢乐斗地主服务端逻辑)
 
 const { createDeck, sortCards, parseHand, canBeat, findBeatingHands, CARD_TYPES } = require('./rules');
 const { decideBid, decidePlay } = require('./ai');
@@ -216,7 +216,14 @@ function handleAiPlayTurn(doudizhuIo, room, seatIndex) {
   }
 
   const landlordRemaining = (room.gameState.hands[room.gameState.landlordSeat] || []).length;
-  const playCards = decidePlay(hand, tableHand, myRole, tableRole, landlordRemaining);
+  let teammateRemaining = 17;
+  if (!isLandlord) {
+    const otherFarmerSeat = [0, 1, 2].find(s => s !== room.gameState.landlordSeat && s !== seatIndex);
+    if (otherFarmerSeat !== undefined) {
+      teammateRemaining = (room.gameState.hands[otherFarmerSeat] || []).length;
+    }
+  }
+  const playCards = decidePlay(hand, tableHand, myRole, tableRole, landlordRemaining, teammateRemaining);
 
   if (!playCards || playCards.length === 0) {
     // 过牌

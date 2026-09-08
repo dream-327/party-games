@@ -1,4 +1,4 @@
-﻿/* 欢乐斗地主 - 专属样式表 */
+/* 欢乐斗地主 - 专属样式表 */
 :root {
   --felt-green: #1b4d3e;
   --felt-dark: #092017;
@@ -930,4 +930,283 @@ body {
 @keyframes bounce {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-8px); }
+}
+
+/* 实时牌型指示徽章 */
+.card-type-pill {
+  font-size: 12px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.card-type-pill.valid {
+  background: rgba(16, 185, 129, 0.25);
+  border: 1px solid #10b981;
+  color: #6ee7b7;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+}
+
+.card-type-pill.warning {
+  background: rgba(245, 158, 11, 0.25);
+  border: 1px solid #f59e0b;
+  color: #fcd34d;
+}
+
+.card-type-pill.invalid {
+  background: rgba(239, 68, 68, 0.25);
+  border: 1px solid #ef4444;
+  color: #fca5a5;
+}
+
+/* 出牌按钮就绪高亮 */
+#btn-submit-play.can-play {
+  animation: pulsePlayBtn 1s infinite alternate;
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.8);
+}
+
+@keyframes pulsePlayBtn {
+  from { transform: scale(1); }
+  to { transform: scale(1.06); }
+}
+
+/* 牌桌全屏震颤 (炸弹爆炸) */
+.screen-shake {
+  animation: tableShake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes tableShake {
+  10%, 90% { transform: translate3d(-3px, 1px, 0); }
+  20%, 80% { transform: translate3d(4px, -2px, 0); }
+  30%, 50%, 70% { transform: translate3d(-6px, 4px, 0); }
+  40%, 60% { transform: translate3d(6px, -4px, 0); }
+}
+
+/* 手牌滑选高亮 */
+.card-item.in-drag-select {
+  filter: brightness(1.2) drop-shadow(0 0 8px #fbbf24);
+  transform: translateY(-12px);
+}
+
+/* 报单与报双紧急预警徽章 */
+.card-count-badge.danger-single {
+  background: #ef4444 !important;
+  color: #fff !important;
+  font-weight: 900;
+  box-shadow: 0 0 12px #ef4444;
+  animation: dangerBlink 0.6s infinite alternate;
+}
+
+.card-count-badge.danger-double {
+  background: #f59e0b !important;
+  color: #fff !important;
+  font-weight: 900;
+  box-shadow: 0 0 10px #f59e0b;
+  animation: dangerBlink 0.9s infinite alternate;
+}
+
+@keyframes dangerBlink {
+  from { transform: scale(1); opacity: 0.85; }
+  to { transform: scale(1.12); opacity: 1; }
+}
+
+/* 全屏特技动画 (飞机、火箭、炸弹) */
+.airplane-anim {
+  position: absolute;
+  top: 35%;
+  left: -100px;
+  font-size: 54px;
+  z-index: 55;
+  pointer-events: none;
+  animation: flyAirplane 1.8s ease-in-out forwards;
+}
+
+@keyframes flyAirplane {
+  0% { transform: translate(0, 0) scale(0.6); opacity: 0; left: -100px; }
+  20% { opacity: 1; transform: translate(150px, -30px) scale(1.1); }
+  60% { transform: translate(500px, 20px) scale(1.3); opacity: 1; }
+  100% { transform: translate(1100px, -50px) scale(0.8); opacity: 0; }
+}
+
+.rocket-anim {
+  position: absolute;
+  bottom: -100px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 64px;
+  z-index: 55;
+  pointer-events: none;
+  animation: launchRocket 1.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes launchRocket {
+  0% { bottom: -100px; opacity: 0; transform: translateX(-50%) scale(0.6); }
+  30% { opacity: 1; transform: translateX(-50%) scale(1.2); }
+  70% { bottom: 60%; transform: translateX(-50%) scale(1.4); opacity: 1; }
+  100% { bottom: 120%; transform: translateX(-50%) scale(0.5); opacity: 0; }
+}
+
+.bomb-anim {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 72px;
+  z-index: 55;
+  pointer-events: none;
+  animation: dropBomb 1.2s ease-out forwards;
+}
+
+@keyframes dropBomb {
+  0% { transform: translate(-50%, -200px) scale(0.4); opacity: 0; }
+  40% { transform: translate(-50%, -50%) scale(1.3); opacity: 1; }
+  70% { transform: translate(-50%, -50%) scale(1.6); opacity: 1; filter: brightness(2); }
+  100% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
+}
+
+/* 悬浮快捷互动聊天按钮 */
+.floating-chat-btn {
+  position: absolute;
+  bottom: 120px;
+  right: 14px;
+  width: 42px;
+  height: 42px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--gold-primary);
+  color: var(--gold-primary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 35;
+  transition: all 0.2s;
+}
+
+.floating-chat-btn:hover {
+  transform: scale(1.1);
+  background: rgba(0, 0, 0, 0.85);
+}
+
+/* 快捷互动弹窗 */
+.chat-popup {
+  position: absolute;
+  bottom: 170px;
+  right: 14px;
+  width: 290px;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+  z-index: 45;
+}
+
+.chat-popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gold-primary);
+  margin-bottom: 8px;
+}
+
+.close-chat-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.chat-emoji-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.chat-emoji-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid transparent;
+  font-size: 20px;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.chat-emoji-btn:hover {
+  background: rgba(251, 191, 36, 0.2);
+  border-color: var(--gold-primary);
+  transform: scale(1.15);
+}
+
+.chat-phrases-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.chat-phrase-btn {
+  text-align: left;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.chat-phrase-btn:hover {
+  background: rgba(251, 191, 36, 0.15);
+  border-color: var(--gold-primary);
+  color: #fff;
+}
+
+/* 优雅浮动 Toast */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px solid rgba(251, 191, 36, 0.7);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 18px;
+  border-radius: 20px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  animation: toastPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  pointer-events: auto;
+}
+
+@keyframes toastPop {
+  from { transform: translateY(-20px) scale(0.8); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
 }

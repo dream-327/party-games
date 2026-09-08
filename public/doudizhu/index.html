@@ -82,6 +82,42 @@
           <span id="banner-text">💣 炸弹！倍数翻倍！</span>
         </div>
 
+        <!-- 全屏特技动画容器 (飞机、火箭、炸弹) -->
+        <div id="airplane-anim" class="airplane-anim hidden">✈️ 💨</div>
+        <div id="rocket-anim" class="rocket-anim hidden">🚀 🔥</div>
+        <div id="bomb-anim" class="bomb-anim hidden">💣 💥</div>
+
+        <!-- 悬浮快捷互动聊天按钮 -->
+        <button id="btn-open-chat" class="floating-chat-btn" title="快捷短语与表情">💬</button>
+
+        <!-- 快捷互动弹窗 -->
+        <div id="panel-chat-popup" class="chat-popup hidden">
+          <div class="chat-popup-header">
+            <span>💬 互动表情与快捷短语</span>
+            <button id="btn-close-chat" class="close-chat-btn">✕</button>
+          </div>
+          <div class="chat-emoji-row">
+            <button class="chat-emoji-btn" data-text="😎">😎</button>
+            <button class="chat-emoji-btn" data-text="🤠">🤠</button>
+            <button class="chat-emoji-btn" data-text="🥳">🥳</button>
+            <button class="chat-emoji-btn" data-text="🥺">🥺</button>
+            <button class="chat-emoji-btn" data-text="🤡">🤡</button>
+            <button class="chat-emoji-btn" data-text="🐔">🐔</button>
+            <button class="chat-emoji-btn" data-text="☕">☕</button>
+            <button class="chat-emoji-btn" data-text="💣">💣</button>
+            <button class="chat-emoji-btn" data-text="🚀">🚀</button>
+            <button class="chat-emoji-btn" data-text="🏆">🏆</button>
+          </div>
+          <div class="chat-phrases-list">
+            <button class="chat-phrase-btn" data-text="快点啊，等到花儿都谢了！">🌸 快点啊，等到花儿都谢了！</button>
+            <button class="chat-phrase-btn" data-text="你是地主还是我是地主？">🤔 你是地主还是我是地主？</button>
+            <button class="chat-phrase-btn" data-text="和你合作真是太愉快了！">🤝 和你合作真是太愉快了！</button>
+            <button class="chat-phrase-btn" data-text="手气太顺了，挡都挡不住！">🔥 手气太顺了，挡都挡不住！</button>
+            <button class="chat-phrase-btn" data-text="不要走，决战到天亮！">⚔️ 不要走，决战到天亮！</button>
+            <button class="chat-phrase-btn" data-text="给个机会，手下留情！">🥺 给个机会，手下留情！</button>
+          </div>
+        </div>
+
         <!-- 左侧玩家区 (Player 2) -->
         <div id="player-left" class="player-slot slot-left">
           <div class="player-avatar-wrap">
@@ -143,6 +179,7 @@
           <!-- 出牌操作 -->
           <div id="panel-play-actions" class="control-panel hidden">
             <div class="timer-tag" id="play-timer">25s</div>
+            <div id="selected-card-type-tag" class="card-type-pill hidden">未选牌</div>
             <button id="btn-pass-play" class="btn btn-secondary">不出</button>
             <button id="btn-hint-play" class="btn btn-info">💡 提示</button>
             <button id="btn-submit-play" class="btn btn-primary">出牌</button>
@@ -234,10 +271,14 @@
       </div>
     </div>
 
+    <!-- 优雅提示 Toast 容器 -->
+    <div id="toast-container" class="toast-container"></div>
+
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="qrcode.min.js"></script>
+  <script src="rules.js"></script>
   <script src="sfx.js"></script>
   <script src="client.js"></script>
 </body>
