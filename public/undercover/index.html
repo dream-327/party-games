@@ -191,8 +191,12 @@
 
     <!-- 5. 投票阶段界面 -->
     <section id="view-voting" class="card hidden">
-      <h2 style="text-align: center; font-size: 20px; margin-bottom: 4px;">🗳️ 谁是卧底？</h2>
-      <p class="subtitle" style="margin-bottom: 16px;">选择你怀疑的卧底并投出宝贵一票</p>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <span id="voting-stage-title" style="font-size: 14px; color: #a855f7; font-weight: 700;">🗳️ 全员投票环节</span>
+        <span id="voting-timer-text" style="font-size: 14px; color: #f59e0b; font-weight: 800; background: rgba(245,158,11,0.15); padding: 2px 8px; border-radius: 6px;">60s</span>
+      </div>
+      <h2 style="text-align: center; font-size: 20px; margin-bottom: 4px;">谁是潜伏的卧底？</h2>
+      <p class="subtitle" style="margin-bottom: 16px;">点击候选人卡片，选定你怀疑的对象后点击确认投票</p>
 
       <div class="vote-grid" id="voting-grid">
         <!-- 动态渲染可投票的玩家卡片 -->
@@ -296,6 +300,10 @@
         <button id="btn-restart-game" class="btn btn-primary">
           🔄 再来一局 (保持房间)
         </button>
+      </div>
+
+      <div id="game-over-guest-msg" class="hidden" style="text-align: center; color: var(--text-muted); font-size: 13px; margin-top: 16px;">
+        ⏳ 等待房主点击「再来一局」开启新对局...
       </div>
     </section>
 

@@ -108,6 +108,8 @@ function getSafeRoomData(room, targetPlayerId) {
       winner: room.gameState.winner,
       winningWord: room.gameState.winningWord,
       punishment: room.gameState.punishment,
+      voteStartTime: room.gameState.voteStartTime,
+      voteTimeLimit: room.gameState.voteTimeLimit || 60,
       voteTally: (room.gameState.phase === PHASES.ELIMINATION || room.gameState.phase === PHASES.GAME_OVER) ? room.gameState.votes : {}
     }
   };
@@ -131,6 +133,10 @@ function clearRoomTimers(room) {
   if (room.gameState.voteResolvingTimer) {
     clearTimeout(room.gameState.voteResolvingTimer);
     room.gameState.voteResolvingTimer = null;
+  }
+  if (room.gameState.voteSafetyTimer) {
+    clearTimeout(room.gameState.voteSafetyTimer);
+    room.gameState.voteSafetyTimer = null;
   }
 }
 
@@ -245,9 +251,17 @@ function startVotingPhase(undercoverIo, room) {
   clearRoomTimers(room);
   room.gameState.phase = PHASES.VOTING;
   room.gameState.votes = {};
+  room.gameState.voteStartTime = Date.now();
+  room.gameState.voteTimeLimit = 60;
   room.players.forEach(p => { p.hasVoted = false; });
   broadcastRoom(undercoverIo, room);
   scheduleAiVotes(undercoverIo, room, false);
+
+  room.gameState.voteSafetyTimer = setTimeout(() => {
+    if (room.gameState.phase === PHASES.VOTING) {
+      forceResolveVotes(undercoverIo, room);
+    }
+  }, 62000);
 }
 
 function startPkSpeakingPhase(undercoverIo, room, candidateIds) {
@@ -301,9 +315,17 @@ function startPkVotingPhase(undercoverIo, room) {
   clearRoomTimers(room);
   room.gameState.phase = PHASES.PK_VOTING;
   room.gameState.votes = {};
+  room.gameState.voteStartTime = Date.now();
+  room.gameState.voteTimeLimit = 45;
   room.players.forEach(p => { p.hasVoted = false; });
   broadcastRoom(undercoverIo, room);
   scheduleAiVotes(undercoverIo, room, true);
+
+  room.gameState.voteSafetyTimer = setTimeout(() => {
+    if (room.gameState.phase === PHASES.PK_VOTING) {
+      forceResolveVotes(undercoverIo, room);
+    }
+  }, 47000);
 }
 
 function processVote(undercoverIo, room, voterId, targetId) {
@@ -559,7 +581,11 @@ function setupUndercover(io, app) {
         currentPlayerId = player.id;
         socket.join(code);
 
-        if (typeof callback === 'function') callback({ success: true, roomCode: code });
+        if (typeof callback === 'function') callback({
+          success: true,
+          roomCode: code,
+          roomData: getSafeRoomData(room, player.id)
+        });
         broadcastRoom(undercoverIo, room);
       } catch (err) {
         console.error('create_room error:', err);
@@ -606,7 +632,11 @@ function setupUndercover(io, app) {
           });
         }
 
-        if (typeof callback === 'function') callback({ success: true, roomCode });
+        if (typeof callback === 'function') callback({
+          success: true,
+          roomCode,
+          roomData: getSafeRoomData(room, pid)
+        });
         broadcastRoom(undercoverIo, room);
       } catch (err) {
         console.error('join_room error:', err);
@@ -628,7 +658,7 @@ function setupUndercover(io, app) {
             currentRoomCode = code;
             currentPlayerId = pid;
             socket.join(code);
-            socket.emit('room_update', getSafeRoomData(room, pid));
+            broadcastRoom(undercoverIo, room);
           }
         }
       } catch (err) {

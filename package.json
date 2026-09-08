@@ -1,13 +1,15 @@
-﻿{
+{
   "name": "party-games",
   "version": "1.0.0",
   "description": "Party Games Portal (聚会游戏盒子) - 谁是卧底 & 欢乐斗地主",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test:undercover": "node test_undercover.js"
   },
   "dependencies": {
     "express": "^4.19.2",
-    "socket.io": "^4.7.5"
+    "socket.io": "^4.7.5",
+    "socket.io-client": "^4.8.3"
   }
 }

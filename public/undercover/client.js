@@ -26,6 +26,8 @@
   let lastAnnouncedSpeakerId = null;
   let currentTimerStartTime = null;
   let speechTimerInterval = null;
+  let currentVotingStartTime = null;
+  let votingTimerInterval = null;
   let customWordPairs = [];
   let serverInfo = null;
 
@@ -619,6 +621,13 @@
 
     const submitBtn = document.getElementById('btn-submit-vote');
 
+    const stageTitle = document.getElementById('voting-stage-title');
+    if (stageTitle) {
+      stageTitle.innerText = isPK ? '🔥 平票 PK 再次对决' : '🗳️ 全员投票环节';
+    }
+
+    startVotingCountdownTimer(room.gameState.voteTimeLimit || 60, room.gameState.voteStartTime);
+
     // 筛选出可以被投票的候选人
     let candidates = room.players.filter(p => p.isAlive);
     if (isPK) {
@@ -692,6 +701,43 @@
       submitBtn.disabled = !selectedVoteTargetId;
       submitBtn.innerText = selectedVoteTargetId ? '🔥 确认投TA一票' : '👆 请先点击头像选择';
     }
+  }
+
+  // 投票倒计时管理函数
+  function startVotingCountdownTimer(timeLimit, startTime) {
+    if (currentVotingStartTime === startTime && votingTimerInterval) {
+      return;
+    }
+    currentVotingStartTime = startTime;
+    if (votingTimerInterval) clearInterval(votingTimerInterval);
+    const timerText = document.getElementById('voting-timer-text');
+    if (!timerText) return;
+
+    if (!timeLimit || timeLimit <= 0 || !startTime) {
+      timerText.innerText = '投票中';
+      return;
+    }
+
+    function update() {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      const remaining = Math.max(0, timeLimit - elapsed);
+      timerText.innerText = `${remaining}s`;
+
+      if (remaining <= 5 && remaining > 0) {
+        timerText.style.color = '#ef4444';
+        window.sfx.playTick();
+      } else {
+        timerText.style.color = '#f59e0b';
+      }
+
+      if (remaining <= 0) {
+        clearInterval(votingTimerInterval);
+        timerText.innerText = '结算中...';
+      }
+    }
+
+    update();
+    votingTimerInterval = setInterval(update, 1000);
   }
 
   // 提交投票
@@ -807,10 +853,13 @@
     punishmentText.innerText = room.gameState.punishment || '模仿一种动物叫声！';
 
     const hostActions = document.getElementById('game-over-host-actions');
+    const guestMsg = document.getElementById('game-over-guest-msg');
     if (isHost) {
       hostActions.classList.remove('hidden');
+      if (guestMsg) guestMsg.classList.add('hidden');
     } else {
       hostActions.classList.add('hidden');
+      if (guestMsg) guestMsg.classList.remove('hidden');
     }
   }
 
@@ -995,12 +1044,42 @@
     });
   });
 
-  // 点击房间号快捷复制
+  function copyTextToClipboard(text, successMsg) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        alert(successMsg);
+      }).catch(() => {
+        fallbackCopy(text, successMsg);
+      });
+    } else {
+      fallbackCopy(text, successMsg);
+    }
+  }
+
+  function fallbackCopy(text, successMsg) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      document.execCommand('copy');
+      alert(successMsg);
+    } catch (e) {
+      prompt('请手动复制以下信息：', text);
+    }
+    ta.remove();
+  }
+
+  // 点击房间号快捷复制邀请链接与房间号
   document.getElementById('lobby-room-code').addEventListener('click', () => {
     if (currentRoom) {
-      navigator.clipboard.writeText(currentRoom.code).then(() => {
-        alert(`房间号 ${currentRoom.code} 已复制！`);
-      });
+      window.sfx.playClick();
+      const joinUrl = `${window.location.origin}/undercover/?room=${currentRoom.code}`;
+      const inviteMsg = `【谁是卧底】房间号：${currentRoom.code}\n点击直接进入游戏房间：${joinUrl}`;
+      copyTextToClipboard(inviteMsg, `房间邀请已复制到剪贴板！\n房间号: ${currentRoom.code}\n发送给好友即可点击链接快速开战！`);
     }
   });
 
