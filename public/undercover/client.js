@@ -18,6 +18,10 @@
   }
 
   let myNickname = localStorage.getItem('undercover_name') || `玩家${Math.floor(100 + Math.random() * 900)}`;
+  // 确保首次进入时也把默认名字写入 localStorage，重连时能读到一致的名字
+  if (!localStorage.getItem('undercover_name')) {
+    localStorage.setItem('undercover_name', myNickname);
+  }
   let myAvatar = localStorage.getItem('undercover_avatar') || AVATARS[Math.floor(Math.random() * AVATARS.length)];
   let currentRoom = null;
   let selectedVoteTargetId = null;
@@ -195,7 +199,13 @@
   // 自动重新连接与全量状态同步机制 (针对手机熄屏、切后台等场景)
   function autoSyncRoom() {
     const savedRoomCode = (currentRoom && currentRoom.code) || sessionStorage.getItem('undercover_room');
-    if (savedRoomCode && socket.connected) {
+    if (!savedRoomCode || !socket.connected) return;
+
+    // 已有 currentRoom（已在房间内）→ 只发 sync_room 心跳更新 socketId 和在线状态
+    // 未有 currentRoom（断线重连、刷新等）→ 发 join_room 完整恢复
+    if (currentRoom && currentRoom.code === savedRoomCode) {
+      socket.emit('sync_room', { roomCode: savedRoomCode, playerId: myPlayerId });
+    } else {
       const name = localStorage.getItem('undercover_name') || myNickname;
       const avatar = localStorage.getItem('undercover_avatar') || myAvatar;
       socket.emit('join_room', {
@@ -207,6 +217,7 @@
           renderRoom(res.roomData);
         } else if (res && !res.success) {
           sessionStorage.removeItem('undercover_room');
+          currentRoom = null;
         }
       });
     }
@@ -351,28 +362,30 @@
     playersGrid.innerHTML = '';
 
     room.players.forEach(p => {
+      const isMe = p.id === myPlayerId;
       const box = document.createElement('div');
-      box.className = `player-box ${p.isHost ? 'is-host' : ''}`;
+      box.className = `player-box ${p.isHost ? 'is-host' : ''} ${isMe ? 'is-me' : ''}`;
+      const displayName = (p.name && p.name.trim()) ? p.name : '神秘人';
       const aiBadge = p.isAi ? '<span class="ai-badge">AI</span>' : '';
       const hostBadge = p.isHost ? '<span class="host-badge">👑 房主</span>' : '';
-      const meBadge = (p.id === myPlayerId) ? '<span class="me-badge">我</span>' : '';
+      const meBadge = isMe ? '<span class="me-badge">我</span>' : '';
       const offlineBadge = (!p.isOnline && !p.isAi) ? '<span class="offline-badge">离线</span>' : '';
       box.innerHTML = `
         <div class="player-avatar">
           ${p.avatar}
           ${p.isHost ? '<span class="host-crown">👑</span>' : ''}
         </div>
-        <div class="player-name" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</div>
+        <div class="player-name" title="${escapeHtml(displayName)}" style="font-weight: ${isMe ? '700' : '500'}; color: ${isMe ? '#fbbf24' : 'var(--text-primary)'};">${escapeHtml(displayName)}${isMe ? ' (我)' : ''}</div>
         <div style="display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; margin-top: 4px;">
           ${hostBadge}${meBadge}${aiBadge}${offlineBadge}
         </div>
-        ${(isHost && p.id !== myPlayerId) ? `<button class="kick-btn" data-id="${p.id}" title="移出玩家">✕</button>` : ''}
+        ${(isHost && !isMe) ? `<button class="kick-btn" data-id="${p.id}" title="移出玩家">✕</button>` : ''}
       `;
 
-      if (isHost && p.id !== myPlayerId) {
+      if (isHost && !isMe) {
         box.querySelector('.kick-btn').addEventListener('click', (e) => {
           e.stopPropagation();
-          if (confirm(`确定要踢出 ${p.name} 吗？`)) {
+          if (confirm(`确定要踢出 ${displayName} 吗？`)) {
             socket.emit('kick_player', p.id);
           }
         });

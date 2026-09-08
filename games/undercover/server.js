@@ -629,18 +629,29 @@ function setupUndercover(io, app) {
           return;
         }
 
-        const pid = player.id;
+        const pid = player && player.id;
+        if (!pid) {
+          if (typeof callback === 'function') callback({ success: false, message: '玩家身份无效' });
+          return;
+        }
+
         currentRoomCode = roomCode;
         currentPlayerId = pid;
         socket.join(roomCode);
 
         if (room.players.has(pid)) {
+          // 重连：更新 socketId 和在线状态，同步最新名字/头像
           const existing = room.players.get(pid);
           existing.socketId = socket.id;
           existing.isOnline = true;
           if (player.name) existing.name = escapeHtml(String(player.name).trim().substring(0, 10)) || existing.name;
           if (player.avatar) existing.avatar = escapeHtml(String(player.avatar).trim().substring(0, 4)) || existing.avatar;
         } else {
+          // 新加入：检查是否已达最大人数（10人）
+          if (room.players.size >= 10) {
+            if (typeof callback === 'function') callback({ success: false, message: '房间已满（最多10人）' });
+            return;
+          }
           const isSpectator = room.gameState.phase !== PHASES.LOBBY;
           room.players.set(pid, {
             id: pid,

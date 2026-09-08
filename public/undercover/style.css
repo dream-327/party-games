@@ -881,3 +881,10 @@ body {
 .btn-warning:hover:not(:disabled) {
   box-shadow: 0 6px 20px rgba(245, 158, 11, 0.6);
 }
+
+/* 自己的玩家卡高亮 */
+.player-box.is-me {
+  border: 2px solid rgba(251, 191, 36, 0.7);
+  background: rgba(251, 191, 36, 0.06);
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.2);
+}
