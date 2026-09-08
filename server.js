@@ -6,6 +6,7 @@ const path = require('path');
 
 const { setupUndercover, wordCategories } = require('./games/undercover/server');
 const { setupDoudizhu } = require('./games/doudizhu/server');
+const { setupWerewolf } = require('./games/werewolf/server');
 
 const app = express();
 const server = http.createServer(app);
@@ -20,6 +21,7 @@ app.use(express.json());
 // 静态资源路由分流
 app.use('/undercover', express.static(path.join(__dirname, 'public/undercover')));
 app.use('/doudizhu', express.static(path.join(__dirname, 'public/doudizhu')));
+app.use('/werewolf', express.static(path.join(__dirname, 'public/werewolf')));
 app.use('/', express.static(path.join(__dirname, 'public/hub')));
 
 // 智能获取真实物理网卡 IP (优先 Wi-Fi / 手机热点 / 局域网)
@@ -65,14 +67,16 @@ app.get('/api/server-info', (req, res) => {
     categories: wordCategories,
     games: [
       { id: 'undercover', name: '谁是卧底', path: '/undercover/' },
-      { id: 'doudizhu', name: '欢乐斗地主', path: '/doudizhu/' }
+      { id: 'doudizhu', name: '欢乐斗地主', path: '/doudizhu/' },
+      { id: 'werewolf', name: '聚会狼人杀', path: '/werewolf/' }
     ]
   });
 });
 
-// 挂载两个游戏的 Socket.IO 服务
+// 挂载游戏的 Socket.IO 服务
 setupUndercover(io, app);
 setupDoudizhu(io, app);
+setupWerewolf(io, app);
 
 // 启动统一服务器
 server.listen(PORT, '0.0.0.0', () => {
@@ -82,6 +86,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`🌐 电脑本机访问游戏大厅: http://localhost:${PORT}`);
   console.log(`🕵️‍♂️ 《谁是卧底》直达: http://localhost:${PORT}/undercover/`);
   console.log(`🃏 《欢乐斗地主》直达: http://localhost:${PORT}/doudizhu/`);
+  console.log(`🐺 《聚会狼人杀》直达: http://localhost:${PORT}/werewolf/`);
   console.log('📱 手机/局域网/热点访问推荐:');
   ipObjs.forEach(item => {
     console.log(`   👉 http://${item.address}:${PORT} (${item.name}${item.isPrimary ? ' - 推荐' : ''})`);
