@@ -55,11 +55,13 @@ function escapeHtml(str) {
 function ensureRoomHost(room) {
   if (!room) return;
   const currentHost = room.players.get(room.hostId);
-  const isHostValid = currentHost && currentHost.isOnline && !currentHost.isAi;
 
-  if (!isHostValid) {
-    // 优先将房主转移给首位在线的人类玩家
-    const candidate = Array.from(room.players.values()).find(p => p.isOnline && !p.isAi);
+  // 只要当前房主仍在房间玩家列表中（即使网络波动瞬时掉线重连中），均保留房主！
+  // 仅在原房主彻底不存在（已被移除/退出）时，才顺位移交给首位在线人类玩家
+  if (!currentHost) {
+    const candidate = Array.from(room.players.values()).find(p => p.isOnline && !p.isAi)
+      || Array.from(room.players.values()).find(p => !p.isAi)
+      || Array.from(room.players.values())[0];
     if (candidate) {
       room.hostId = candidate.id;
     }
@@ -488,13 +490,13 @@ function eliminatePlayer(undercoverIo, room, playerId, tieMessage = null, votes 
 function checkGameStatus(room) {
   const alivePlayers = Array.from(room.players.values()).filter(p => p.isAlive && !p.isSpectator);
   const aliveUndercovers = alivePlayers.filter(p => p.role === ROLES.UNDERCOVER);
-  const aliveCivilians = alivePlayers.filter(p => p.role === ROLES.CIVILIAN);
+  const nonUndercovers = alivePlayers.filter(p => p.role !== ROLES.UNDERCOVER);
 
   if (aliveUndercovers.length === 0) {
     return { isOver: true, winner: 'CIVILIAN' };
   }
 
-  if (aliveUndercovers.length >= aliveCivilians.length) {
+  if (aliveUndercovers.length >= nonUndercovers.length) {
     return { isOver: true, winner: 'UNDERCOVER' };
   }
 
@@ -599,10 +601,12 @@ function setupUndercover(io, app) {
         const sData = (data && data.settings) ? data.settings : {};
         const code = generateRoomCode();
         const randomSuffix = Math.floor(100 + Math.random() * 900);
+        const rawName = (pData && pData.name ? String(pData.name) : '').trim();
+        const safeName = escapeHtml(rawName ? rawName.substring(0, 10) : `玩家${randomSuffix}`);
         const player = {
           id: pData.id || `p_${Date.now()}`,
           socketId: socket.id,
-          name: escapeHtml(String(pData.name || `玩家${randomSuffix}`).trim().substring(0, 10)),
+          name: safeName,
           avatar: escapeHtml(String(pData.avatar || '😎').trim().substring(0, 4)),
           isHost: true,
           isOnline: true,
@@ -716,10 +720,12 @@ function setupUndercover(io, app) {
           }
           const isSpectator = room.gameState.phase !== PHASES.LOBBY;
           const randomSuffix = Math.floor(100 + Math.random() * 900);
+          const rawJoinName = (player && player.name ? String(player.name) : '').trim();
+          const safeJoinName = escapeHtml(rawJoinName ? rawJoinName.substring(0, 10) : `玩家${randomSuffix}`);
           room.players.set(pid, {
             id: pid,
             socketId: socket.id,
-            name: escapeHtml(String(player.name || `玩家${randomSuffix}`).trim().substring(0, 10)),
+            name: safeJoinName,
             avatar: escapeHtml(String(player.avatar || '🤠').trim().substring(0, 4)),
             isHost: false,
             isOnline: true,
@@ -874,9 +880,18 @@ function setupUndercover(io, app) {
         if (!room) return;
 
         ensureRoomHost(room);
-        if (room.hostId !== currentPlayerId) {
-          if (typeof callback === 'function') callback({ success: false, message: '只有房主才能开始游戏' });
+        const caller = room.players.get(currentPlayerId);
+        if (!caller) {
+          if (typeof callback === 'function') callback({ success: false, message: '玩家未在房间中' });
           return;
+        }
+
+        // 无论是房主还是房间内在线玩家，点击开始游戏均可开局
+        // 若当前房主不在线，自动将发起开局的玩家提升为主持房主
+        const currentHost = room.players.get(room.hostId);
+        if (!currentHost || !currentHost.isOnline) {
+          room.hostId = currentPlayerId;
+          ensureRoomHost(room);
         }
 
         let playersList = Array.from(room.players.values()).filter(p => p.isOnline);
@@ -918,15 +933,13 @@ function setupUndercover(io, app) {
         }
 
         const totalPlayers = playersList.length;
-        let ucCount = room.settings.undercoverCount;
-        let wbCount = room.settings.whiteboardCount;
+        const maxUndercover = Math.max(1, Math.floor((totalPlayers - 1) / 2));
+        let ucCount = Math.min(room.settings.undercoverCount || 1, maxUndercover);
+        const maxWhiteboard = Math.max(0, Math.floor((totalPlayers - ucCount - 1) / 2));
+        let wbCount = Math.min(room.settings.whiteboardCount || 0, maxWhiteboard);
 
-        if (ucCount + wbCount >= totalPlayers) {
-          ucCount = 1;
-          wbCount = 0;
-          room.settings.undercoverCount = 1;
-          room.settings.whiteboardCount = 0;
-        }
+        room.settings.undercoverCount = ucCount;
+        room.settings.whiteboardCount = wbCount;
 
         const wordPair = getRandomWordPair(room.settings.category, room.settings.customWords);
         room.gameState.winningWord = wordPair.civilian;
@@ -1198,18 +1211,11 @@ function setupUndercover(io, app) {
         const p = room.players.get(currentPlayerId);
         if (!p || p.isAi) return;
 
-        const currentHost = room.players.get(room.hostId);
-        const isHostValid = currentHost && currentHost.isOnline && !currentHost.isAi;
-
-        // 仅在原房主离线时允许接管（在线房主不能被顶替）
-        if (!isHostValid) {
-          room.hostId = currentPlayerId;
-          ensureRoomHost(room);
-          broadcastRoom(undercoverIo, room);
-          if (typeof callback === 'function') callback({ success: true });
-        } else {
-          if (typeof callback === 'function') callback({ success: false, message: '当前房主仍在线，无法接管' });
-        }
+        // 允许玩家随时接管或申请房主（便于主持与配置）
+        room.hostId = currentPlayerId;
+        ensureRoomHost(room);
+        broadcastRoom(undercoverIo, room);
+        if (typeof callback === 'function') callback({ success: true });
       } catch (err) {
         console.error('claim_host error:', err);
       }
@@ -1254,20 +1260,7 @@ function setupUndercover(io, app) {
               p.lastOfflineTime = Date.now();
             }
 
-            // 若在大厅阶段，房主掉线立即自动转移给下一个在线人类
-            if (room.gameState.phase === PHASES.LOBBY) {
-              ensureRoomHost(room);
-            } else if (room.hostId === currentPlayerId) {
-              // 对局进行中给15秒重连宽限，若未重连再转移
-              setTimeout(() => {
-                const currentRoomObj = rooms.get(currentRoomCode);
-                if (currentRoomObj && currentRoomObj.hostId === currentPlayerId) {
-                  ensureRoomHost(currentRoomObj);
-                  broadcastRoom(undercoverIo, currentRoomObj);
-                }
-              }, 15000);
-            }
-
+            // 保持房主身份，广播最新在线状态
             broadcastRoom(undercoverIo, room);
           }
         }

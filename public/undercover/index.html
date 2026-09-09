@@ -92,7 +92,7 @@
 
       <!-- 房主专属设置区域 -->
       <div id="host-controls" class="hidden">
-        <div style="background: rgba(15,23,42,0.6); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 16px; font-size: 13px;">
+        <div style="background: rgba(15,23,42,0.6); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 12px; font-size: 13px;">
           <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
             <span style="color: var(--text-muted);">游戏配置:</span>
             <span id="lobby-settings-summary" style="color: #67e8f9; font-weight: 600;">1卧底 · 0白板 · 经典词库</span>
@@ -113,19 +113,29 @@
             ❌ 移除电脑
           </button>
         </div>
+      </div>
 
-        <button id="btn-start-game" class="btn btn-primary">
-          🚀 开始游戏
+      <!-- 普通玩家等待提示与配置区域 -->
+      <div id="guest-waiting-msg" class="hidden" style="text-align: center; padding: 14px; background: rgba(15, 23, 42, 0.5); border-radius: var(--radius-md); border: 1px dashed var(--border-color); margin-bottom: 12px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; text-align: left;">
+          <span style="color: var(--text-muted);">游戏配置:</span>
+          <span id="guest-settings-summary" style="color: #67e8f9; font-weight: 600;">1卧底 · 0白板 · 经典词库</span>
+        </div>
+        <div id="guest-waiting-text" style="color: #e2e8f0; margin-bottom: 8px; font-size: 13px;">
+          ⏳ 等待房主开始游戏...
+        </div>
+        <button id="btn-claim-host" class="btn btn-secondary" style="max-width: 220px; margin: 0 auto; padding: 6px 14px; font-size: 12px; border-color: rgba(245, 158, 11, 0.4); color: #fbbf24;">
+          👑 成为房主 / 调整配置
         </button>
       </div>
 
-      <!-- 普通玩家等待提示与房主接管 -->
-      <div id="guest-waiting-msg" class="hidden" style="text-align: center; padding: 16px; font-size: 14px; background: rgba(15, 23, 42, 0.4); border-radius: var(--radius-md); border: 1px dashed var(--border-color);">
-        <div id="guest-waiting-text" style="color: #e2e8f0; margin-bottom: 10px;">
-          ⏳ 等待房主开始游戏...
+      <!-- 全局统一开始游戏区域 (房主与所有玩家均可看到并点击开局) -->
+      <div id="lobby-start-action" style="margin-top: 10px;">
+        <div id="lobby-start-tip" style="text-align: center; font-size: 13px; color: var(--text-muted); margin-bottom: 8px; font-weight: 500;">
+          💡 至少需要 3 名玩家在线（不足可补齐电脑开局）
         </div>
-        <button id="btn-claim-host" class="btn btn-warning hidden" style="max-width: 220px; margin: 0 auto; padding: 8px 16px; font-size: 13px;">
-          👑 接管房主主持游戏
+        <button id="btn-start-game" class="btn btn-primary btn-start-game-glow" style="font-size: 17px; padding: 15px; font-weight: 800;">
+          🚀 开始游戏
         </button>
       </div>
     </section>

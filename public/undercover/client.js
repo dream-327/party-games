@@ -10,20 +10,38 @@
     '👻', '🧛‍♂️', '🥳', '🤩', '🚀', '💎'
   ];
 
-  // 本地玩家信息
-  let myPlayerId = localStorage.getItem('undercover_pid');
+  // 本地玩家信息 (安全隔离，支持同设备多标签页独立游戏与刷新状态保持)
+  let myPlayerId = null;
+  try {
+    myPlayerId = sessionStorage.getItem('undercover_tab_pid');
+    if (!myPlayerId) {
+      myPlayerId = localStorage.getItem('undercover_pid');
+    }
+  } catch (e) {}
+
   if (!myPlayerId) {
     myPlayerId = 'p_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
-    localStorage.setItem('undercover_pid', myPlayerId);
   }
+  try {
+    sessionStorage.setItem('undercover_tab_pid', myPlayerId);
+    localStorage.setItem('undercover_pid', myPlayerId);
+  } catch (e) {}
 
-  let myNickname = localStorage.getItem('undercover_name');
-  // 如果之前是旧版本的'玩家1'或者为空，重置为随机唯一的玩家名字
+  let myNickname = null;
+  try {
+    myNickname = localStorage.getItem('undercover_name');
+  } catch (e) {}
   if (!myNickname || myNickname === '玩家1') {
     myNickname = `玩家${Math.floor(100 + Math.random() * 900)}`;
-    localStorage.setItem('undercover_name', myNickname);
+    try {
+      localStorage.setItem('undercover_name', myNickname);
+    } catch (e) {}
   }
-  let myAvatar = localStorage.getItem('undercover_avatar') || AVATARS[Math.floor(Math.random() * AVATARS.length)];
+  let myAvatar = AVATARS[Math.floor(Math.random() * AVATARS.length)];
+  try {
+    const savedAvatar = localStorage.getItem('undercover_avatar');
+    if (savedAvatar) myAvatar = savedAvatar;
+  } catch (e) {}
   let currentRoom = null;
   let selectedVoteTargetId = null;
   let lastRenderedPhase = null;
@@ -254,8 +272,8 @@
 
   // 渲染房间主函数
   function renderRoom(room) {
-    const isHost = room.hostId === myPlayerId;
-    const me = room.players.find(p => p.id === myPlayerId);
+    const me = (room.players && room.players.find(p => p.id === myPlayerId)) || room.myPlayer;
+    const isHost = (room.hostId === myPlayerId) || (me && me.isHost) || (room.myPlayer && room.myPlayer.isHost);
 
     // 1. 房间号展示
     document.getElementById('display-room-code').innerText = room.code;
@@ -324,13 +342,13 @@
       renderSpeaking(room, me, isHost);
     } else if (phase === 'VOTING') {
       switchView('voting');
-      renderVoting(room, me, false);
+      renderVoting(room, me, false, isHost);
     } else if (phase === 'PK_SPEAKING') {
       switchView('pk');
       renderPKSpeaking(room, me, isHost);
     } else if (phase === 'PK_VOTING') {
       switchView('voting');
-      renderVoting(room, me, true);
+      renderVoting(room, me, true, isHost);
     } else if (phase === 'ELIMINATION') {
       switchView('elimination');
       renderElimination(room, isHost);
@@ -400,52 +418,73 @@
     const guestWaiting = document.getElementById('guest-waiting-msg');
     const guestWaitingText = document.getElementById('guest-waiting-text');
     const btnClaimHost = document.getElementById('btn-claim-host');
+    const lobbyStartTip = document.getElementById('lobby-start-tip');
+    const btnStartGame = document.getElementById('btn-start-game');
+
+    const catMap = {
+      all: '综合随机', classic: '经典对决', life: '生活日常',
+      fun: '搞笑扎心', pop: '影视动漫', food: '吃货天下', custom_only: '自定义'
+    };
+    const catText = catMap[room.settings.category] || '综合随机';
+    const settingsSummary = `${room.settings.undercoverCount}卧底 · ${room.settings.whiteboardCount}白板 · ${catText}`;
+
+    const hostSettingsSummary = document.getElementById('lobby-settings-summary');
+    if (hostSettingsSummary) hostSettingsSummary.innerText = settingsSummary;
+
+    const guestSettingsSummary = document.getElementById('guest-settings-summary');
+    if (guestSettingsSummary) guestSettingsSummary.innerText = settingsSummary;
+
+    const onlineCount = room.players.filter(p => p.isOnline).length;
 
     if (isHost) {
-      hostControls.classList.remove('hidden');
-      guestWaiting.classList.add('hidden');
-
-      const catMap = {
-        all: '综合随机', classic: '经典对决', life: '生活日常',
-        fun: '搞笑扎心', pop: '影视动漫', food: '吃货天下', custom_only: '自定义'
-      };
-      const catText = catMap[room.settings.category] || '综合随机';
-      document.getElementById('lobby-settings-summary').innerText = 
-        `${room.settings.undercoverCount}卧底 · ${room.settings.whiteboardCount}白板 · ${catText}`;
+      if (hostControls) hostControls.classList.remove('hidden');
+      if (guestWaiting) guestWaiting.classList.add('hidden');
     } else {
-      hostControls.classList.add('hidden');
-      guestWaiting.classList.remove('hidden');
+      if (hostControls) hostControls.classList.add('hidden');
+      if (guestWaiting) guestWaiting.classList.remove('hidden');
 
-      if (hostPlayer && hostPlayer.isOnline) {
-        if (guestWaitingText) {
+      if (guestWaitingText) {
+        if (onlineCount >= 3) {
           guestWaitingText.innerHTML = `
-            <div style="font-size: 15px; color: #f1f5f9; font-weight: 600; margin-bottom: 4px;">
-              ⏳ 等待房主 <span style="color: #fbbf24;">👑 ${escapeHtml(hostName)}</span> 开始游戏...
+            <div style="font-size: 14px; color: #34d399; font-weight: 700; margin-bottom: 4px;">
+              ✅ 房间已满 ${onlineCount} 人在线，全员已就绪！
             </div>
             <div style="font-size: 12px; color: var(--text-muted);">
-              房主可配置词库、添加电脑玩家或直接开启对局
+              等待房主开局，你也可以点击下方「🚀 开始游戏」直接开启对局
             </div>
           `;
-        }
-        if (btnClaimHost) {
-          btnClaimHost.classList.remove('hidden');
-          btnClaimHost.innerText = '👑 申请成为房主';
-        }
-      } else {
-        if (guestWaitingText) {
+        } else {
           guestWaitingText.innerHTML = `
-            <div style="font-size: 14px; color: #f87171; font-weight: 600; margin-bottom: 6px;">
-              ⚠️ 当前房主 ${escapeHtml(hostName)} 已离线
+            <div style="font-size: 14px; color: #e2e8f0; font-weight: 600; margin-bottom: 4px;">
+              ⏳ 等待更多玩家加入 (当前 ${onlineCount}/3 人)...
             </div>
-            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">
-              您可以直接接管房主主持游戏或调整设置
+            <div style="font-size: 12px; color: var(--text-muted);">
+              可邀请好友扫码加入，或直接点击下方「开始游戏」自动补齐电脑开局
             </div>
           `;
         }
-        if (btnClaimHost) {
-          btnClaimHost.classList.remove('hidden');
-          btnClaimHost.innerText = '👑 点击接管房主主持游戏';
-        }
+      }
+      if (btnClaimHost) {
+        btnClaimHost.classList.remove('hidden');
+        btnClaimHost.innerText = '👑 成为房主 / 调整配置';
+      }
+    }
+
+    // 全局通用开始游戏按键与提示（房主及所有玩家均可见并可点击启动游戏）
+    if (lobbyStartTip) {
+      if (onlineCount >= 3) {
+        lobbyStartTip.innerHTML = `🎉 <b>全员已就绪 (${onlineCount}人在线)</b>，点击下方按钮立即开启游戏！`;
+      } else {
+        const diff = 3 - onlineCount;
+        lobbyStartTip.innerHTML = `💡 当前已有 <b>${onlineCount}</b> 人（还需 ${diff} 人），点击下方可自动补齐电脑开局`;
+      }
+    }
+
+    if (btnStartGame) {
+      if (onlineCount >= 3) {
+        btnStartGame.innerHTML = isHost ? `🚀 房主开始游戏 (${onlineCount}人就绪)` : `🚀 立即开始游戏 (${onlineCount}人就绪)`;
+      } else {
+        btnStartGame.innerHTML = `🚀 开始游戏 (自动补齐电脑)`;
       }
     }
   }
@@ -807,7 +846,7 @@
   });
 
   // 渲染投票阶段 (支持正常投票与 PK 投票)
-  function renderVoting(room, me, isPK) {
+  function renderVoting(room, me, isPK, isHost) {
     const grid = document.getElementById('voting-grid');
     grid.innerHTML = '';
 
