@@ -10,22 +10,18 @@
     '👻', '🧛‍♂️', '🥳', '🤩', '🚀', '💎'
   ];
 
-  // 本地玩家信息 (安全隔离，支持同设备多标签页独立游戏与刷新状态保持)
+  // 本地玩家信息 (通过 sessionStorage 确保每个标签页独立且刷新保持身份，避免同浏览器多标签页冲突)
   let myPlayerId = null;
   try {
     myPlayerId = sessionStorage.getItem('undercover_tab_pid');
-    if (!myPlayerId) {
-      myPlayerId = localStorage.getItem('undercover_pid');
-    }
   } catch (e) {}
 
   if (!myPlayerId) {
-    myPlayerId = 'p_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+    myPlayerId = 'p_' + Math.random().toString(36).substring(2, 8) + Date.now().toString(36);
+    try {
+      sessionStorage.setItem('undercover_tab_pid', myPlayerId);
+    } catch (e) {}
   }
-  try {
-    sessionStorage.setItem('undercover_tab_pid', myPlayerId);
-    localStorage.setItem('undercover_pid', myPlayerId);
-  } catch (e) {}
 
   let myNickname = null;
   try {
@@ -136,7 +132,17 @@
     const urlParams = new URLSearchParams(window.location.search);
     const roomParam = urlParams.get('room');
     if (roomParam) {
-      document.getElementById('input-room-code').value = roomParam;
+      const roomInput = document.getElementById('input-room-code');
+      if (roomInput) {
+        roomInput.value = roomParam;
+        roomInput.style.borderColor = '#fbbf24';
+        roomInput.style.boxShadow = '0 0 10px rgba(251, 191, 36, 0.3)';
+      }
+      const joinBtn = document.getElementById('btn-join-room');
+      if (joinBtn) {
+        joinBtn.innerHTML = `🚀 进入受邀房间 (${roomParam})`;
+        joinBtn.classList.add('btn-start-game-glow');
+      }
     }
   }
 
@@ -275,9 +281,10 @@
     const me = (room.players && room.players.find(p => p.id === myPlayerId)) || room.myPlayer;
     const isHost = (room.hostId === myPlayerId) || (me && me.isHost) || (room.myPlayer && room.myPlayer.isHost);
 
-    // 1. 房间号展示
+    // 1. 房间号展示与在线玩家统计
     document.getElementById('display-room-code').innerText = room.code;
-    document.getElementById('lobby-player-count').innerText = room.players.length;
+    const activePlayerCount = room.players ? room.players.filter(p => p.isOnline).length : 0;
+    document.getElementById('lobby-player-count').innerText = activePlayerCount;
 
     // 2. 观战提示控制
     const spectatorBanner = document.getElementById('spectator-banner');
@@ -391,28 +398,42 @@
       const hostBadge = p.isHost ? '<span class="host-badge">👑 房主</span>' : '';
       const meBadge = isMe ? '<span class="me-badge">我</span>' : '';
       const offlineBadge = (!p.isOnline && !p.isAi) ? '<span class="offline-badge">离线</span>' : '';
-      box.innerHTML = `
-        <div class="player-avatar">
-          ${p.avatar}
-          ${p.isHost ? '<span class="host-crown">👑</span>' : ''}
-        </div>
-        <div class="player-name" title="${escapeHtml(displayName)}" style="font-weight: ${isMe ? '700' : '500'}; color: ${isMe ? '#fbbf24' : 'var(--text-primary)'};">${escapeHtml(displayName)}${isMe ? ' (我)' : ''}</div>
-        <div style="display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; margin-top: 4px;">
-          ${hostBadge}${meBadge}${aiBadge}${offlineBadge}
-        </div>
-        ${(isHost && !isMe) ? `<button class="kick-btn" data-id="${p.id}" title="移出玩家">✕</button>` : ''}
-      `;
+        const canKick = (isHost && !isMe) || (!p.isOnline && !isMe);
+        const kickBtnTitle = !p.isOnline ? '移除离线玩家' : '移出玩家';
+        box.innerHTML = `
+          <div class="player-avatar">
+            ${p.avatar}
+            ${p.isHost ? '<span class="host-crown">👑</span>' : ''}
+          </div>
+          <div class="player-name" title="${escapeHtml(displayName)}" style="font-weight: ${isMe ? '700' : '500'}; color: ${isMe ? '#fbbf24' : 'var(--text-primary)'};">${escapeHtml(displayName)}${isMe ? ' (我)' : ''}</div>
+          <div style="display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; margin-top: 4px;">
+            ${hostBadge}${meBadge}${aiBadge}${offlineBadge}
+          </div>
+          ${canKick ? `<button class="kick-btn" data-id="${p.id}" title="${kickBtnTitle}">✕</button>` : ''}
+        `;
 
-      if (isHost && !isMe) {
-        box.querySelector('.kick-btn').addEventListener('click', (e) => {
-          e.stopPropagation();
-          if (confirm(`确定要踢出 ${displayName} 吗？`)) {
-            socket.emit('kick_player', p.id);
-          }
-        });
+        if (canKick) {
+          box.querySelector('.kick-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const actionMsg = !p.isOnline ? `确定要移除离线玩家 ${displayName} 吗？` : `确定要踢出 ${displayName} 吗？`;
+            if (confirm(actionMsg)) {
+              socket.emit('kick_player', p.id);
+            }
+          });
+        }
+        playersGrid.appendChild(box);
+      });
+
+      // 离线玩家提示栏更新
+      const offlinePlayers = room.players.filter(p => !p.isOnline && !p.isAi);
+      const offlineAlert = document.getElementById('lobby-offline-alert');
+      if (offlineAlert) {
+        if (offlinePlayers.length > 0) {
+          offlineAlert.classList.remove('hidden');
+        } else {
+          offlineAlert.classList.add('hidden');
+        }
       }
-      playersGrid.appendChild(box);
-    });
 
     const hostControls = document.getElementById('host-controls');
     const guestWaiting = document.getElementById('guest-waiting-msg');
@@ -530,6 +551,15 @@
           alert(res.message || '接管房主失败');
         }
       });
+    });
+  }
+
+  // 一键清理离线幽灵玩家
+  const btnCleanOffline = document.getElementById('btn-clean-offline');
+  if (btnCleanOffline) {
+    btnCleanOffline.addEventListener('click', () => {
+      window.sfx.playClick();
+      socket.emit('clean_offline_players');
     });
   }
 

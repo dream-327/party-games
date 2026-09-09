@@ -18,11 +18,21 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-// 静态资源路由分流
-app.use('/undercover', express.static(path.join(__dirname, 'public/undercover')));
-app.use('/doudizhu', express.static(path.join(__dirname, 'public/doudizhu')));
-app.use('/werewolf', express.static(path.join(__dirname, 'public/werewolf')));
-app.use('/', express.static(path.join(__dirname, 'public/hub')));
+// 静态资源路由分流 (设置 no-cache 防止客户端及移动端浏览器缓存过期的 client.js / HTML)
+const noCacheStaticOptions = {
+  etag: false,
+  maxAge: 0,
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+};
+
+app.use('/undercover', express.static(path.join(__dirname, 'public/undercover'), noCacheStaticOptions));
+app.use('/doudizhu', express.static(path.join(__dirname, 'public/doudizhu'), noCacheStaticOptions));
+app.use('/werewolf', express.static(path.join(__dirname, 'public/werewolf'), noCacheStaticOptions));
+app.use('/', express.static(path.join(__dirname, 'public/hub'), noCacheStaticOptions));
 
 // 智能获取真实物理网卡 IP (优先 Wi-Fi / 手机热点 / 局域网)
 function getLocalIPs() {

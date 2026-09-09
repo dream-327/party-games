@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>谁是卧底 - 多人在线聚会游戏</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=2.2">
 </head>
 <body>
   <canvas id="confetti-canvas"></canvas>
@@ -88,6 +88,14 @@
 
       <div class="players-grid" id="lobby-players-grid">
         <!-- 动态渲染房间玩家 -->
+      </div>
+
+      <!-- 离线玩家提示栏与一键清理 -->
+      <div id="lobby-offline-alert" class="hidden" style="margin-top: 8px; margin-bottom: 8px; padding: 8px 12px; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: #fca5a5;">
+        <span>⚠️ 检测到房间内有离线玩家</span>
+        <button id="btn-clean-offline" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px; border-color: rgba(239, 68, 68, 0.4); color: #fca5a5; width: auto;">
+          🧹 一键清理离线
+        </button>
       </div>
 
       <!-- 房主专属设置区域 -->
@@ -480,7 +488,7 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="qrcode.min.js"></script>
-  <script src="sfx.js"></script>
-  <script src="client.js"></script>
+  <script src="sfx.js?v=2.2"></script>
+  <script src="client.js?v=2.2"></script>
 </body>
 </html>

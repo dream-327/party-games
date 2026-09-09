@@ -54,12 +54,19 @@ function escapeHtml(str) {
 
 function ensureRoomHost(room) {
   if (!room) return;
+  const isLobby = !room.gameState || room.gameState.phase === PHASES.LOBBY;
   const currentHost = room.players.get(room.hostId);
 
-  // 只要当前房主仍在房间玩家列表中（即使网络波动瞬时掉线重连中），均保留房主！
-  // 仅在原房主彻底不存在（已被移除/退出）时，才顺位移交给首位在线人类玩家
-  if (!currentHost) {
+  // 在大厅阶段，房主必须是一个在线的真人玩家！
+  // 若当前房主不存在、当前房主已离线、或当前房主为AI电脑：
+  // 立即自动顺位移交给房间内第一个在线的真人玩家
+  const needsReassign = !currentHost 
+    || currentHost.isAi 
+    || (isLobby && !currentHost.isOnline);
+
+  if (needsReassign) {
     const candidate = Array.from(room.players.values()).find(p => p.isOnline && !p.isAi)
+      || Array.from(room.players.values()).find(p => p.isOnline)
       || Array.from(room.players.values()).find(p => !p.isAi)
       || Array.from(room.players.values())[0];
     if (candidate) {
@@ -706,13 +713,27 @@ function setupUndercover(io, app) {
         socket.join(roomCode);
 
         if (room.players.has(pid)) {
-          // 重连：更新 socketId 和在线状态，同步最新名字/头像
+          // 重连：清除离线清理定时器，更新 socketId 和在线状态，同步最新名字/头像
           const existing = room.players.get(pid);
+          if (existing.offlineCleanupTimer) {
+            clearTimeout(existing.offlineCleanupTimer);
+            existing.offlineCleanupTimer = null;
+          }
           existing.socketId = socket.id;
           existing.isOnline = true;
           if (player.name) existing.name = escapeHtml(String(player.name).trim().substring(0, 10)) || existing.name;
           if (player.avatar) existing.avatar = escapeHtml(String(player.avatar).trim().substring(0, 4)) || existing.avatar;
         } else {
+          // 在大厅阶段，加入新玩家前先清理已离线的幽灵玩家
+          if (room.gameState.phase === PHASES.LOBBY) {
+            const now = Date.now();
+            for (const [id, pl] of room.players.entries()) {
+              if (!pl.isAi && !pl.isOnline && pl.lastOfflineTime && (now - pl.lastOfflineTime > 3000)) {
+                room.players.delete(id);
+              }
+            }
+          }
+
           // 新加入：检查是否已达最大人数（10人）
           if (room.players.size >= 10) {
             if (typeof callback === 'function') callback({ success: false, message: '房间已满（最多10人）' });
@@ -762,6 +783,10 @@ function setupUndercover(io, app) {
           const room = rooms.get(code);
           if (pid && room.players.has(pid)) {
             const p = room.players.get(pid);
+            if (p.offlineCleanupTimer) {
+              clearTimeout(p.offlineCleanupTimer);
+              p.offlineCleanupTimer = null;
+            }
             p.socketId = socket.id;
             p.isOnline = true;
             currentRoomCode = code;
@@ -868,7 +893,7 @@ function setupUndercover(io, app) {
       }
     });
 
-    // 开始游戏 (房主)
+    // 开始游戏 (房主或房间内在线玩家均可直接启动)
     socket.on('start_game', (options, callback) => {
       if (typeof options === 'function') {
         callback = options;
@@ -886,12 +911,18 @@ function setupUndercover(io, app) {
           return;
         }
 
-        // 无论是房主还是房间内在线玩家，点击开始游戏均可开局
-        // 若当前房主不在线，自动将发起开局的玩家提升为主持房主
-        const currentHost = room.players.get(room.hostId);
-        if (!currentHost || !currentHost.isOnline) {
+        // 无论是房主还是房间内任意在线玩家，点击开始游戏均可开局
+        // 若发起开局的玩家不是房主，自动顺位提升为主持房主，彻底规避权限阻断
+        if (room.hostId !== currentPlayerId) {
           room.hostId = currentPlayerId;
           ensureRoomHost(room);
+        }
+
+        // 开局前彻底清理大厅内已离线的幽灵玩家，防止名额与阵营计算错误
+        for (const [id, pl] of room.players.entries()) {
+          if (!pl.isAi && !pl.isOnline) {
+            room.players.delete(id);
+          }
         }
 
         let playersList = Array.from(room.players.values()).filter(p => p.isOnline);
@@ -1176,20 +1207,42 @@ function setupUndercover(io, app) {
       }
     });
 
-    // 踢出玩家 (房主)
+    // 踢出玩家 (房主可踢任意非房主，任何玩家均可清除大厅离线幽灵)
     socket.on('kick_player', (targetPlayerId) => {
       if (!currentRoomCode) return;
       const room = rooms.get(currentRoomCode);
-      if (!room || room.hostId !== currentPlayerId) return;
-      if (targetPlayerId === room.hostId) return;
-
+      if (!room) return;
       const target = room.players.get(targetPlayerId);
-      if (target) {
-        if (target.socketId) {
-          undercoverIo.to(target.socketId).emit('kicked_from_room');
+      if (!target) return;
+
+      const isLobby = room.gameState.phase === PHASES.LOBBY;
+      const canKick = (room.hostId === currentPlayerId) || (isLobby && !target.isOnline);
+      if (!canKick) return;
+      if (targetPlayerId === room.hostId && target.isOnline) return;
+
+      if (target.socketId) {
+        undercoverIo.to(target.socketId).emit('kicked_from_room');
+      }
+      room.players.delete(targetPlayerId);
+      ensureRoomHost(room);
+      broadcastRoom(undercoverIo, room);
+    });
+
+    // 一键清理大厅所有离线玩家
+    socket.on('clean_offline_players', () => {
+      try {
+        if (!currentRoomCode) return;
+        const room = rooms.get(currentRoomCode);
+        if (!room || room.gameState.phase !== PHASES.LOBBY) return;
+        for (const [id, p] of room.players.entries()) {
+          if (!p.isAi && !p.isOnline) {
+            room.players.delete(id);
+          }
         }
-        room.players.delete(targetPlayerId);
+        ensureRoomHost(room);
         broadcastRoom(undercoverIo, room);
+      } catch (e) {
+        console.error('clean_offline_players error:', e);
       }
     });
 
@@ -1258,9 +1311,27 @@ function setupUndercover(io, app) {
             if (p) {
               p.isOnline = false;
               p.lastOfflineTime = Date.now();
+
+              // 大厅阶段如果玩家离线超过 4 秒（排除瞬时刷新卡顿），自动移出房间，防止幽灵离线玩家占用名额
+              if (room.gameState.phase === PHASES.LOBBY) {
+                if (p.offlineCleanupTimer) clearTimeout(p.offlineCleanupTimer);
+                p.offlineCleanupTimer = setTimeout(() => {
+                  if (room.gameState.phase === PHASES.LOBBY && !p.isOnline) {
+                    room.players.delete(p.id);
+                    ensureRoomHost(room);
+                    const remainingHumans = Array.from(room.players.values()).filter(x => !x.isAi && x.isOnline);
+                    if (remainingHumans.length === 0) {
+                      clearRoomTimers(room);
+                      rooms.delete(room.code);
+                    } else {
+                      broadcastRoom(undercoverIo, room);
+                    }
+                  }
+                }, 4000);
+              }
             }
 
-            // 保持房主身份，广播最新在线状态
+            ensureRoomHost(room);
             broadcastRoom(undercoverIo, room);
           }
         }
