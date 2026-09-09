@@ -609,7 +609,8 @@ function setupUndercover(io, app) {
         const code = generateRoomCode();
         const randomSuffix = Math.floor(100 + Math.random() * 900);
         const rawName = (pData && pData.name ? String(pData.name) : '').trim();
-        const safeName = escapeHtml(rawName ? rawName.substring(0, 10) : `玩家${randomSuffix}`);
+        let safeName = escapeHtml(rawName ? rawName.substring(0, 10) : `玩家${randomSuffix}`);
+        if (safeName === '玩家1' || safeName === '所谓的玩家1') safeName = `玩家${randomSuffix}`;
         const player = {
           id: pData.id || `p_${Date.now()}`,
           socketId: socket.id,
@@ -742,7 +743,8 @@ function setupUndercover(io, app) {
           const isSpectator = room.gameState.phase !== PHASES.LOBBY;
           const randomSuffix = Math.floor(100 + Math.random() * 900);
           const rawJoinName = (player && player.name ? String(player.name) : '').trim();
-          const safeJoinName = escapeHtml(rawJoinName ? rawJoinName.substring(0, 10) : `玩家${randomSuffix}`);
+          let safeJoinName = escapeHtml(rawJoinName ? rawJoinName.substring(0, 10) : `玩家${randomSuffix}`);
+          if (safeJoinName === '玩家1' || safeJoinName === '所谓的玩家1') safeJoinName = `玩家${randomSuffix}`;
           room.players.set(pid, {
             id: pid,
             socketId: socket.id,
