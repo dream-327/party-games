@@ -3,6 +3,7 @@ class SoundEffects {
   constructor() {
     this.ctx = null;
     this.enabled = true;
+    this.voiceEnabled = false; // TTS Voice, default false
   }
 
   init() {
@@ -189,7 +190,7 @@ class SoundEffects {
 
   // 电子法官旁白朗读 (TTS 语音播报)
   speak(text) {
-    if (!this.enabled || !window.speechSynthesis) return;
+    if (!this.voiceEnabled || !window.speechSynthesis) return;
     try {
       window.speechSynthesis.cancel();
       const utter = new SpeechSynthesisUtterance(text);

@@ -361,7 +361,7 @@
       renderElimination(room, isHost);
     } else if (phase === 'GAME_OVER') {
       switchView('gameOver');
-      renderGameOver(room, isHost);
+      renderGameOver(room, isHost, isPhaseChanged);
     }
   }
 
@@ -1079,9 +1079,11 @@
   });
 
   // 渲染游戏结束与胜负结算
-  function renderGameOver(room, isHost) {
-    window.sfx.playVictory();
-    triggerConfetti();
+  function renderGameOver(room, isHost, isPhaseChanged) {
+    if (isPhaseChanged) {
+      window.sfx.playVictory();
+      triggerConfetti();
+    }
 
     const winner = room.gameState.winner;
     const titleEl = document.getElementById('victory-title');
@@ -1092,14 +1094,14 @@
       iconEl.innerText = '🏆';
       titleEl.innerText = '平民大获全胜！';
       titleEl.className = 'victory-title civilians';
-      descEl.innerText = '火眼金睛！成功揪出了所有潜伏的卧底！';
-      window.sfx.speak('游戏结束，平民大获全胜！');
+      descEl.innerText = '火眼金睛，成功揪出所有卧底！';
+      if (isPhaseChanged) window.sfx.speak('游戏结束，平民大获全胜！');
     } else {
       iconEl.innerText = '🎭';
-      titleEl.innerText = '卧底瞒天过海！';
+      titleEl.innerText = '卧底胜利！';
       titleEl.className = 'victory-title undercovers';
-      descEl.innerText = '演技炸裂！卧底成功潜伏到底，取得胜利！';
-      window.sfx.speak('游戏结束，卧底瞒天过海取得胜利！');
+      descEl.innerText = '演技炸裂，卧底成功潜伏到最后，取得胜利！';
+      if (isPhaseChanged) window.sfx.speak('游戏结束，卧底瞒天过海取得胜利！');
     }
 
     // 渲染全员词语真实底牌
@@ -1452,6 +1454,21 @@
     soundBtn.innerText = window.sfx.enabled ? '🔊' : '🔇';
     window.sfx.playClick();
   });
+
+  // 语音播报开关
+  const voiceBtn = document.getElementById('btn-voice');
+  if (voiceBtn) {
+    voiceBtn.addEventListener('click', () => {
+      window.sfx.voiceEnabled = !window.sfx.voiceEnabled;
+      voiceBtn.innerText = window.sfx.voiceEnabled ? '🗣️' : '🔇';
+      window.sfx.playClick();
+      if (window.sfx.voiceEnabled) {
+        window.sfx.speak('语音播报已开启');
+      } else {
+        window.speechSynthesis && window.speechSynthesis.cancel();
+      }
+    });
+  }
 
   // 纯 JS 纸屑烟花效果
   function triggerConfetti() {
