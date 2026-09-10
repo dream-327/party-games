@@ -869,6 +869,32 @@
     if (tipText) {
       tipText.innerHTML = `💬 <b style="color: #38bdf8;">${escapeHtml(data.playerName)}</b>：“${escapeHtml(data.clue)}”`;
     }
+    
+    // 立即追加到公屏记录（不需要等下一个 room_update）
+    const publicScreenLogs = document.getElementById('public-screen-logs');
+    if (publicScreenLogs) {
+      const emptyMsg = document.getElementById('public-screen-empty');
+      if (emptyMsg) emptyMsg.remove();
+      
+      const isPk = currentRoom && currentRoom.gameState && currentRoom.gameState.phase.startsWith('PK');
+      const round = currentRoom && currentRoom.gameState ? currentRoom.gameState.round : 1;
+      const prefix = isPk ? `<span style="color: #ef4444;">[PK发言]</span>` : `<span style="color: #a855f7;">[第${round}轮]</span>`;
+      
+      const newLog = document.createElement('div');
+      newLog.style = "padding: 4px 0; border-bottom: 1px dashed rgba(255,255,255,0.1);";
+      newLog.innerHTML = `${prefix} <b style="color: #38bdf8;">${escapeHtml(data.playerName)}</b>: ${escapeHtml(data.clue)}`;
+      
+      // 如果本来显示的是“暂无记录”，先清空
+      if (publicScreenLogs.innerHTML.includes('暂无描述记录')) {
+        publicScreenLogs.innerHTML = '';
+      }
+      
+      publicScreenLogs.appendChild(newLog);
+      setTimeout(() => {
+        publicScreenLogs.scrollTop = publicScreenLogs.scrollHeight;
+      }, 50);
+    }
+    
     window.sfx.speak(`${data.playerName}发言说：“${data.clue}”`);
   });
 
