@@ -10,16 +10,21 @@
     '👻', '🧛‍♂️', '🥳', '🤩', '🚀', '💎'
   ];
 
-  // 本地玩家信息 (通过 sessionStorage 确保每个标签页独立且刷新保持身份，避免同浏览器多标签页冲突)
+  // 本地玩家信息 (优先使用 localStorage，确保微信等内置浏览器退出再进时能恢复身份)
   let myPlayerId = null;
   try {
-    myPlayerId = sessionStorage.getItem('undercover_tab_pid');
+    myPlayerId = localStorage.getItem('undercover_pid') || sessionStorage.getItem('undercover_tab_pid');
   } catch (e) {}
 
   if (!myPlayerId) {
     myPlayerId = 'p_' + Math.random().toString(36).substring(2, 8) + Date.now().toString(36);
     try {
+      localStorage.setItem('undercover_pid', myPlayerId);
       sessionStorage.setItem('undercover_tab_pid', myPlayerId);
+    } catch (e) {}
+  } else {
+    try {
+      localStorage.setItem('undercover_pid', myPlayerId);
     } catch (e) {}
   }
 
@@ -96,7 +101,7 @@
     if (confirm('确定要退出当前房间吗？')) {
       socket.emit('leave_room', () => {});
       currentRoom = null;
-      sessionStorage.removeItem('undercover_room');
+      localStorage.removeItem('undercover_room');
       switchView('home');
       const hostResetBtn = document.getElementById('btn-host-reset');
       if (hostResetBtn) hostResetBtn.classList.add('hidden');
@@ -157,7 +162,7 @@
   // 创建房间
   document.getElementById('btn-create-room').addEventListener('click', () => {
     window.sfx.playClick();
-    sessionStorage.removeItem('undercover_room');
+    localStorage.removeItem('undercover_room');
     currentRoom = null;
     const name = document.getElementById('input-nickname').value.trim() || myNickname;
     socket.emit('create_room', {
@@ -174,7 +179,7 @@
       if (!res.success) {
         alert(res.message || '创建房间失败');
       } else {
-        sessionStorage.setItem('undercover_room', res.roomCode);
+        localStorage.setItem('undercover_room', res.roomCode);
         if (res.roomData) {
           currentRoom = res.roomData;
           switchView('lobby');
@@ -192,13 +197,13 @@
       return alert('请输入正确的 4 位房间号');
     }
     const name = document.getElementById('input-nickname').value.trim() || myNickname;
-    sessionStorage.setItem('undercover_room', roomCode);
+    localStorage.setItem('undercover_room', roomCode);
     socket.emit('join_room', {
       roomCode,
       player: { id: myPlayerId, name, avatar: myAvatar }
     }, (res) => {
       if (!res.success) {
-        sessionStorage.removeItem('undercover_room');
+        localStorage.removeItem('undercover_room');
         alert(res.message || '加入房间失败');
       } else if (res.roomData) {
         currentRoom = res.roomData;
@@ -211,7 +216,7 @@
   socket.on('room_update', (roomData) => {
     currentRoom = roomData;
     if (roomData && roomData.code) {
-      sessionStorage.setItem('undercover_room', roomData.code);
+      localStorage.setItem('undercover_room', roomData.code);
     }
     renderRoom(roomData);
   });
@@ -219,13 +224,13 @@
   socket.on('kicked_from_room', () => {
     alert('您已被房主移出房间');
     currentRoom = null;
-    sessionStorage.removeItem('undercover_room');
+    localStorage.removeItem('undercover_room');
     switchView('home');
   });
 
   // 自动重新连接与全量状态同步机制 (针对手机熄屏、切后台等场景)
   function autoSyncRoom() {
-    const savedRoomCode = (currentRoom && currentRoom.code) || sessionStorage.getItem('undercover_room');
+    const savedRoomCode = (currentRoom && currentRoom.code) || localStorage.getItem('undercover_room');
     if (!savedRoomCode || !socket.connected) return;
 
     // 已有 currentRoom（已在房间内）→ 只发 sync_room 心跳更新 socketId 和在线状态
@@ -243,7 +248,7 @@
           currentRoom = res.roomData;
           renderRoom(res.roomData);
         } else if (res && !res.success) {
-          sessionStorage.removeItem('undercover_room');
+          localStorage.removeItem('undercover_room');
           currentRoom = null;
         }
       });
@@ -270,7 +275,7 @@
 
   // 定时心跳保活 (由 2s 降频为 15s)，避免频繁消耗服务器资源与 DOM 闪烁
   setInterval(() => {
-    const savedRoomCode = (currentRoom && currentRoom.code) || sessionStorage.getItem('undercover_room');
+    const savedRoomCode = (currentRoom && currentRoom.code) || localStorage.getItem('undercover_room');
     if (savedRoomCode && socket.connected) {
       socket.emit('sync_room', { roomCode: savedRoomCode, playerId: myPlayerId });
     }
@@ -362,6 +367,34 @@
     } else if (phase === 'GAME_OVER') {
       switchView('gameOver');
       renderGameOver(room, isHost, isPhaseChanged);
+    }
+
+    // 5. 渲染公屏记录
+    const publicScreenContainer = document.getElementById('public-screen-container');
+    const publicScreenLogs = document.getElementById('public-screen-logs');
+    if (publicScreenContainer && publicScreenLogs) {
+      if (phase !== 'LOBBY' && phase !== 'CARD_VIEW') {
+        publicScreenContainer.classList.remove('hidden');
+        
+        const logs = room.gameState.clueLogs || [];
+        if (logs.length === 0) {
+          publicScreenLogs.innerHTML = '<div style="color: var(--text-muted); text-align: center;">暂无描述记录</div>';
+        } else {
+          publicScreenLogs.innerHTML = logs.map(log => {
+            const prefix = log.isPk ? `<span style="color: #ef4444;">[PK发言]</span>` : `<span style="color: #a855f7;">[第${log.round}轮]</span>`;
+            return `<div style="padding: 4px 0; border-bottom: 1px dashed rgba(255,255,255,0.1);">
+              ${prefix} <b style="color: #38bdf8;">${escapeHtml(log.playerName)}</b>: ${escapeHtml(log.clue)}
+            </div>`;
+          }).join('');
+          
+          // 自动滚动到底部
+          setTimeout(() => {
+            publicScreenLogs.scrollTop = publicScreenLogs.scrollHeight;
+          }, 50);
+        }
+      } else {
+        publicScreenContainer.classList.add('hidden');
+      }
     }
   }
 
@@ -534,7 +567,7 @@
         if (confirm('你正在房间中，确定要退出当前房间并返回游戏大厅吗？')) {
           socket.emit('leave_room', () => {});
           currentRoom = null;
-          sessionStorage.removeItem('undercover_room');
+          localStorage.removeItem('undercover_room');
           window.location.href = '/';
         }
       }

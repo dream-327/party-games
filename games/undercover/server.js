@@ -1,4 +1,4 @@
-// Undercover Game Server (谁是卧底服务端逻辑模块)
+﻿// Undercover Game Server (谁是卧底服务端逻辑模块)
 
 const path = require('path');
 const { wordCategories, punishments, getRandomWordPair, getRandomPunishment } = require('./words');
@@ -140,7 +140,8 @@ function getSafeRoomData(room, targetPlayerId) {
       punishment: room.gameState.punishment,
       voteStartTime: room.gameState.voteStartTime,
       voteTimeLimit: room.gameState.voteTimeLimit || 60,
-      voteTally: (room.gameState.phase === PHASES.ELIMINATION || room.gameState.phase === PHASES.GAME_OVER) ? room.gameState.votes : {}
+      voteTally: (room.gameState.phase === PHASES.ELIMINATION || room.gameState.phase === PHASES.GAME_OVER) ? room.gameState.votes : {},
+      clueLogs: room.gameState.clueLogs || []
     }
   };
 }
@@ -215,6 +216,8 @@ function scheduleNextSpeaker(undercoverIo, room) {
         avatar: speaker.avatar,
         clue: clue
       });
+      if (!room.gameState.clueLogs) room.gameState.clueLogs = [];
+      room.gameState.clueLogs.push({ round: room.gameState.round, isPk: false, playerName: speaker.name, clue: clue, time: Date.now() });
       undercoverIo.to(room.code).emit('reaction_received', {
         playerId: speaker.id,
         playerName: speaker.name,
@@ -329,6 +332,8 @@ function scheduleNextPkSpeaker(undercoverIo, room) {
         avatar: pkSpeaker.avatar,
         clue: pkClue
       });
+      if (!room.gameState.clueLogs) room.gameState.clueLogs = [];
+      room.gameState.clueLogs.push({ round: room.gameState.round, isPk: true, playerName: pkSpeaker.name, clue: pkClue, time: Date.now() });
       undercoverIo.to(room.code).emit('reaction_received', {
         playerId: pkSpeaker.id,
         playerName: pkSpeaker.name,
@@ -538,6 +543,7 @@ function resetGameToLobby(undercoverIo, room) {
   room.gameState.lastEliminated = null;
   room.gameState.winner = null;
   room.gameState.punishment = null;
+  room.gameState.clueLogs = [];
 
   room.players.forEach(p => {
     p.isAlive = true;
@@ -657,7 +663,8 @@ function setupUndercover(io, app) {
             lastEliminated: null,
             winner: null,
             winningWord: null,
-            punishment: null
+            punishment: null,
+            clueLogs: []
           }
         };
 
@@ -1014,6 +1021,7 @@ function setupUndercover(io, app) {
         room.gameState.lastEliminated = null;
         room.gameState.winner = null;
         room.gameState.punishment = null;
+  room.gameState.clueLogs = [];
 
         // 25秒看牌安全兜底定时器：超时全员自动准备完毕并切入发言阶段
         if (room.gameState.cardViewSafetyTimer) clearTimeout(room.gameState.cardViewSafetyTimer);
@@ -1113,6 +1121,8 @@ function setupUndercover(io, app) {
           avatar: sender.avatar,
           clue: text
         });
+        if (!room.gameState.clueLogs) room.gameState.clueLogs = [];
+        room.gameState.clueLogs.push({ round: room.gameState.round, isPk: room.gameState.phase.startsWith('PK'), playerName: sender.name, clue: text, time: Date.now() });
       } catch (err) {
         console.error('send_clue error:', err);
       }
