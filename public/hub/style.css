@@ -1,4 +1,4 @@
-﻿/* Party Games Hub 专属样式 */
+/* Party Games Hub 专属样式 */
 :root {
   --bg-color: #0b0f19;
   --card-bg: rgba(23, 28, 44, 0.75);
@@ -179,6 +179,11 @@ body {
 .card-doudizhu:hover {
   border-color: rgba(251, 191, 36, 0.5);
   box-shadow: 0 20px 40px rgba(251, 191, 36, 0.15);
+}
+
+.card-mahjong:hover {
+  border-color: rgba(16, 185, 129, 0.5);
+  box-shadow: 0 20px 40px rgba(16, 185, 129, 0.18);
 }
 
 .card-badge {

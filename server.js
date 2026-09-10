@@ -7,6 +7,7 @@ const path = require('path');
 const { setupUndercover, wordCategories } = require('./games/undercover/server');
 const { setupDoudizhu } = require('./games/doudizhu/server');
 const { setupWerewolf } = require('./games/werewolf/server');
+const { setupMahjong } = require('./games/mahjong/server');
 
 const app = express();
 const server = http.createServer(app);
@@ -32,6 +33,7 @@ const noCacheStaticOptions = {
 app.use('/undercover', express.static(path.join(__dirname, 'public/undercover'), noCacheStaticOptions));
 app.use('/doudizhu', express.static(path.join(__dirname, 'public/doudizhu'), noCacheStaticOptions));
 app.use('/werewolf', express.static(path.join(__dirname, 'public/werewolf'), noCacheStaticOptions));
+app.use('/mahjong', express.static(path.join(__dirname, 'public/mahjong'), noCacheStaticOptions));
 app.use('/', express.static(path.join(__dirname, 'public/hub'), noCacheStaticOptions));
 
 // 智能获取真实物理网卡 IP (优先 Wi-Fi / 手机热点 / 局域网)
@@ -78,7 +80,8 @@ app.get('/api/server-info', (req, res) => {
     games: [
       { id: 'undercover', name: '谁是卧底', path: '/undercover/' },
       { id: 'doudizhu', name: '欢乐斗地主', path: '/doudizhu/' },
-      { id: 'werewolf', name: '聚会狼人杀', path: '/werewolf/' }
+      { id: 'werewolf', name: '聚会狼人杀', path: '/werewolf/' },
+      { id: 'mahjong', name: '四川麻将 (血战到底)', path: '/mahjong/' }
     ]
   });
 });
@@ -87,6 +90,7 @@ app.get('/api/server-info', (req, res) => {
 setupUndercover(io, app);
 setupDoudizhu(io, app);
 setupWerewolf(io, app);
+setupMahjong(io, app);
 
 // 启动统一服务器
 server.listen(PORT, '0.0.0.0', () => {
@@ -97,6 +101,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`🕵️‍♂️ 《谁是卧底》直达: http://localhost:${PORT}/undercover/`);
   console.log(`🃏 《欢乐斗地主》直达: http://localhost:${PORT}/doudizhu/`);
   console.log(`🐺 《聚会狼人杀》直达: http://localhost:${PORT}/werewolf/`);
+  console.log(`🀄 《四川麻将》直达: http://localhost:${PORT}/mahjong/`);
   console.log('📱 手机/局域网/热点访问推荐:');
   ipObjs.forEach(item => {
     console.log(`   👉 http://${item.address}:${PORT} (${item.name}${item.isPrimary ? ' - 推荐' : ''})`);

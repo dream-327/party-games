@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="screen-orientation" content="landscape">
+  <meta name="x5-orientation" content="landscape">
+  <meta name="full-screen" content="yes">
+  <meta name="x5-fullscreen" content="true">
+  <meta name="theme-color" content="#062419">
+  <title>雀神雅集 · 四川麻将 (血战到底 / 血流成河)</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="confetti-canvas"></canvas>
+
+  <div id="app">
+    <!-- 顶部导航状态栏 -->
+    <header class="header-bar">
+      <div class="header-left">
+        <a href="/" class="icon-btn" title="返回游戏大厅">🏠</a>
+        <div class="logo-badge">
+          <span>🀄</span> 雀神雅集 · 四川麻将
+        </div>
+        <div id="room-code-tag" class="room-tag hidden">
+          房间: <span id="current-room-code" class="mono-code">----</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button id="btn-toggle-orientation" class="icon-btn" title="横屏/竖屏切换">🔄</button>
+        <button id="btn-settings" class="icon-btn" title="对局规则设置">⚙️</button>
+        <button id="btn-leave-room" class="icon-btn hidden" title="退出房间" style="background: rgba(244,63,94,0.18); border-color: rgba(244,63,94,0.4); color: #fca5a5;">🚪</button>
+        <button id="btn-quick-invite" class="icon-btn" title="扫码邀请好友">📱</button>
+        <button id="btn-rules" class="icon-btn" title="番型与规则说明">❓</button>
+        <button id="btn-sound" class="icon-btn" title="音效开关">🔊</button>
+      </div>
+    </header>
+
+    <!-- 视图1: 首页大厅 (创建 / 加入房间) -->
+    <main id="view-home" class="main-container">
+      <div class="hero-card">
+        <div class="hero-icon">🀄</div>
+        <h1 class="hero-title">四川麻将 · 血战到底</h1>
+        <p class="hero-desc">正宗川麻 · 定缺换三张 · 刮风下雨 · 人人有胡把把刺激</p>
+
+        <!-- 个人名片设定 -->
+        <div class="player-profile-box">
+          <label class="input-label">我的雀神形象</label>
+          <div class="avatar-selector-grid" id="avatar-list"></div>
+          <div class="input-group">
+            <span class="input-icon">✏️</span>
+            <input type="text" id="nickname-input" placeholder="输入你的游戏昵称" maxlength="10">
+          </div>
+        </div>
+
+        <div class="action-buttons-group">
+          <button id="btn-create-room" class="btn btn-primary btn-lg">
+            <span>👑</span> 创建四人麻将房
+          </button>
+          
+          <div class="join-room-bar">
+            <input type="text" id="room-code-input" placeholder="输入 4 位房间号" maxlength="4" pattern="[0-9]*">
+            <button id="btn-join-room" class="btn btn-secondary">进入房间</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- 视图2: 麻将牌桌对局区 (新国风翡翠金丝牌桌) -->
+    <main id="view-table" class="main-container hidden">
+      <div class="mahjong-table-felt">
+        
+        <!-- 牌桌中央罗盘八卦与状态核心 -->
+        <div class="table-compass" id="center-compass">
+          <div class="compass-wind-grid">
+            <div class="compass-wind wind-north" id="compass-north">北</div>
+            <div class="compass-wind-middle">
+              <div class="compass-wind wind-west" id="compass-west">西</div>
+              <div class="compass-center-box">
+                <div class="compass-timer" id="turn-countdown">15</div>
+                <div class="compass-remain-tiles" id="remain-tiles-count">余 84 张</div>
+              </div>
+              <div class="compass-wind wind-east" id="compass-east">东</div>
+            </div>
+            <div class="compass-wind wind-south" id="compass-south">南</div>
+          </div>
+          <div class="table-rules-capsule" id="table-rules-capsule">底分: 1 · 血战到底 · 4番封顶</div>
+        </div>
+
+        <!-- 全屏特技横幅播报 (刮风、下雨、胡牌) -->
+        <div id="table-banner-alert" class="table-banner hidden">
+          <span id="banner-text">💨 刮风！直杠进账！</span>
+        </div>
+
+        <!-- 酷炫特效层 -->
+        <div id="vfx-wind" class="vfx-anim hidden">🌪️ 💨 刮风咯！</div>
+        <div id="vfx-rain" class="vfx-anim hidden">⚡ 🌧️ 下雨咯！</div>
+        <div id="vfx-hu" class="vfx-anim hidden">🀄 💥 胡啦！</div>
+
+        <!-- 上方：对家 (北家 / Player 2) -->
+        <div id="player-top" class="player-slot slot-top">
+          <div class="player-avatar-wrap">
+            <div class="player-avatar" id="p-top-avatar">🧐</div>
+            <div class="que-badge hidden" id="p-top-que">缺万</div>
+            <div class="ready-badge hidden" id="p-top-ready">已准备</div>
+            <div class="hu-badge hidden" id="p-top-hu">已胡</div>
+          </div>
+          <div class="player-info">
+            <div class="player-name" id="p-top-name">等待加入...</div>
+            <div class="player-chips-pill" id="p-top-chips">🪙 1,000</div>
+          </div>
+          <div class="melds-area" id="p-top-melds"></div>
+          <div class="discards-area" id="p-top-discards"></div>
+          <div class="standing-hand-back" id="p-top-hand-back"></div>
+        </div>
+
+        <!-- 左侧：上家 (西家 / Player 3) -->
+        <div id="player-left" class="player-slot slot-left">
+          <div class="player-avatar-wrap">
+            <div class="player-avatar" id="p-left-avatar">🤠</div>
+            <div class="que-badge hidden" id="p-left-que">缺筒</div>
+            <div class="ready-badge hidden" id="p-left-ready">已准备</div>
+            <div class="hu-badge hidden" id="p-left-hu">已胡</div>
+          </div>
+          <div class="player-info">
+            <div class="player-name" id="p-left-name">等待加入...</div>
+            <div class="player-chips-pill" id="p-left-chips">🪙 1,000</div>
+          </div>
+          <div class="melds-area" id="p-left-melds"></div>
+          <div class="discards-area" id="p-left-discards"></div>
+          <div class="standing-hand-back" id="p-left-hand-back"></div>
+        </div>
+
+        <!-- 右侧：下家 (东家 / Player 1) -->
+        <div id="player-right" class="player-slot slot-right">
+          <div class="player-avatar-wrap">
+            <div class="player-avatar" id="p-right-avatar">😎</div>
+            <div class="que-badge hidden" id="p-right-que">缺条</div>
+            <div class="ready-badge hidden" id="p-right-ready">已准备</div>
+            <div class="hu-badge hidden" id="p-right-hu">已胡</div>
+          </div>
+          <div class="player-info">
+            <div class="player-name" id="p-right-name">等待加入...</div>
+            <div class="player-chips-pill" id="p-right-chips">🪙 1,000</div>
+          </div>
+          <div class="melds-area" id="p-right-melds"></div>
+          <div class="discards-area" id="p-right-discards"></div>
+          <div class="standing-hand-back" id="p-right-hand-back"></div>
+        </div>
+
+        <!-- 下方：本家 (南家 / 我自己) -->
+        <div id="player-my" class="my-player-zone">
+          <!-- 我的出牌展示区 (桌面中心下方) -->
+          <div class="discards-area" id="p-my-discards"></div>
+          <!-- 我的副露区 (碰杠区) -->
+          <div class="melds-area" id="p-my-melds"></div>
+
+          <!-- 智能听牌信息小药丸 -->
+          <div id="ting-helper-pill" class="ting-helper-pill hidden">
+            <span>🎯 听牌推荐:</span>
+            <div id="ting-tiles-list" class="ting-tiles-list"></div>
+          </div>
+
+          <!-- 换三张交互操作条 -->
+          <div id="huan-three-bar" class="phase-action-bar hidden">
+            <span class="bar-tip">🔀 请在手牌中选择 <strong>3 张相同花色</strong> 进行互换 (已选 <span id="huan-count">0</span>/3 张)</span>
+            <button id="btn-confirm-huan" class="btn btn-gold" disabled>确认换牌</button>
+          </div>
+
+          <!-- 定缺交互操作条 -->
+          <div id="ding-que-bar" class="phase-action-bar hidden">
+            <span class="bar-tip">🎯 请选择定缺花色 (开局必须先打光此花色):</span>
+            <div class="que-buttons-group">
+              <button class="btn-que-opt" data-suit="wan">万 <span class="recom-tag hidden" id="recom-wan">推荐</span></button>
+              <button class="btn-que-opt" data-suit="tong">筒 <span class="recom-tag hidden" id="recom-tong">推荐</span></button>
+              <button class="btn-que-opt" data-suit="tiao">条 <span class="recom-tag hidden" id="recom-tiao">推荐</span></button>
+            </div>
+          </div>
+
+          <!-- 碰杠胡反应决策操作栏 -->
+          <div id="action-prompts-bar" class="action-prompts-bar hidden">
+            <button id="btn-action-hu" class="action-btn hu-btn hidden">🀄 胡</button>
+            <button id="btn-action-gang" class="action-btn gang-btn hidden">⚡ 杠</button>
+            <button id="btn-action-peng" class="action-btn peng-btn hidden">✨ 碰</button>
+            <button id="btn-action-pass" class="action-btn pass-btn">过</button>
+          </div>
+
+          <!-- 大厅准备阶段控制条 -->
+          <div id="lobby-control-bar" class="lobby-control-bar">
+            <button id="btn-toggle-ready" class="btn btn-primary">准备</button>
+            <button id="btn-add-ai" class="btn btn-secondary hidden">🤖 补齐电脑陪练</button>
+            <button id="btn-start-game" class="btn btn-gold hidden">👑 开始洗牌发牌</button>
+          </div>
+
+          <!-- 我自己的个人名牌与手牌容器 -->
+          <div class="my-hand-panel">
+            <div class="my-meta-bar">
+              <div class="my-meta-left">
+                <span id="my-avatar" class="mini-avatar">🀄</span>
+                <span id="my-name" class="my-name-text">我</span>
+                <span id="my-chips" class="player-chips-pill">🪙 1,000</span>
+                <span id="my-que" class="que-badge hidden">缺万</span>
+                <span id="my-streak" class="streak-badge hidden">🔥 2连胜</span>
+              </div>
+              <div class="my-meta-right">
+                <span class="action-guide-text" id="action-guide-text">💡 双击或向上轻滑手牌即可打出</span>
+              </div>
+            </div>
+
+            <!-- 立体手牌卡槽 -->
+            <div class="my-tiles-container" id="my-hand-container">
+              <!-- 动态生成的玉石手牌组件 -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- 弹窗1: 房间设置 -->
+    <div id="modal-settings" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>⚙️ 四川麻将规则设置</h3>
+          <button class="modal-close" id="btn-close-settings">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="setting-group">
+            <label class="setting-label">对局底分</label>
+            <div class="segmented-control" id="setting-base-score">
+              <button type="button" class="segment-btn active" data-value="1">1分</button>
+              <button type="button" class="segment-btn" data-value="2">2分</button>
+              <button type="button" class="segment-btn" data-value="5">5分</button>
+              <button type="button" class="segment-btn" data-value="10">10分</button>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <label class="setting-label">对局流派模式</label>
+            <div class="segmented-control" id="setting-mode">
+              <button type="button" class="segment-btn active" data-value="xuezhan">🩸 血战到底 (3家胡牌方止)</button>
+              <button type="button" class="segment-btn" data-value="xueliu">🌊 血流成河 (胡牌不倒/可连胡)</button>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <label class="setting-label">封顶番数</label>
+            <div class="segmented-control" id="setting-max-fan">
+              <button type="button" class="segment-btn" data-value="3">3番 (8倍)</button>
+              <button type="button" class="segment-btn active" data-value="4">4番 (16倍)</button>
+              <button type="button" class="segment-btn" data-value="5">5番 (32倍)</button>
+              <button type="button" class="segment-btn" data-value="0">不封顶</button>
+            </div>
+          </div>
+
+          <div class="setting-toggle-item">
+            <div class="toggle-info">
+              <span class="toggle-title">🔀 开启“换三张”</span>
+              <span class="toggle-desc">开局每位玩家选 3 张同门牌互换，大牌更刺激</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="setting-swap-three" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div id="settings-host-hint" class="settings-hint hidden">💡 您不是房主，当前仅可浏览规则，只有房主可保存修改</div>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-save-settings" class="btn btn-gold btn-block">保存规则设置</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 弹窗2: 规则说明 -->
+    <div id="modal-rules" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>📖 四川麻将规则与番型</h3>
+          <button class="modal-close" id="btn-close-rules">✕</button>
+        </div>
+        <div class="modal-body rules-content">
+          <h4>🀄 核心机制</h4>
+          <ul>
+            <li><strong>定缺</strong>：摸牌前必须选择一门（万/筒/条）弃牌，必须打光定缺牌才能胡牌。若带定缺牌则无法胡牌且流局视为“花猪”。</li>
+            <li><strong>刮风下雨 (杠牌)</strong>：直杠（刮风）点杠者出 2 倍底分；暗杠（下雨）全员每人出 2 倍底分；弯杠全员出 1 倍底分。</li>
+            <li><strong>血战到底</strong>：一家胡牌后退出摸打，其余玩家继续打，直至 3 家胡牌或摸完牌墙。</li>
+          </ul>
+          <h4>🏆 经典番型</h4>
+          <ul>
+            <li><strong>平胡</strong>：1番 (2倍)</li>
+            <li><strong>对对胡 (碰碰胡)</strong>：2番 (4倍)</li>
+            <li><strong>清一色 / 七对</strong>：3番 (8倍)</li>
+            <li><strong>清对 (清一色碰碰胡)</strong>：4番 (16倍)</li>
+            <li><strong>清七对 (清一色七对)</strong>：5番 (32倍)</li>
+            <li><strong>带根</strong>：手牌或杠牌含 4 张完全相同的牌，每根 +1 番</li>
+            <li><strong>杠上开花 / 杠上炮 / 自摸</strong>：各 +1 番</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- 弹窗3: 扫码分享 -->
+    <div id="modal-share" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>📱 邀请好友对局</h3>
+          <button class="modal-close" id="btn-close-share">✕</button>
+        </div>
+        <div class="modal-body">
+          <div id="qrcode-container" class="qrcode-wrapper"></div>
+          <div class="share-url-box">
+            <input type="text" id="share-link-input" readonly>
+            <button id="btn-copy-share-link" class="btn btn-secondary">复制链接</button>
+          </div>
+          <div class="ip-selector-list" id="share-network-options"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 弹窗4: 对局结算复盘 -->
+    <div id="modal-settle" class="modal-backdrop hidden">
+      <div class="modal-card settle-card">
+        <div class="modal-header" style="justify-content: flex-end; margin-bottom: 0;">
+          <button class="modal-close" id="btn-close-settle" title="查看桌面">✕</button>
+        </div>
+        <div class="settle-header">
+          <h2 id="settle-title">🀄 对局复盘总结</h2>
+          <div id="settle-subtitle" class="settle-sub">血战到底 · 满堂雀神</div>
+        </div>
+        <div class="modal-body">
+          <!-- 4位玩家得分列 -->
+          <div class="score-board-grid" id="settle-scores-grid"></div>
+          <!-- 全员剩余手牌揭示 -->
+          <div class="revealed-hands-list" id="settle-revealed-hands"></div>
+        </div>
+        <div class="modal-footer" style="display: flex; gap: 10px;">
+          <button id="btn-settle-leave" class="btn btn-secondary" style="flex: 1;">🚪 退出房间</button>
+          <button id="btn-play-again" class="btn btn-gold btn-lg" style="flex: 1.5;">再来一局</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 手机竖屏旋转引导 -->
+    <div id="orientation-guide" class="orientation-guide hidden">
+      <div class="orientation-guide-card">
+        <div class="guide-rotate-icon">📱↷</div>
+        <h3 class="guide-title">建议横屏搓麻将</h3>
+        <p class="guide-desc">横屏下骨玉麻将牌更大更逼真，四方牌池尽收眼底！</p>
+        <div class="guide-btn-group">
+          <button id="btn-guide-force" class="btn btn-gold">🔄 开启横屏对战</button>
+          <button id="btn-guide-dismiss" class="btn btn-secondary">保持当前方向</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 浮动 Toast 容器 -->
+    <div id="toast-container" class="toast-container"></div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/doudizhu/qrcode.min.js"></script>
+  <script src="tiles.js"></script>
+  <script src="rules.js"></script>
+  <script src="sfx.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>
