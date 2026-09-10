@@ -3,8 +3,8 @@
   const socket = io('/mahjong');
 
   const AVATARS = [
-    '🀄', '👑', '🐉', '🐯', '🦁', '🐼',
-    '🦊', '🐱', '🤠', '😎', '🧐', '🥳'
+    '👑', '🐉', '🐯', '🦁', '🐼', '🦊',
+    '🐱', '🤠', '😎', '🧐', '🥳', '🀄'
   ];
 
   // 本地玩家信息持久化
@@ -15,7 +15,7 @@
   }
 
   let myNickname = localStorage.getItem('mj_name') || `雀友${Math.floor(100 + Math.random() * 900)}`;
-  let myAvatar = localStorage.getItem('mj_avatar') || AVATARS[Math.floor(Math.random() * AVATARS.length)];
+  let myAvatar = localStorage.getItem('mj_avatar') || AVATARS[0];
 
   let currentRoom = null;
   let selectedTileId = null;
@@ -131,6 +131,8 @@
 
   const tingHelperPill = document.getElementById('ting-helper-pill');
   const tingTilesList = document.getElementById('ting-tiles-list');
+  const btnDiscardSelected = document.getElementById('btn-discard-selected');
+  const actionGuideText = document.getElementById('action-guide-text');
 
   // 弹窗
   const modalSettings = document.getElementById('modal-settings');
@@ -331,12 +333,14 @@
     renderMelds(dom.melds, seatData.melds);
     renderDiscards(dom.discards, seatData.discards);
 
-    // 手牌牌背
+    // 手牌牌背：大厅未开局时不渲染手牌背，开局后按实际持牌张数渲染
     dom.handBack.innerHTML = '';
-    const count = seatData.handCount || 13;
-    for (let i = 0; i < count; i++) {
-      if (window.MahjongTiles) {
-        dom.handBack.appendChild(window.MahjongTiles.createTileElement(null, { size: 'back', isBack: true }));
+    if (room.gameState.phase !== 'LOBBY') {
+      const count = seatData.handCount || 0;
+      for (let i = 0; i < count; i++) {
+        if (window.MahjongTiles) {
+          dom.handBack.appendChild(window.MahjongTiles.createTileElement(null, { size: 'back', isBack: true }));
+        }
       }
     }
   }
@@ -372,6 +376,29 @@
     const isMyTurn = (isPlaying && currentRoom.gameState.currentTurnSeat === currentRoom.mySeatIndex);
     const hasQue = window.MahjongRules ? window.MahjongRules.hasQueSuit(tiles, queSuit) : false;
 
+    // 检查是否有选中的牌在当前手中
+    const selectedTile = (tiles || []).find(t => t.id === selectedTileId);
+    if (!selectedTile) {
+      selectedTileId = null;
+    }
+
+    // 更新出牌按钮状态
+    if (btnDiscardSelected) {
+      if (isMyTurn && selectedTileId && selectedTile) {
+        btnDiscardSelected.classList.remove('hidden');
+        btnDiscardSelected.textContent = `📤 打出 ${selectedTile.rank}${window.MahjongRules ? window.MahjongRules.SUIT_NAMES[selectedTile.suit] : ''}`;
+      } else {
+        btnDiscardSelected.classList.add('hidden');
+      }
+    }
+
+    if (!tiles || tiles.length === 0) {
+      if (currentRoom && currentRoom.gameState && currentRoom.gameState.phase !== 'LOBBY') {
+        pMy.handContainer.innerHTML = '<div style="color: rgba(255,255,255,0.45); font-size: 13px; align-self: center; padding: 22px;">牌局正在进行中...</div>';
+      }
+      return;
+    }
+
     tiles.forEach((tile, idx) => {
       const isQue = (tile.suit === queSuit);
       const isSelected = (tile.id === selectedTileId) || selectedSwapIds.has(tile.id);
@@ -397,7 +424,7 @@
         }
 
         // 常规出牌阶段
-        if (now - lastTap < 320 && now - lastTap > 0) {
+        if (now - lastTap < 350 && now - lastTap > 0) {
           // 双击出牌
           lastTap = 0;
           attemptDiscard(tile);
@@ -409,6 +436,15 @@
         selectedTileId = (selectedTileId === tile.id) ? null : tile.id;
         document.querySelectorAll('#my-hand-container .mj-tile').forEach(el => el.classList.remove('selected'));
         if (selectedTileId) tileEl.classList.add('selected');
+
+        if (btnDiscardSelected) {
+          if (isMyTurn && selectedTileId) {
+            btnDiscardSelected.classList.remove('hidden');
+            btnDiscardSelected.textContent = `📤 打出 ${tile.rank}${window.MahjongRules ? window.MahjongRules.SUIT_NAMES[tile.suit] : ''}`;
+          } else {
+            btnDiscardSelected.classList.add('hidden');
+          }
+        }
 
         // 计算此牌打出后的听牌提示
         updateTingHelper(tile, tiles, queSuit);
@@ -515,18 +551,57 @@
       } else {
         btnStartGame.classList.add('hidden');
       }
+
+      if (actionGuideText) {
+        if (allSeated && isHost) {
+          actionGuideText.textContent = '👥 4人已就位，请点击【👑 开始洗牌发牌】开局！';
+        } else if (isHost) {
+          actionGuideText.textContent = '⏳ 等待雀友加入，或点击【🤖 补齐电脑陪练】！';
+        } else {
+          actionGuideText.textContent = myData.isReady ? '✅ 已准备，等待房主开局...' : '💡 请点击【准备】进入就绪状态';
+        }
+      }
     } else if (room.gameState.phase === 'SWAP_THREE') {
-      if (!room.gameState.swapSelections[mySeat]) {
-        huanThreeBar.classList.remove('hidden');
+      huanThreeBar.classList.remove('hidden');
+      const hasChosen = !!(room.gameState.swapSelections && room.gameState.swapSelections[mySeat]);
+      const tip = huanThreeBar.querySelector('.bar-tip');
+      if (hasChosen) {
+        if (tip) tip.innerHTML = '⏳ <strong>已确认换三张</strong>，等待其他雀友完成...';
+        btnConfirmHuan.classList.add('hidden');
+      } else {
+        if (tip) tip.innerHTML = `🔀 请在手牌中选择 <strong>3 张相同花色</strong> 进行互换 (已选 <span id="huan-count">${selectedSwapIds.size}</span>/3 张)`;
+        btnConfirmHuan.classList.remove('hidden');
+        btnConfirmHuan.disabled = (selectedSwapIds.size !== 3);
+      }
+      if (actionGuideText) {
+        actionGuideText.textContent = hasChosen ? '⏳ 等待其他雀友换牌...' : '🔀 点击手牌选中3张同门花色，再点击确认';
       }
     } else if (room.gameState.phase === 'DING_QUE') {
-      if (!myData.queSuit) {
-        dingQueBar.classList.remove('hidden');
+      dingQueBar.classList.remove('hidden');
+      const queGroup = dingQueBar.querySelector('.que-buttons-group');
+      const tip = dingQueBar.querySelector('.bar-tip');
+      if (myData.queSuit) {
+        if (tip) tip.innerHTML = `🎯 已定缺【<strong>${window.MahjongRules ? window.MahjongRules.SUIT_NAMES[myData.queSuit] : myData.queSuit}</strong>】，等待其他雀友...`;
+        if (queGroup) queGroup.classList.add('hidden');
+        if (actionGuideText) actionGuideText.textContent = '⏳ 等待其他雀友完成定缺...';
+      } else {
+        if (tip) tip.innerHTML = '🎯 请选择定缺花色 (开局必须先打光此花色):';
+        if (queGroup) queGroup.classList.remove('hidden');
+        if (actionGuideText) actionGuideText.textContent = '🎯 点击上方选择一门定缺花色';
         if (window.MahjongRules) {
           const recom = window.MahjongRules.recommendQueSuit(myData.handCards);
           recomWan.classList.toggle('hidden', recom !== 'wan');
           recomTong.classList.toggle('hidden', recom !== 'tong');
           recomTiao.classList.toggle('hidden', recom !== 'tiao');
+        }
+      }
+    } else if (room.gameState.phase === 'PLAYING') {
+      const isMyTurn = (room.gameState.currentTurnSeat === mySeat);
+      if (actionGuideText) {
+        if (isMyTurn) {
+          actionGuideText.textContent = '👉 轮到你出牌：点选后双击或点击【打出】';
+        } else {
+          actionGuideText.textContent = '⏳ 其他玩家正在行牌...';
         }
       }
     }
@@ -584,6 +659,24 @@
   btnToggleReady.addEventListener('click', () => socket.emit('toggle_ready'));
   btnAddAi.addEventListener('click', () => socket.emit('add_ai'));
   btnStartGame.addEventListener('click', () => socket.emit('host_start_game'));
+
+  // 快捷打出选中手牌
+  if (btnDiscardSelected) {
+    btnDiscardSelected.addEventListener('click', () => {
+      if (!currentRoom || currentRoom.gameState.phase !== 'PLAYING') return;
+      if (currentRoom.gameState.currentTurnSeat !== currentRoom.mySeatIndex) {
+        showToast('还没轮到你出牌哦');
+        return;
+      }
+      const myHand = currentRoom.seats[currentRoom.mySeatIndex]?.handCards || [];
+      const tile = myHand.find(t => t.id === selectedTileId);
+      if (tile) {
+        attemptDiscard(tile);
+      } else {
+        showToast('请先点击选中一张手牌');
+      }
+    });
+  }
 
   // 换三张提交
   btnConfirmHuan.addEventListener('click', () => {

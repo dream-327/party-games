@@ -485,9 +485,14 @@ body.force-landscape #app {
   flex-direction: column;
 }
 
-.slot-top .standing-hand-back {
+.standing-hand-back {
   display: flex;
   gap: 2px;
+  align-items: center;
+}
+
+.slot-top .standing-hand-back {
+  flex-direction: row;
   margin-top: 4px;
 }
 
@@ -506,6 +511,14 @@ body.force-landscape #app {
   flex-direction: column;
 }
 
+.slot-left .standing-hand-back {
+  flex-direction: column;
+  gap: 1.5px;
+  margin-top: 4px;
+  max-height: 180px;
+  flex-wrap: wrap;
+}
+
 .slot-left .discards-area {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -519,6 +532,14 @@ body.force-landscape #app {
   right: 12px;
   transform: translateY(-50%);
   flex-direction: column;
+}
+
+.slot-right .standing-hand-back {
+  flex-direction: column;
+  gap: 1.5px;
+  margin-top: 4px;
+  max-height: 180px;
+  flex-wrap: wrap;
 }
 
 .slot-right .discards-area {
@@ -608,6 +629,24 @@ body.force-landscape #app {
   justify-content: center;
 }
 
+/* 麻将正面的内容与矢量 SVG 绝对饱满贴合 */
+.mj-face-front {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  user-select: none;
+}
+
+.mj-svg {
+  width: 90%;
+  height: 90%;
+  display: block;
+  pointer-events: none;
+}
+
 /* 麻将翡翠玉背厚度层 */
 .mj-tile::after {
   content: '';
@@ -680,19 +719,31 @@ body.force-landscape #app {
   height: 3px;
 }
 
-/* 牌背 */
+/* 牌背：温润浓郁帝王翡翠质感 */
 .mj-size-back {
-  width: 22px;
-  height: 34px;
+  width: 24px;
+  height: 35px;
 }
 
 .mj-face-back {
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #059669 0%, #047857 60%, #064e3b 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, #059669 0%, #047857 55%, #064e3b 100%);
   border-radius: 4px;
   border: 1px solid #10b981;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  position: relative;
+}
+
+.mj-back-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
 }
 
 /* 碰杠副露 */
@@ -715,7 +766,7 @@ body.force-landscape #app {
    ========================================================================== */
 .action-prompts-bar {
   position: absolute;
-  bottom: 84px;
+  bottom: 118px;
   right: 20px;
   display: flex;
   align-items: center;
@@ -767,21 +818,22 @@ body.force-landscape #app {
   font-size: 15px;
 }
 
-/* 定缺 & 换三张交互条 */
+/* 定缺 & 换三张交互条 (放置在手牌上方，保证绝不遮挡手牌) */
 .phase-action-bar {
   position: absolute;
-  bottom: 90px;
+  bottom: 122px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(11, 33, 22, 0.95);
-  border: 1px solid rgba(251, 191, 36, 0.5);
-  padding: 8px 18px;
+  background: rgba(11, 33, 22, 0.96);
+  border: 1.5px solid rgba(251, 191, 36, 0.65);
+  padding: 8px 22px;
   border-radius: 30px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  gap: 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.75), 0 0 16px rgba(251, 191, 36, 0.2);
   z-index: 50;
+  white-space: nowrap;
 }
 
 .que-buttons-group {
@@ -827,10 +879,10 @@ body.force-landscape #app {
 /* 听牌小药丸 */
 .ting-helper-pill {
   position: absolute;
-  bottom: 84px;
+  bottom: 120px;
   left: 20px;
-  background: rgba(6, 20, 13, 0.9);
-  border: 1px solid rgba(16, 185, 129, 0.4);
+  background: rgba(6, 20, 13, 0.92);
+  border: 1px solid rgba(16, 185, 129, 0.5);
   border-radius: 20px;
   padding: 4px 12px;
   font-size: 11px;
@@ -1062,16 +1114,18 @@ body.force-landscape #app {
   }
 
   .action-prompts-bar {
-    bottom: 64px;
+    bottom: 84px;
+    right: 12px;
   }
 
   .phase-action-bar {
-    bottom: 66px;
-    padding: 4px 12px;
+    bottom: 88px;
+    padding: 5px 14px;
+    font-size: 13px;
   }
 
   .ting-helper-pill {
-    bottom: 64px;
+    bottom: 88px;
     padding: 2px 8px;
     font-size: 10px;
   }

@@ -8,7 +8,7 @@
       const num = NUMERALS[rank] || rank;
       const numColor = (rank === 5 || rank === 1) ? '#dc2626' : '#1e293b';
       return `
-        <svg viewBox="0 0 100 135" class="mj-svg">
+        <svg viewBox="0 0 100 135" class="mj-svg" width="100%" height="100%">
           <text x="50" y="55" font-family="'Noto Serif SC', 'Songti SC', 'SimSun', serif" font-weight="900" font-size="46" text-anchor="middle" fill="${numColor}">${num}</text>
           <text x="50" y="112" font-family="'Noto Serif SC', 'Songti SC', 'SimSun', serif" font-weight="900" font-size="48" text-anchor="middle" fill="#dc2626">萬</text>
         </svg>
@@ -19,7 +19,7 @@
       if (rank === 1) {
         // 大一筒：华丽四色宝相花轮盘
         return `
-          <svg viewBox="0 0 100 135" class="mj-svg">
+          <svg viewBox="0 0 100 135" class="mj-svg" width="100%" height="100%">
             <defs>
               <radialGradient id="tong1-grad" cx="50%" cy="50%" r="50%">
                 <stop offset="0%" stop-color="#ef4444" />
@@ -57,14 +57,14 @@
         `;
       }).join('');
 
-      return `<svg viewBox="0 0 100 135" class="mj-svg">${dots}</svg>`;
+      return `<svg viewBox="0 0 100 135" class="mj-svg" width="100%" height="100%">${dots}</svg>`;
     }
 
     if (suit === 'tiao') {
       if (rank === 1) {
         // 一条：吉祥神鸟雀雀
         return `
-          <svg viewBox="0 0 100 135" class="mj-svg">
+          <svg viewBox="0 0 100 135" class="mj-svg" width="100%" height="100%">
             <path d="M50 15 C40 25 35 40 42 55 C35 60 25 75 32 95 C38 110 50 120 50 120 C50 120 62 110 68 95 C75 75 65 60 58 55 C65 40 60 25 50 15 Z" fill="#15803d" />
             <path d="M48 20 C42 35 45 48 50 50 C55 48 58 35 52 20 Z" fill="#ef4444" />
             <circle cx="46" cy="30" r="2.5" fill="#fef08a" />
@@ -98,10 +98,15 @@
         `;
       }).join('');
 
-      return `<svg viewBox="0 0 100 135" class="mj-svg">${bars}</svg>`;
+      return `<svg viewBox="0 0 100 135" class="mj-svg" width="100%" height="100%">${bars}</svg>`;
     }
 
-    return `<svg viewBox="0 0 100 135" class="mj-svg"><text x="50" y="70" font-size="28" text-anchor="middle" fill="#999">🀄</text></svg>`;
+    // 默认空牌面
+    return `
+      <svg viewBox="0 0 100 135" class="mj-svg" width="100%" height="100%">
+        <rect x="8" y="8" width="84" height="119" rx="6" fill="none" stroke="rgba(203, 213, 225, 0.4)" stroke-width="2" stroke-dasharray="4,4"/>
+      </svg>
+    `;
   }
 
   // 构造并返回一个包含完整 3D 骨玉质感的麻将牌 DOM 元素
@@ -122,11 +127,25 @@
     if (tile && tile.suit) el.dataset.suit = tile.suit;
     if (tile && tile.rank) el.dataset.rank = tile.rank;
 
+    // 牌背渲染：极致新国风翠玉材质，内嵌细金线与如意云纹，绝不绘制红中字符！
     if (isBack || size === 'back') {
       el.innerHTML = `
         <div class="mj-face-back">
-          <div class="mj-jade-texture"></div>
-          <div class="mj-back-pattern">🀄</div>
+          <svg viewBox="0 0 40 56" class="mj-back-svg" width="100%" height="100%">
+            <defs>
+              <linearGradient id="jade-bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#059669"/>
+                <stop offset="45%" stop-color="#047857"/>
+                <stop offset="100%" stop-color="#064e3b"/>
+              </linearGradient>
+              <pattern id="jade-lattice" width="8" height="8" patternUnits="userSpaceOnUse">
+                <path d="M0 4 L4 0 L8 4 L4 8 Z" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="0.8"/>
+              </pattern>
+            </defs>
+            <rect x="1" y="1" width="38" height="54" rx="4" fill="url(#jade-bg-grad)" stroke="#10b981" stroke-width="1.2"/>
+            <rect x="3" y="3" width="34" height="50" rx="3" fill="url(#jade-lattice)"/>
+            <rect x="4" y="4" width="32" height="48" rx="2" fill="none" stroke="rgba(251, 191, 36, 0.45)" stroke-width="0.8"/>
+          </svg>
         </div>
       `;
       return el;

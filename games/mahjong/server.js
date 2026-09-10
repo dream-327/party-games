@@ -63,6 +63,9 @@ function setupMahjong(io, app) {
         remainingTileCount: room.gameState.wall ? room.gameState.wall.length : 0,
         lastDiscard: room.gameState.lastDiscard,
         swapDirection: room.gameState.swapDirection,
+        swapSelections: room.gameState.swapSelections ? Object.fromEntries(
+          Object.entries(room.gameState.swapSelections).map(([k, v]) => [k, true])
+        ) : {},
         huCount: room.gameState.huCount,
         scores: room.gameState.scores
       }
@@ -70,13 +73,28 @@ function setupMahjong(io, app) {
   }
 
   function broadcastRoom(room) {
-    const clients = mahjongIo.adapter.rooms.get(room.code);
-    if (!clients) return;
+    if (!room) return;
+    room.lastActiveTime = Date.now();
 
-    for (const clientId of clients) {
-      const socket = mahjongIo.sockets.get(clientId);
-      if (socket && socket.data && socket.data.playerId) {
-        socket.emit('room_update', getClientRoomData(room, socket.data.playerId));
+    // 1. 精准给每一位在座玩家的 Socket 下发个性化手牌数据 (保证手牌 100% 准确下发)
+    room.seats.forEach(s => {
+      if (s && s.socketId && s.isOnline && !s.isAi) {
+        mahjongIo.to(s.socketId).emit('room_update', getClientRoomData(room, s.id));
+      }
+    });
+
+    // 2. 兜底向房间 room.code 广播全局视角数据 (用于重连/临时连接或旁观者)
+    const clients = mahjongIo.adapter.rooms.get(room.code);
+    if (clients) {
+      for (const clientId of clients) {
+        const isSeatSocket = room.seats.some(s => s && s.socketId === clientId);
+        if (!isSeatSocket) {
+          const socket = mahjongIo.sockets.get(clientId);
+          if (socket) {
+            const pid = socket.data && socket.data.playerId;
+            socket.emit('room_update', getClientRoomData(room, pid || null));
+          }
+        }
       }
     }
   }
@@ -96,8 +114,9 @@ function setupMahjong(io, app) {
       seats: [
         {
           id: hostPlayer.id,
+          socketId: hostPlayer.socketId || null,
           name: hostPlayer.name || '房主',
-          avatar: hostPlayer.avatar || '🀄',
+          avatar: hostPlayer.avatar || '👑',
           isOnline: true,
           isAi: false,
           isReady: false,
@@ -264,6 +283,9 @@ function setupMahjong(io, app) {
     mahjongIo.to(room.code).emit('swap_three_finished', {
       direction: dir
     });
+
+    // 立即向各玩家下发换牌后的新手牌
+    broadcastRoom(room);
 
     setTimeout(() => {
       enterDingQuePhase(room);
@@ -912,10 +934,12 @@ function setupMahjong(io, app) {
     // 创建房间
     socket.on('create_room', (player, callback) => {
       try {
+        player.socketId = socket.id;
         const room = createRoom(player);
         currentRoomCode = room.code;
         currentPlayerId = player.id;
         socket.data.playerId = player.id;
+        room.seats[0].socketId = socket.id;
         socket.join(room.code);
 
         if (typeof callback === 'function') {
@@ -945,6 +969,7 @@ function setupMahjong(io, app) {
         // 检查是否已经在房间里 (重连)
         const existingIdx = room.seats.findIndex(s => s && s.id === player.id);
         if (existingIdx !== -1) {
+          room.seats[existingIdx].socketId = socket.id;
           room.seats[existingIdx].isOnline = true;
           room.seats[existingIdx].name = player.name || room.seats[existingIdx].name;
           room.seats[existingIdx].avatar = player.avatar || room.seats[existingIdx].avatar;
@@ -959,8 +984,9 @@ function setupMahjong(io, app) {
 
           room.seats[emptyIdx] = {
             id: player.id,
+            socketId: socket.id,
             name: player.name || `雀友${emptyIdx + 1}`,
-            avatar: player.avatar || '🀄',
+            avatar: player.avatar || '👑',
             isOnline: true,
             isAi: false,
             isReady: false,
