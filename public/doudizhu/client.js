@@ -46,6 +46,7 @@
   const btnAutoToggle = document.getElementById('btn-auto-toggle');
   const btnRules = document.getElementById('btn-rules');
   const btnSound = document.getElementById('btn-sound');
+  const btnSettings = document.getElementById('btn-settings');
   const btnLeaveRoom = document.getElementById('btn-leave-room');
   const btnSettleLeave = document.getElementById('btn-settle-leave');
   const btnToggleOrientation = document.getElementById('btn-toggle-orientation');
@@ -55,10 +56,14 @@
 
   // 牌桌元素
   const gameTableFelt = document.querySelector('.game-table-felt');
+  const roomRulesPill = document.getElementById('room-rules-pill');
   const bottomCardsContainer = document.getElementById('bottom-cards-container');
   const tableMultiplierNum = document.getElementById('table-multiplier-num');
   const tableBannerAlert = document.getElementById('table-banner-alert');
   const bannerText = document.getElementById('banner-text');
+  const bottomBonusAlert = document.getElementById('bottom-bonus-alert');
+  const bottomBonusText = document.getElementById('bottom-bonus-text');
+  const floatingScoresLayer = document.getElementById('floating-scores-layer');
 
   // 全屏动画元素
   const airplaneAnim = document.getElementById('airplane-anim');
@@ -79,6 +84,8 @@
     auto: document.getElementById('p-left-auto'),
     ready: document.getElementById('p-left-ready'),
     count: document.getElementById('p-left-count'),
+    streak: document.getElementById('p-left-streak'),
+    score: document.getElementById('p-left-score'),
     played: document.getElementById('p-left-played'),
     bubble: document.getElementById('p-left-bubble'),
     timer: document.getElementById('p-left-timer')
@@ -91,6 +98,8 @@
     auto: document.getElementById('p-right-auto'),
     ready: document.getElementById('p-right-ready'),
     count: document.getElementById('p-right-count'),
+    streak: document.getElementById('p-right-streak'),
+    score: document.getElementById('p-right-score'),
     played: document.getElementById('p-right-played'),
     bubble: document.getElementById('p-right-bubble'),
     timer: document.getElementById('p-right-timer')
@@ -102,6 +111,8 @@
     name: document.getElementById('my-name'),
     role: document.getElementById('my-role-badge'),
     auto: document.getElementById('my-auto-status'),
+    streak: document.getElementById('my-streak-badge'),
+    score: document.getElementById('my-score-pill'),
     played: document.getElementById('p-my-played'),
     bubble: document.getElementById('p-my-bubble'),
     cardsContainer: document.getElementById('my-cards-container')
@@ -110,6 +121,7 @@
   // 控制操作面板
   const panelLobby = document.getElementById('panel-lobby-actions');
   const btnToggleReady = document.getElementById('btn-toggle-ready');
+  const btnLobbySettings = document.getElementById('btn-lobby-settings');
   const btnAddAi = document.getElementById('btn-add-ai');
   const btnStartGame = document.getElementById('btn-start-game');
 
@@ -140,12 +152,25 @@
   const modalRules = document.getElementById('modal-rules');
   const btnCloseRules = document.getElementById('btn-close-rules');
 
+  const modalSettings = document.getElementById('modal-settings');
+  const btnCloseSettings = document.getElementById('btn-close-settings');
+  const btnSaveSettings = document.getElementById('btn-save-settings');
+  const settingsHostHint = document.getElementById('settings-host-hint');
+  const settingBaseScore = document.getElementById('setting-base-score');
+  const settingScoreMode = document.getElementById('setting-score-mode');
+  const settingMaxMult = document.getElementById('setting-max-mult');
+  const settingBottomBonus = document.getElementById('setting-bottom-bonus');
+  const settingStreakBonus = document.getElementById('setting-streak-bonus');
+  const settingBombBonus = document.getElementById('setting-bomb-bonus');
+
   const modalSettle = document.getElementById('modal-settle');
   const btnCloseSettle = document.getElementById('btn-close-settle');
   const settleTitle = document.getElementById('settle-title');
   const settleSubtitle = document.getElementById('settle-subtitle');
+  const settleFormulaBox = document.getElementById('settle-formula-box');
   const settleScoresGrid = document.getElementById('settle-scores-grid');
   const settleRevealedHands = document.getElementById('settle-revealed-hands');
+  const settleLeaderboardList = document.getElementById('settle-leaderboard-list');
   const btnPlayAgain = document.getElementById('btn-play-again');
 
   // 优雅轻量级浮动 Toast 提示
@@ -299,8 +324,9 @@
     const rightData = seats[rightSeatIndex];
     const myData = (mySeat !== -1) ? seats[mySeat] : null;
 
-    // 1. 渲染倍数
+    // 1. 渲染倍数与规则胶囊
     tableMultiplierNum.textContent = room.gameState.multiplier;
+    updateRoomRulesPill(room.settings);
 
     // 2. 渲染3张底牌
     bottomCardsContainer.innerHTML = '';
@@ -327,6 +353,33 @@
     if (myData) {
       pMy.avatar.textContent = myData.avatar;
       pMy.name.textContent = myData.name;
+
+      // 渲染我的积分与连胜
+      if (pMy.score) {
+        pMy.score.classList.remove('hidden');
+        const isChips = room.settings && room.settings.scoreMode === 'chips';
+        const icon = pMy.score.querySelector('.score-icon');
+        const num = pMy.score.querySelector('.score-num');
+        if (icon) icon.textContent = isChips ? '🪙' : '🏆';
+        if (num) {
+          if (isChips) {
+            num.textContent = (myData.chips !== undefined) ? myData.chips.toLocaleString() : '3,000';
+          } else {
+            const sc = myData.totalScore || 0;
+            num.textContent = (sc > 0 ? `+${sc}` : `${sc}`);
+          }
+        }
+      }
+
+      if (pMy.streak) {
+        const streak = myData.currentStreak || 0;
+        if (streak >= 2) {
+          pMy.streak.classList.remove('hidden');
+          pMy.streak.textContent = `🔥 ${streak}连胜`;
+        } else {
+          pMy.streak.classList.add('hidden');
+        }
+      }
 
       if (room.gameState.landlordSeat !== null) {
         pMy.role.classList.remove('hidden');
@@ -377,6 +430,8 @@
       domElements.auto.classList.add('hidden');
       domElements.ready.classList.add('hidden');
       domElements.count.classList.add('hidden');
+      if (domElements.streak) domElements.streak.classList.add('hidden');
+      if (domElements.score) domElements.score.classList.add('hidden');
       domElements.played.innerHTML = '';
       domElements.bubble.classList.add('hidden');
       domElements.timer.classList.add('hidden');
@@ -386,6 +441,34 @@
 
     domElements.avatar.textContent = seatData.avatar;
     domElements.name.textContent = seatData.name;
+
+    // 积分与欢乐豆展示
+    if (domElements.score) {
+      domElements.score.classList.remove('hidden');
+      const isChips = room.settings && room.settings.scoreMode === 'chips';
+      const icon = domElements.score.querySelector('.score-icon');
+      const num = domElements.score.querySelector('.score-num');
+      if (icon) icon.textContent = isChips ? '🪙' : '🏆';
+      if (num) {
+        if (isChips) {
+          num.textContent = (seatData.chips !== undefined) ? seatData.chips.toLocaleString() : '3,000';
+        } else {
+          const sc = seatData.totalScore || 0;
+          num.textContent = (sc > 0 ? `+${sc}` : `${sc}`);
+        }
+      }
+    }
+
+    // 连胜徽章展示
+    if (domElements.streak) {
+      const streak = seatData.currentStreak || 0;
+      if (streak >= 2) {
+        domElements.streak.classList.remove('hidden');
+        domElements.streak.textContent = `🔥 ${streak}连胜`;
+      } else {
+        domElements.streak.classList.add('hidden');
+      }
+    }
 
     // 准备状态
     if (room.gameState.phase === 'LOBBY') {
@@ -946,6 +1029,176 @@
   btnRules.addEventListener('click', () => modalRules.classList.remove('hidden'));
   btnCloseRules.addEventListener('click', () => modalRules.classList.add('hidden'));
 
+  // 房间设置弹窗 (积分与趣味规则)
+  if (btnSettings) btnSettings.addEventListener('click', openSettingsModal);
+  if (btnLobbySettings) btnLobbySettings.addEventListener('click', openSettingsModal);
+  if (roomRulesPill) roomRulesPill.addEventListener('click', openSettingsModal);
+  if (btnCloseSettings) btnCloseSettings.addEventListener('click', () => modalSettings.classList.add('hidden'));
+  if (btnSaveSettings) btnSaveSettings.addEventListener('click', saveSettings);
+
+  // 更新桌面上方规则胶囊
+  function updateRoomRulesPill(settings) {
+    if (!roomRulesPill) return;
+    if (!settings) {
+      roomRulesPill.textContent = '底分: 10 · 封顶: 64倍';
+      return;
+    }
+    const isChips = settings.scoreMode === 'chips';
+    const modeName = isChips ? '🪙 欢乐豆' : '🏆 争霸分';
+    const baseText = `底分: ${settings.baseScore || 10}`;
+    const capText = settings.maxMultiplier ? `封顶: ${settings.maxMultiplier}倍` : '不封顶';
+    const streakText = settings.enableStreakBonus ? ' · 连胜加倍' : '';
+    roomRulesPill.textContent = `${modeName} · ${baseText} · ${capText}${streakText}`;
+  }
+
+  // 打开规则与积分设置弹窗
+  function openSettingsModal() {
+    if (!currentRoom) return;
+    const settings = currentRoom.settings || {
+      baseScore: 10,
+      scoreMode: 'casual',
+      maxMultiplier: 64,
+      enableBottomCardBonus: true,
+      enableStreakBonus: true,
+      enableBombBonus: true
+    };
+
+    const isHost = (currentRoom.hostId === myPlayerId);
+    const isLobby = (currentRoom.gameState.phase === 'LOBBY');
+    const canEdit = isHost && isLobby;
+
+    updateSegmentActive('setting-base-score', String(settings.baseScore || 10));
+    updateSegmentActive('setting-score-mode', settings.scoreMode || 'casual');
+    updateSegmentActive('setting-max-mult', String(settings.maxMultiplier !== undefined ? settings.maxMultiplier : 64));
+
+    if (settingBottomBonus) settingBottomBonus.checked = settings.enableBottomCardBonus !== false;
+    if (settingStreakBonus) settingStreakBonus.checked = settings.enableStreakBonus !== false;
+    if (settingBombBonus) settingBombBonus.checked = settings.enableBombBonus !== false;
+
+    [settingBottomBonus, settingStreakBonus, settingBombBonus].forEach(el => {
+      if (el) el.disabled = !canEdit;
+    });
+
+    document.querySelectorAll('#modal-settings .segment-btn').forEach(btn => {
+      btn.style.pointerEvents = canEdit ? 'auto' : 'none';
+      btn.style.opacity = canEdit ? '1' : '0.75';
+    });
+
+    if (settingsHostHint) {
+      if (!isHost) {
+        settingsHostHint.textContent = '💡 您不是房主，当前仅可浏览规则，只有房主可修改';
+        settingsHostHint.classList.remove('hidden');
+      } else if (!isLobby) {
+        settingsHostHint.textContent = '💡 游戏对局已开始，规则已锁定，请在等待大厅修改';
+        settingsHostHint.classList.remove('hidden');
+      } else {
+        settingsHostHint.classList.add('hidden');
+      }
+    }
+
+    if (btnSaveSettings) {
+      btnSaveSettings.style.display = canEdit ? 'block' : 'none';
+    }
+
+    modalSettings.classList.remove('hidden');
+  }
+
+  function updateSegmentActive(containerId, activeVal) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.querySelectorAll('.segment-btn').forEach(btn => {
+      if (btn.dataset.value === activeVal) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+  }
+
+  function getSegmentActiveValue(containerId, defaultVal) {
+    const container = document.getElementById(containerId);
+    if (!container) return defaultVal;
+    const activeBtn = container.querySelector('.segment-btn.active');
+    return activeBtn ? activeBtn.dataset.value : defaultVal;
+  }
+
+  // 分段选项点击切换交互
+  ['setting-base-score', 'setting-score-mode', 'setting-max-mult'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('click', (e) => {
+        const btn = e.target.closest('.segment-btn');
+        if (btn) {
+          el.querySelectorAll('.segment-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          window.sfx && window.sfx.playClick();
+        }
+      });
+    }
+  });
+
+  // 保存设置向服务端提交
+  function saveSettings() {
+    if (!currentRoom) return;
+    const baseScore = Number(getSegmentActiveValue('setting-base-score', '10'));
+    const scoreMode = getSegmentActiveValue('setting-score-mode', 'casual');
+    const maxMultiplier = Number(getSegmentActiveValue('setting-max-mult', '64'));
+    const enableBottomCardBonus = settingBottomBonus ? settingBottomBonus.checked : true;
+    const enableStreakBonus = settingStreakBonus ? settingStreakBonus.checked : true;
+    const enableBombBonus = settingBombBonus ? settingBombBonus.checked : true;
+
+    socket.emit('update_room_settings', {
+      baseScore,
+      scoreMode,
+      maxMultiplier,
+      enableBottomCardBonus,
+      enableStreakBonus,
+      enableBombBonus
+    }, (res) => {
+      if (res && res.success) {
+        modalSettings.classList.add('hidden');
+        showToast('⚙️ 房间积分与趣味规则已保存！');
+        window.sfx && window.sfx.playClick();
+      } else {
+        showToast((res && res.message) || '修改规则失败');
+      }
+    });
+  }
+
+  // 牌局得分浮动动效 (+120 / -60)
+  function showFloatingScore(seatIndex, deltaScore, isChips) {
+    if (!floatingScoresLayer || !currentRoom || !gameTableFelt) return;
+    const mySeat = currentRoom.mySeatIndex;
+    let targetEl = null;
+
+    if (seatIndex === mySeat) {
+      targetEl = pMy.avatar;
+    } else if (seatIndex === (mySeat + 1) % 3) {
+      targetEl = pLeft.avatar;
+    } else if (seatIndex === (mySeat + 2) % 3) {
+      targetEl = pRight.avatar;
+    }
+
+    if (!targetEl) return;
+    const rect = targetEl.getBoundingClientRect();
+    const tableRect = gameTableFelt.getBoundingClientRect();
+
+    const left = rect.left - tableRect.left + (rect.width / 2) - 20;
+    const top = rect.top - tableRect.top - 10;
+
+    const el = document.createElement('div');
+    const isPos = deltaScore >= 0;
+    el.className = `floating-score-item ${isPos ? 'positive' : 'negative'}`;
+    const prefix = isChips ? (isPos ? '+🪙' : '-🪙') : (isPos ? '+' : '');
+    const displayNum = isChips ? Math.abs(deltaScore) : deltaScore;
+    el.textContent = `${prefix}${displayNum}`;
+    el.style.left = `${Math.max(10, left)}px`;
+    el.style.top = `${Math.max(10, top)}px`;
+
+    floatingScoresLayer.appendChild(el);
+    setTimeout(() => el.remove(), 2300);
+  }
+
   // 再来一局 (弹窗按钮)
   btnPlayAgain.addEventListener('click', () => {
     modalSettle.classList.add('hidden');
@@ -1217,7 +1470,27 @@
     }
   });
 
-  socket.on('game_over_announced', ({ winnerSeat, winnerRole, spring, springType, multiplier, scores, revealedSeats }) => {
+  socket.on('bottom_bonus_announced', ({ name, mult, newMultiplier }) => {
+    tableMultiplierNum.textContent = newMultiplier;
+    if (bottomBonusAlert && bottomBonusText) {
+      bottomBonusText.textContent = `🎉 底牌彩蛋加倍！【${name}】额外 x${mult}！`;
+      bottomBonusAlert.classList.remove('hidden');
+      setTimeout(() => bottomBonusAlert.classList.add('hidden'), 3500);
+    }
+    showToast(`🎉 底牌彩蛋【${name}】！倍数翻 ${mult} 倍！`, 3500);
+    window.sfx && window.sfx.playRobBid();
+  });
+
+  socket.on('room_settings_updated', (newSettings) => {
+    if (currentRoom) {
+      currentRoom.settings = newSettings;
+      updateRoomRulesPill(newSettings);
+      showToast('⚙️ 房主更新了房间积分与趣味规则！');
+      window.sfx && window.sfx.playClick();
+    }
+  });
+
+  socket.on('game_over_announced', ({ winnerSeat, winnerRole, spring, springType, multiplier, scores, scoreBreakdown, revealedSeats }) => {
     const isMeWinner = (currentRoom && currentRoom.mySeatIndex === winnerSeat) ||
       (winnerRole === 'FARMER' && currentRoom && currentRoom.mySeatIndex !== currentRoom.gameState.landlordSeat);
 
@@ -1231,18 +1504,70 @@
       window.sfx && window.sfx.playSpring();
     }
 
+    const isChipsMode = (scoreBreakdown && scoreBreakdown.scoreMode === 'chips');
+
+    // 触发每位玩家头像位置处的得分飘字动效 (+160 / -80)
+    if (scores) {
+      Object.keys(scores).forEach(seatIdx => {
+        showFloatingScore(Number(seatIdx), scores[seatIdx], isChipsMode);
+      });
+    }
+
     // 牌桌中央横幅提示
     const winTitle = winnerRole === 'LANDLORD' ? '👑 游戏结束！地主获胜！' : '👨‍🌾 游戏结束！农民获胜！';
     if (bannerText && tableBannerAlert) {
-      bannerText.textContent = spring ? `${winTitle} (${springType})` : winTitle;
+      let subBonus = '';
+      if (scoreBreakdown && scoreBreakdown.streakName) subBonus = ` (${scoreBreakdown.streakName})`;
+      else if (spring) subBonus = ` (${springType})`;
+      bannerText.textContent = `${winTitle}${subBonus}`;
       tableBannerAlert.classList.remove('hidden');
       setTimeout(() => tableBannerAlert.classList.add('hidden'), 3500);
     }
     showToast(winTitle, 3500);
 
-    // 渲染结算弹窗
+    // 渲染结算弹窗标题
     settleTitle.textContent = winnerRole === 'LANDLORD' ? '👑 地主获胜' : '👨‍🌾 农民获胜';
-    settleSubtitle.textContent = spring ? `${springType} · ${multiplier}倍结算` : `经典结算 · ${multiplier}倍底分`;
+    const subParts = [];
+    if (scoreBreakdown && scoreBreakdown.streakName) subParts.push(scoreBreakdown.streakName);
+    if (spring) subParts.push(`${springType}加倍`);
+    if (scoreBreakdown && scoreBreakdown.bottomBonus) subParts.push(`底牌${scoreBreakdown.bottomBonus.name}`);
+    subParts.push(`${multiplier}倍结算`);
+    settleSubtitle.textContent = subParts.join(' · ');
+
+    // 渲染趣味结算公式清单
+    if (settleFormulaBox) {
+      settleFormulaBox.innerHTML = '';
+      const breakdown = scoreBreakdown || {};
+      const formulaItems = [
+        `底分: <strong>${breakdown.baseScore || 10}</strong>`,
+        `倍数: <strong>x${multiplier}</strong>`
+      ];
+
+      if (breakdown.bottomBonus) {
+        formulaItems.push(`底牌彩蛋: <strong>${breakdown.bottomBonus.name} (x${breakdown.bottomBonus.mult})</strong>`);
+      }
+
+      if (spring) {
+        formulaItems.push(`春天加倍: <strong>${springType || '春天'} (x2)</strong>`);
+      }
+
+      if (breakdown.streakName) {
+        formulaItems.push(`连胜加成: <strong>${breakdown.streakName}</strong>`);
+      }
+
+      if (breakdown.isCapped) {
+        formulaItems.push(`封顶限制: <strong>${breakdown.maxCap}倍封顶</strong>`);
+      }
+
+      formulaItems.push(`积分模式: <strong>${isChipsMode ? '欢乐豆豆' : '争霸积分'}</strong>`);
+
+      formulaItems.forEach(html => {
+        const item = document.createElement('div');
+        item.className = 'formula-chip';
+        item.innerHTML = html;
+        settleFormulaBox.appendChild(item);
+      });
+    }
 
     // 使用服务端打包的 revealedSeats，若没有则回退到 currentRoom.seats
     const seatList = revealedSeats || (currentRoom && currentRoom.seats) || [];
@@ -1253,10 +1578,18 @@
       const score = (scores && scores[idx] !== undefined) ? scores[idx] : (s.score || 0);
       const col = document.createElement('div');
       col.className = `score-col ${idx === winnerSeat ? 'winner' : ''}`;
+      const prefix = isChipsMode ? (score >= 0 ? '+🪙' : '-🪙') : (score >= 0 ? '+' : '');
+      const displayVal = isChipsMode ? Math.abs(score).toLocaleString() : score;
+      let reliefBadge = '';
+      if (s.bankruptRelief) {
+        reliefBadge = '<div style="font-size:10px; color:#fbbf24; margin-top:2px;">🪙 已获救济金</div>';
+      }
+
       col.innerHTML = `
         <div style="font-size:24px;">${s.avatar || '👤'}</div>
         <div style="font-size:12px; font-weight:700; margin-top:2px;">${s.name || `玩家${idx+1}`}${s.isLandlord ? ' (地主)' : ''}</div>
-        <div class="score-val ${score >= 0 ? 'positive' : 'negative'}">${score >= 0 ? '+' : ''}${score}</div>
+        <div class="score-val ${score >= 0 ? 'positive' : 'negative'}">${prefix}${displayVal}</div>
+        ${reliefBadge}
       `;
       settleScoresGrid.appendChild(col);
     });
@@ -1280,6 +1613,56 @@
       row.appendChild(cardsDiv);
       settleRevealedHands.appendChild(row);
     });
+
+    // 渲染全场累计总战绩排行榜
+    if (settleLeaderboardList) {
+      settleLeaderboardList.innerHTML = '';
+      const validSeats = [...seatList].filter(s => s && s.name);
+      validSeats.sort((a, b) => {
+        return isChipsMode ? ((b.chips || 0) - (a.chips || 0)) : ((b.totalScore || 0) - (a.totalScore || 0));
+      });
+
+      let maxBombs = 0;
+      let bombKingIdx = -1;
+      validSeats.forEach(s => {
+        if ((s.bombCount || 0) > maxBombs) {
+          maxBombs = s.bombCount;
+          bombKingIdx = s.seatIndex;
+        }
+      });
+
+      validSeats.forEach((s, rankIdx) => {
+        const item = document.createElement('div');
+        const isMvp = (rankIdx === 0 && validSeats.length > 1);
+        item.className = `leaderboard-item ${isMvp ? 'mvp' : ''}`;
+
+        const displayScore = isChipsMode 
+          ? (s.chips || 0).toLocaleString() 
+          : ((s.totalScore || 0) > 0 ? `+${s.totalScore}` : (s.totalScore || 0));
+        const scoreClass = isChipsMode ? '' : ((s.totalScore || 0) >= 0 ? 'positive' : 'negative');
+        const winRate = s.totalRounds ? Math.round((s.winCount || 0) / s.totalRounds * 100) : 0;
+
+        let badges = '';
+        if (isMvp) badges += '<span class="lb-badge mvp-badge">🏆 MVP</span> ';
+        if (s.seatIndex === bombKingIdx && maxBombs > 0) badges += `<span class="lb-badge bomb-badge">💣 炸弹王(${maxBombs})</span> `;
+        if (s.bankruptRelief) badges += '<span class="lb-badge" style="background:#f59e0b; color:#000;">🪙 救济金</span> ';
+
+        item.innerHTML = `
+          <div class="lb-left">
+            <span class="lb-rank rank-${rankIdx + 1}">#${rankIdx + 1}</span>
+            <span style="font-size:16px;">${s.avatar || '👤'}</span>
+            <div>
+              <div class="lb-user">${s.name || `玩家${s.seatIndex + 1}`} ${badges}</div>
+              <div class="lb-stat">${s.winCount || 0}胜 / ${s.totalRounds || 0}局 (胜率 ${winRate}%) · 最高${s.maxStreak || 0}连胜</div>
+            </div>
+          </div>
+          <div class="lb-right">
+            <span class="lb-score ${scoreClass}">${isChipsMode ? '🪙 ' : ''}${displayScore}${isChipsMode ? '' : '分'}</span>
+          </div>
+        `;
+        settleLeaderboardList.appendChild(item);
+      });
+    }
 
     // 500ms 丝滑平滑过渡后弹出结算弹窗，确保最后一张牌的出牌动画和桌面渲染完毕
     setTimeout(() => {

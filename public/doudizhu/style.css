@@ -1820,4 +1820,522 @@ body.force-landscape #app {
     font-size: 14px;
     padding: 6px 18px;
   }
+
+  .room-rules-pill {
+    font-size: 10px;
+    padding: 2px 8px;
+    margin-top: 3px;
+  }
+
+  .bottom-bonus-alert {
+    top: 60px;
+    font-size: 12px;
+    padding: 4px 14px;
+  }
+
+  .settings-card {
+    max-height: 94vh;
+  }
+
+  .settings-body {
+    max-height: 60vh;
+    gap: 10px;
+  }
+
+  .setting-toggle-item {
+    padding: 6px 10px;
+  }
 }
+
+/* ==========================================================================
+   积分系统与规则设置视觉样式 (Score System & Settings Modal)
+   ========================================================================== */
+
+/* 水印下方的规则与底分胶囊 */
+.room-rules-pill {
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fde68a;
+  letter-spacing: 0.5px;
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.room-rules-pill:hover {
+  background: rgba(251, 191, 36, 0.15);
+  border-color: rgba(251, 191, 36, 0.7);
+  transform: translateY(-1px);
+}
+
+/* 底牌彩蛋特殊加倍横幅 */
+.bottom-bonus-alert {
+  position: absolute;
+  top: 96px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, rgba(234, 88, 12, 0.95), rgba(220, 38, 38, 0.95));
+  border: 2px solid #fef08a;
+  box-shadow: 0 0 24px rgba(239, 68, 68, 0.7), 0 4px 12px rgba(0, 0, 0, 0.6);
+  border-radius: 30px;
+  padding: 6px 20px;
+  color: #fff;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 1px;
+  z-index: 120;
+  animation: bounceInPulse 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+@keyframes bounceInPulse {
+  0% { transform: translateX(-50%) scale(0.6); opacity: 0; }
+  70% { transform: translateX(-50%) scale(1.1); opacity: 1; }
+  100% { transform: translateX(-50%) scale(1); opacity: 1; }
+}
+
+/* 连胜火热徽章 */
+.streak-badge {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #ef4444 0%, #f97316 100%);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 10px;
+  border: 1px solid #fef08a;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.6), 0 0 8px rgba(249, 115, 22, 0.5);
+  z-index: 12;
+  animation: flamePulse 1.8s infinite ease-in-out;
+}
+
+@keyframes flamePulse {
+  0%, 100% { transform: translateX(-50%) scale(1); box-shadow: 0 2px 6px rgba(239, 68, 68, 0.6); }
+  50% { transform: translateX(-50%) scale(1.08); box-shadow: 0 2px 12px rgba(239, 68, 68, 0.9), 0 0 10px #fbbf24; }
+}
+
+/* 玩家头像旁/下方的积分金币胶囊 */
+.player-score-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #e5e7eb;
+  margin-top: 3px;
+  backdrop-filter: blur(2px);
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-score-pill .score-icon {
+  font-size: 11px;
+}
+
+.player-score-pill .score-num {
+  font-family: var(--font-poker);
+  font-size: 11px;
+  color: #fbbf24;
+}
+
+.my-badge-left .player-score-pill {
+  margin-top: 0;
+  margin-left: 6px;
+  padding: 2px 9px;
+  background: rgba(15, 23, 42, 0.65);
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
+.my-badge-left .streak-badge {
+  position: static;
+  transform: none;
+  margin-left: 6px;
+  display: inline-block;
+  animation: none;
+}
+
+/* 回合结算浮动飘字动效 */
+.floating-scores-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 180;
+  overflow: hidden;
+}
+
+.floating-score-item {
+  position: absolute;
+  font-family: var(--font-poker);
+  font-size: 26px;
+  font-weight: 900;
+  text-shadow: 0 3px 6px rgba(0, 0, 0, 0.8), 0 0 10px rgba(0,0,0,0.5);
+  animation: floatScoreUp 2.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  letter-spacing: 1px;
+}
+
+.floating-score-item.positive {
+  color: #4ade80;
+  text-shadow: 0 2px 8px rgba(34, 197, 94, 0.6), 0 0 2px #000;
+}
+
+.floating-score-item.negative {
+  color: #f87171;
+  text-shadow: 0 2px 8px rgba(239, 68, 68, 0.6), 0 0 2px #000;
+}
+
+@keyframes floatScoreUp {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.6);
+  }
+  20% {
+    opacity: 1;
+    transform: translateY(-8px) scale(1.25);
+  }
+  40% {
+    transform: translateY(-24px) scale(1.05);
+  }
+  80% {
+    opacity: 1;
+    transform: translateY(-48px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-70px) scale(0.9);
+  }
+}
+
+/* ==========================================================================
+   设置弹窗 UI 样式 (Modal Settings)
+   ========================================================================== */
+.settings-card {
+  max-width: 480px;
+  width: 92%;
+  background: radial-gradient(circle at 50% 0%, #1e293b 0%, #0f172a 100%);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.75), 0 0 20px rgba(251, 191, 36, 0.15);
+}
+
+.settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 10px 4px;
+}
+
+.setting-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.setting-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.setting-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f3f4f6;
+  letter-spacing: 0.5px;
+}
+
+.setting-sub-tip {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+/* 分段切换按钮组 */
+.segmented-control {
+  display: flex;
+  background: rgba(15, 23, 42, 0.85);
+  padding: 3px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  gap: 3px;
+}
+
+.segment-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 4px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.segment-btn:hover:not(.active) {
+  color: #f1f5f9;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.segment-btn.active {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #0f172a;
+  font-weight: 800;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+}
+
+/* 开关选项网格 */
+.setting-toggles-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.setting-toggle-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  transition: background 0.2s ease;
+}
+
+.setting-toggle-item:hover {
+  background: rgba(30, 41, 59, 0.75);
+}
+
+.toggle-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.toggle-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.toggle-desc {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+/* iOS 风格现代化 Switch 开关 */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: #334155;
+  transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 24px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+input:checked + .slider {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
+}
+
+input:checked + .slider:before {
+  transform: translateX(20px);
+}
+
+.settings-hint {
+  font-size: 11px;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px dashed rgba(251, 191, 36, 0.35);
+  text-align: center;
+}
+
+/* ==========================================================================
+   结算界面趣味明细与全场战绩 (Settlement Formula & Leaderboard)
+   ========================================================================== */
+.settle-formula-box {
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.formula-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.formula-chip strong {
+  color: #fbbf24;
+}
+
+.settle-leaderboard-box {
+  margin-top: 14px;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.leaderboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fbbf24;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.leaderboard-sub {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: normal;
+}
+
+.settle-leaderboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.leaderboard-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.leaderboard-item.mvp {
+  background: linear-gradient(90deg, rgba(251, 191, 36, 0.18) 0%, rgba(251, 191, 36, 0.04) 100%);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+}
+
+.lb-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lb-rank {
+  font-weight: 800;
+  font-size: 13px;
+  width: 20px;
+  text-align: center;
+}
+
+.lb-rank.rank-1 { color: #fbbf24; }
+.lb-rank.rank-2 { color: #94a3b8; }
+.lb-rank.rank-3 { color: #b45309; }
+
+.lb-user {
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.lb-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lb-stat {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.lb-score {
+  font-family: var(--font-poker);
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.lb-score.positive { color: #4ade80; }
+.lb-score.negative { color: #f87171; }
+
+.lb-badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.lb-badge.mvp-badge {
+  background: #fbbf24;
+  color: #0f172a;
+}
+
+.lb-badge.bomb-badge {
+  background: #ef4444;
+  color: #fff;
+}
+

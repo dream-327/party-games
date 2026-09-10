@@ -26,6 +26,47 @@ function escapeHtml(str) {
 const AI_NAMES = ['阿尔法狗', '深蓝高手', '棋圣喵', '扑克机皇', '旺财大师'];
 const AI_AVATARS = ['🤖', '🦾', '👾', '🐱', '🐶'];
 
+// 底牌趣味彩蛋判定 (开牌即翻倍，超燃博弈)
+function evaluateBottomCardsBonus(bottomCards) {
+  if (!bottomCards || bottomCards.length !== 3) return null;
+
+  const ranks = bottomCards.map(c => c.rank);
+  const suits = bottomCards.map(c => c.suit);
+
+  // 1. 双王底牌 (大王 + 小王)
+  if (ranks.includes('BJ') && ranks.includes('RJ')) {
+    return { name: '底牌王炸', mult: 4, desc: '底牌开出火箭王炸！倍数直接翻 4 倍！🚀' };
+  }
+
+  // 2. 底牌带大王或小王
+  if (ranks.includes('BJ') || ranks.includes('RJ')) {
+    return { name: '底牌带王', mult: 2, desc: '底牌开出至尊王者！倍数直接翻 2 倍！👑' };
+  }
+
+  // 3. 底牌三条 (三张同点数)
+  if (ranks[0] === ranks[1] && ranks[1] === ranks[2]) {
+    return { name: '底牌三条', mult: 3, desc: '底牌天降三同点！倍数直接翻 3 倍！🔥' };
+  }
+
+  // 4. 底牌同花 (三张同花色，不含王)
+  if (suits[0] && suits[0] === suits[1] && suits[1] === suits[2]) {
+    return { name: '底牌同花', mult: 3, desc: '底牌金花聚首！倍数直接翻 3 倍！🌸' };
+  }
+
+  // 5. 底牌顺子 (三张连续，不含2和王)
+  const vals = bottomCards.map(c => c.value).sort((a, b) => a - b);
+  if (vals[2] <= 14 && vals[0] + 1 === vals[1] && vals[1] + 1 === vals[2]) {
+    return { name: '底牌顺子', mult: 3, desc: '底牌天赐单顺！倍数直接翻 3 倍！🌈' };
+  }
+
+  // 6. 底牌对子 (两张同点数)
+  if (ranks[0] === ranks[1] || ranks[1] === ranks[2] || ranks[0] === ranks[2]) {
+    return { name: '底牌对子', mult: 2, desc: '底牌成双成对！倍数直接翻 2 倍！✨' };
+  }
+
+  return null;
+}
+
 function createRoom(hostPlayer) {
   const code = generateRoomCode();
   const room = {
@@ -33,6 +74,17 @@ function createRoom(hostPlayer) {
     hostId: hostPlayer.id,
     createdAt: Date.now(),
     lastActiveTime: Date.now(),
+    // 房间自主积分与趣味规则设置
+    settings: {
+      baseScore: 10,              // 基础底分: 5, 10, 20, 50, 100
+      scoreMode: 'casual',        // 'casual' 累计总积分争霸 | 'chips' 欢乐豆竞技
+      startingChips: 3000,        // 初始欢乐豆 (chips模式)
+      maxMultiplier: 64,          // 封顶倍数 (32, 64, 128, 0不封顶)
+      enableBottomCardBonus: true,// 底牌彩蛋翻倍
+      enableStreakBonus: true,    // 连胜火热翻倍
+      enableBombBonus: true,      // 炸弹悬赏加分
+      springMult: 2               // 春天倍数
+    },
     seats: [
       {
         id: hostPlayer.id,
@@ -43,7 +95,14 @@ function createRoom(hostPlayer) {
         isOnline: true,
         isAi: false,
         isReady: false,
-        isAuto: false // 托管状态
+        isAuto: false, // 托管状态
+        totalScore: 0,
+        chips: 3000,
+        winCount: 0,
+        totalRounds: 0,
+        currentStreak: 0,
+        maxStreak: 0,
+        bombCount: 0
       },
       null,
       null
@@ -53,6 +112,8 @@ function createRoom(hostPlayer) {
       phase: 'LOBBY', // LOBBY, DEALING, BIDDING, PLAYING, GAME_OVER
       hands: { 0: [], 1: [], 2: [] },
       bottomCards: [],
+      bottomBonus: null,
+      roundBombs: { 0: 0, 1: 0, 2: 0 },
       landlordSeat: null,
       currentTurnSeat: null,
       turnTimeLimit: 25,
@@ -103,6 +164,14 @@ function getClientRoomData(room, targetPlayerId) {
       isAuto: s.isAuto,
       seatIndex: idx,
       cardCount: hand.length,
+      totalScore: s.totalScore || 0,
+      chips: s.chips !== undefined ? s.chips : 3000,
+      winCount: s.winCount || 0,
+      totalRounds: s.totalRounds || 0,
+      currentStreak: s.currentStreak || 0,
+      maxStreak: s.maxStreak || 0,
+      bombCount: s.bombCount || 0,
+      bankruptRelief: s.bankruptRelief || false,
       // 只有自己或游戏结束复盘时可见具体手牌
       handCards: (isMe || isGameOver) ? hand : []
     };
@@ -111,6 +180,16 @@ function getClientRoomData(room, targetPlayerId) {
   return {
     code: room.code,
     hostId: room.hostId,
+    settings: room.settings || {
+      baseScore: 10,
+      scoreMode: 'casual',
+      startingChips: 3000,
+      maxMultiplier: 64,
+      enableBottomCardBonus: true,
+      enableStreakBonus: true,
+      enableBombBonus: true,
+      springMult: 2
+    },
     mySeatIndex,
     seats: safeSeats,
     spectatorCount: room.spectators.size,
@@ -120,6 +199,7 @@ function getClientRoomData(room, targetPlayerId) {
       bottomCards: (['PLAYING', 'GAME_OVER'].includes(room.gameState.phase)) 
         ? room.gameState.bottomCards 
         : (room.gameState.bottomCards.length > 0 ? [{ id: 'back1' }, { id: 'back2' }, { id: 'back3' }] : []),
+      bottomBonus: room.gameState.bottomBonus || null,
       landlordSeat: room.gameState.landlordSeat,
       currentTurnSeat: room.gameState.currentTurnSeat,
       turnTimeLimit: room.gameState.turnTimeLimit,
@@ -265,6 +345,10 @@ function executePlay(doudizhuIo, room, seatIndex, cardIds) {
   if (parsed.type === CARD_TYPES.BOMB || parsed.type === CARD_TYPES.ROCKET) {
     room.gameState.multiplier *= 2;
     isBombOrRocket = true;
+    if (!room.gameState.roundBombs) room.gameState.roundBombs = { 0: 0, 1: 0, 2: 0 };
+    room.gameState.roundBombs[seatIndex] = (room.gameState.roundBombs[seatIndex] || 0) + 1;
+    const seatObj = room.seats[seatIndex];
+    if (seatObj) seatObj.bombCount = (seatObj.bombCount || 0) + 1;
   }
 
   // 统计出牌次数
@@ -351,31 +435,86 @@ function handleGameOver(doudizhuIo, room, winnerSeat) {
   let spring = false;
   let springType = '';
 
+  const springMult = (room.settings && room.settings.springMult) || 2;
   if (isLandlordWinner && room.gameState.farmerPlayCount === 0) {
     spring = true;
     springType = '春天！(农民未出一张牌)';
-    room.gameState.multiplier *= 2;
+    room.gameState.multiplier *= springMult;
   } else if (!isLandlordWinner && room.gameState.landlordPlayCount <= 1) {
     spring = true;
     springType = '反春！(地主仅出一手牌)';
-    room.gameState.multiplier *= 2;
+    room.gameState.multiplier *= springMult;
   }
   room.gameState.spring = spring;
 
-  // 结算积分 (底分 10 分)
-  const baseScore = 10;
-  const totalMult = Math.min(room.gameState.multiplier, 64); // 上限 64 倍
+  // 结算积分机制 (自主设置底分与封顶倍数)
+  const baseScore = (room.settings && room.settings.baseScore) || 10;
+  const maxCap = (room.settings && room.settings.maxMultiplier > 0) ? room.settings.maxMultiplier : 999999;
+  const isCapped = room.gameState.multiplier > maxCap;
+  const totalMult = Math.min(room.gameState.multiplier, maxCap);
   const roundScore = baseScore * totalMult;
 
+  // 连胜加成判定 (Streak Bonus)
+  const winnerSeatObj = room.seats[winnerSeat];
+  let streakBonusMult = 1.0;
+  let streakName = null;
+  if (room.settings && room.settings.enableStreakBonus && winnerSeatObj) {
+    const nextStreak = (winnerSeatObj.currentStreak || 0) + 1;
+    if (nextStreak >= 4) {
+      streakBonusMult = 2.0;
+      streakName = `🔥 豪取 ${nextStreak} 连胜！翻倍奖励 (x2.0)`;
+    } else if (nextStreak === 3) {
+      streakBonusMult = 1.5;
+      streakName = `🔥 达成 3 连胜！加成 (x1.5)`;
+    } else if (nextStreak === 2) {
+      streakBonusMult = 1.2;
+      streakName = `🔥 达成 2 连胜！加成 (x1.2)`;
+    }
+  }
+
   const scores = {};
+  const isChipsMode = (room.settings && room.settings.scoreMode === 'chips');
+
   room.seats.forEach((s, idx) => {
     if (!s) return;
+    const isWinner = isLandlordWinner ? (idx === room.gameState.landlordSeat) : (idx !== room.gameState.landlordSeat);
+    let myDelta = 0;
+
     if (isLandlordWinner) {
-      scores[idx] = (idx === room.gameState.landlordSeat) ? roundScore * 2 : -roundScore;
+      myDelta = (idx === room.gameState.landlordSeat) 
+        ? Math.round(roundScore * 2 * streakBonusMult) 
+        : -roundScore;
     } else {
-      scores[idx] = (idx === room.gameState.landlordSeat) ? -roundScore * 2 : roundScore;
+      myDelta = (idx === room.gameState.landlordSeat) 
+        ? -Math.round(roundScore * 2) 
+        : Math.round(roundScore * streakBonusMult);
+    }
+
+    scores[idx] = myDelta;
+
+    // 更新玩家持久累积战绩
+    s.totalRounds = (s.totalRounds || 0) + 1;
+    s.totalScore = (s.totalScore || 0) + myDelta;
+    if (s.chips === undefined) s.chips = (room.settings && room.settings.startingChips) || 3000;
+    s.chips += myDelta;
+
+    if (isWinner) {
+      s.winCount = (s.winCount || 0) + 1;
+      s.currentStreak = (s.currentStreak || 0) + 1;
+      if (s.currentStreak > (s.maxStreak || 0)) s.maxStreak = s.currentStreak;
+    } else {
+      s.currentStreak = 0;
+    }
+
+    // 破产保护与救济金 (欢乐豆模式下当金豆耗尽自动补助)
+    if (isChipsMode && s.chips <= 0) {
+      s.chips = 1000;
+      s.bankruptRelief = true;
+    } else {
+      s.bankruptRelief = false;
     }
   });
+
   room.gameState.scores = scores;
 
   // 全局重置准备状态
@@ -386,7 +525,7 @@ function handleGameOver(doudizhuIo, room, winnerSeat) {
     }
   });
 
-  // 打包全员手牌复盘数据，彻底避免客户端时序不一致问题
+  // 打包全员手牌复盘与全场累积总战绩数据
   const revealedSeats = room.seats.map((s, idx) => ({
     seatIndex: idx,
     name: s ? s.name : '',
@@ -394,8 +533,29 @@ function handleGameOver(doudizhuIo, room, winnerSeat) {
     isAi: s ? s.isAi : false,
     isLandlord: idx === room.gameState.landlordSeat,
     score: scores[idx] || 0,
+    totalScore: s ? s.totalScore : 0,
+    chips: s ? s.chips : 0,
+    winCount: s ? s.winCount : 0,
+    totalRounds: s ? s.totalRounds : 0,
+    currentStreak: s ? s.currentStreak : 0,
+    maxStreak: s ? s.maxStreak : 0,
+    bankruptRelief: s ? s.bankruptRelief : false,
     handCards: room.gameState.hands[idx] || []
   }));
+
+  // 结算趣味明细与公式
+  const scoreBreakdown = {
+    baseScore,
+    multiplier: totalMult,
+    isCapped,
+    maxCap: room.settings && room.settings.maxMultiplier,
+    bottomBonus: room.gameState.bottomBonus,
+    spring,
+    springType,
+    streakName,
+    streakBonusMult,
+    scoreMode: (room.settings && room.settings.scoreMode) || 'casual'
+  };
 
   broadcastRoom(doudizhuIo, room);
 
@@ -406,6 +566,7 @@ function handleGameOver(doudizhuIo, room, winnerSeat) {
     springType,
     multiplier: totalMult,
     scores,
+    scoreBreakdown,
     revealedSeats
   });
 }
@@ -548,11 +709,29 @@ function assignLandlord(doudizhuIo, room, landlordSeat) {
     ...bottom
   ]);
 
+  // 底牌彩蛋趣味加倍
+  let bottomBonus = null;
+  if (room.settings && room.settings.enableBottomCardBonus) {
+    bottomBonus = evaluateBottomCardsBonus(bottom);
+    if (bottomBonus) {
+      room.gameState.multiplier *= bottomBonus.mult;
+      room.gameState.bottomBonus = bottomBonus;
+    }
+  }
+
   doudizhuIo.to(room.code).emit('landlord_decided', {
     landlordSeat,
     bottomCards: bottom,
-    multiplier: room.gameState.multiplier
+    multiplier: room.gameState.multiplier,
+    bottomBonus
   });
+
+  if (bottomBonus) {
+    doudizhuIo.to(room.code).emit('bottom_bonus_announced', {
+      ...bottomBonus,
+      newMultiplier: room.gameState.multiplier
+    });
+  }
 
   broadcastRoom(doudizhuIo, room);
   scheduleTurnAction(doudizhuIo, room);
@@ -578,6 +757,8 @@ function startNewGame(doudizhuIo, room) {
     phase: 'BIDDING',
     hands,
     bottomCards,
+    bottomBonus: null,
+    roundBombs: { 0: 0, 1: 0, 2: 0 },
     landlordSeat: null,
     currentTurnSeat: null,
     turnTimeLimit: 25,
@@ -697,7 +878,14 @@ function setupDoudizhu(io, app) {
             isOnline: true,
             isAi: false,
             isReady: false,
-            isAuto: false
+            isAuto: false,
+            totalScore: 0,
+            chips: (room.settings && room.settings.startingChips) || 3000,
+            winCount: 0,
+            totalRounds: 0,
+            currentStreak: 0,
+            maxStreak: 0,
+            bombCount: 0
           };
           if (typeof callback === 'function') callback({ success: true, seatIndex: emptySeatIndex });
         } else {
@@ -742,11 +930,60 @@ function setupDoudizhu(io, app) {
         isOnline: true,
         isAi: true,
         isReady: true,
-        isAuto: true
+        isAuto: true,
+        totalScore: 0,
+        chips: (room.settings && room.settings.startingChips) || 3000,
+        winCount: 0,
+        totalRounds: 0,
+        currentStreak: 0,
+        maxStreak: 0,
+        bombCount: 0
       };
 
       if (typeof callback === 'function') callback({ success: true });
       broadcastRoom(doudizhuIo, room);
+    });
+
+    // 房主自主更新房间积分规则
+    socket.on('update_room_settings', (newSettings, callback) => {
+      try {
+        const room = rooms.get(currentRoomCode);
+        if (!room) {
+          if (typeof callback === 'function') callback({ success: false, message: '房间不存在' });
+          return;
+        }
+        if (room.hostId !== currentPlayerId) {
+          if (typeof callback === 'function') callback({ success: false, message: '只有房主可以更改设置' });
+          return;
+        }
+        if (room.gameState.phase !== 'LOBBY') {
+          if (typeof callback === 'function') callback({ success: false, message: '只能在等待大厅修改规则' });
+          return;
+        }
+
+        const validBaseScores = [5, 10, 20, 50, 100];
+        const baseScore = validBaseScores.includes(Number(newSettings.baseScore)) ? Number(newSettings.baseScore) : 10;
+        const scoreMode = ['casual', 'chips'].includes(newSettings.scoreMode) ? newSettings.scoreMode : 'casual';
+        const maxMultiplier = [0, 32, 64, 128].includes(Number(newSettings.maxMultiplier)) ? Number(newSettings.maxMultiplier) : 64;
+
+        room.settings = {
+          baseScore,
+          scoreMode,
+          startingChips: Number(newSettings.startingChips) || 3000,
+          maxMultiplier,
+          enableBottomCardBonus: newSettings.enableBottomCardBonus !== false,
+          enableStreakBonus: newSettings.enableStreakBonus !== false,
+          enableBombBonus: newSettings.enableBombBonus !== false,
+          springMult: 2
+        };
+
+        if (typeof callback === 'function') callback({ success: true, settings: room.settings });
+        doudizhuIo.to(room.code).emit('room_settings_updated', room.settings);
+        broadcastRoom(doudizhuIo, room);
+      } catch (err) {
+        console.error('update_room_settings error:', err);
+        if (typeof callback === 'function') callback({ success: false, message: '更新失败' });
+      }
     });
 
     // 房主踢出座位上的玩家或电脑

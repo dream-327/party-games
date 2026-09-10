@@ -31,6 +31,7 @@
 
       <div class="header-actions">
         <button id="btn-toggle-orientation" class="icon-btn" title="横屏/竖屏切换">🔄</button>
+        <button id="btn-settings" class="icon-btn" title="积分与趣味规则设置">⚙️</button>
         <button id="btn-leave-room" class="icon-btn hidden" title="退出当前房间" style="background: rgba(244,63,94,0.18); border-color: rgba(244,63,94,0.4); color: #fca5a5;">🚪</button>
         <button id="btn-quick-invite" class="icon-btn" title="扫码邀请好友加入">📱</button>
         <button id="btn-auto-toggle" class="icon-btn hidden" title="托管开关">🤖</button>
@@ -78,6 +79,7 @@
         <div class="table-watermark">
           <div class="watermark-suits">♠ ♥ ♣ ♦</div>
           <div class="watermark-text">经典三人竞技</div>
+          <div class="room-rules-pill" id="room-rules-pill" title="点击查看对局规则">底分: 10 · 封顶: 64倍</div>
         </div>
 
         <!-- 桌面上方：3张底牌与全局倍数 -->
@@ -101,6 +103,14 @@
         <div id="table-banner-alert" class="table-banner hidden">
           <span id="banner-text">💣 炸弹！倍数翻倍！</span>
         </div>
+
+        <!-- 底牌彩蛋特殊加倍横幅 -->
+        <div id="bottom-bonus-alert" class="bottom-bonus-alert hidden">
+          <span id="bottom-bonus-text">🎉 底牌加倍！</span>
+        </div>
+
+        <!-- 飘字动画容器 -->
+        <div id="floating-scores-layer" class="floating-scores-layer"></div>
 
         <!-- 全屏特技动画容器 (飞机、火箭、炸弹) -->
         <div id="airplane-anim" class="airplane-anim hidden">✈️ 💨</div>
@@ -145,9 +155,11 @@
             <div class="role-badge hidden" id="p-left-role">农民</div>
             <div class="auto-badge hidden" id="p-left-auto">托管</div>
             <div class="ready-badge hidden" id="p-left-ready">已准备</div>
+            <div class="streak-badge hidden" id="p-left-streak">🔥 2连胜</div>
           </div>
           <div class="player-info">
             <div class="player-name" id="p-left-name">等待加入...</div>
+            <div class="player-score-pill" id="p-left-score"><span class="score-icon">🏆</span><span class="score-num">0</span></div>
             <div class="card-count-badge hidden" id="p-left-count">17 张</div>
           </div>
           <!-- 左侧玩家出的牌 -->
@@ -164,9 +176,11 @@
             <div class="role-badge hidden" id="p-right-role">农民</div>
             <div class="auto-badge hidden" id="p-right-auto">托管</div>
             <div class="ready-badge hidden" id="p-right-ready">已准备</div>
+            <div class="streak-badge hidden" id="p-right-streak">🔥 2连胜</div>
           </div>
           <div class="player-info">
             <div class="player-name" id="p-right-name">等待加入...</div>
+            <div class="player-score-pill" id="p-right-score"><span class="score-icon">🏆</span><span class="score-num">0</span></div>
             <div class="card-count-badge hidden" id="p-right-count">17 张</div>
           </div>
           <!-- 右侧玩家出的牌 -->
@@ -185,6 +199,7 @@
           <!-- 大厅阶段操作 -->
           <div id="panel-lobby-actions" class="control-panel">
             <button id="btn-toggle-ready" class="btn btn-primary">准备</button>
+            <button id="btn-lobby-settings" class="btn btn-secondary">⚙️ 积分规则</button>
             <button id="btn-add-ai" class="btn btn-secondary hidden">🤖 添加电脑补位</button>
             <button id="btn-start-game" class="btn btn-gold hidden">👑 开始发牌</button>
           </div>
@@ -218,6 +233,8 @@
             <div class="my-badge-left">
               <span id="my-avatar" class="mini-avatar">😎</span>
               <span id="my-name" class="my-name-text">我</span>
+              <div class="player-score-pill" id="my-score-pill"><span class="score-icon">🏆</span><span class="score-num">0</span></div>
+              <span id="my-streak-badge" class="streak-badge hidden">🔥 2连胜</span>
               <span id="my-role-badge" class="role-badge hidden">农民</span>
               <span id="my-auto-status" class="auto-badge hidden">托管中</span>
             </div>
@@ -289,14 +306,113 @@
           <div id="settle-subtitle" class="settle-sub">春天加成 · 4倍底分</div>
         </div>
         <div class="modal-body">
+          <!-- 详细结算公式明细盒 -->
+          <div class="settle-formula-box" id="settle-formula-box"></div>
           <!-- 得分排行榜 -->
           <div class="score-board-grid" id="settle-scores-grid"></div>
           <!-- 全员剩余手牌揭示 -->
           <div class="revealed-hands-list" id="settle-revealed-hands"></div>
+          <!-- 全场累计战绩排行榜 -->
+          <div class="settle-leaderboard-box" id="settle-leaderboard-box">
+            <div class="leaderboard-header">
+              <span>🏆 全场累计总战绩</span>
+              <span class="leaderboard-sub">（本房间历局累计）</span>
+            </div>
+            <div class="settle-leaderboard-list" id="settle-leaderboard-list"></div>
+          </div>
         </div>
         <div class="modal-footer" style="display: flex; gap: 10px;">
           <button id="btn-settle-leave" class="btn btn-secondary" style="flex: 1;">🚪 退出房间</button>
           <button id="btn-play-again" class="btn btn-gold btn-lg" style="flex: 1.5;">再来一局</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 弹窗4: 房间规则与趣味积分设置 -->
+    <div id="modal-settings" class="modal-backdrop hidden">
+      <div class="modal-card settings-card">
+        <div class="modal-header">
+          <h3>⚙️ 房间积分与趣味规则</h3>
+          <button class="modal-close" id="btn-close-settings">✕</button>
+        </div>
+        <div class="modal-body settings-body">
+          <div class="setting-group">
+            <div class="setting-label-row">
+              <label class="setting-label">对局底分</label>
+              <span class="setting-sub-tip">底分越高，对局输赢积分越刺激</span>
+            </div>
+            <div class="segmented-control" id="setting-base-score">
+              <button type="button" class="segment-btn" data-value="5">5分</button>
+              <button type="button" class="segment-btn active" data-value="10">10分</button>
+              <button type="button" class="segment-btn" data-value="20">20分</button>
+              <button type="button" class="segment-btn" data-value="50">50分</button>
+              <button type="button" class="segment-btn" data-value="100">100分</button>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <div class="setting-label-row">
+              <label class="setting-label">积分模式</label>
+              <span class="setting-sub-tip">选择排位总积分或欢乐金豆</span>
+            </div>
+            <div class="segmented-control" id="setting-score-mode">
+              <button type="button" class="segment-btn active" data-value="casual">🏆 争霸积分 (累计升降)</button>
+              <button type="button" class="segment-btn" data-value="chips">🪙 欢乐豆豆 (3000豆/破产救济)</button>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <div class="setting-label-row">
+              <label class="setting-label">封顶倍数</label>
+              <span class="setting-sub-tip">限制单局最大翻倍数</span>
+            </div>
+            <div class="segmented-control" id="setting-max-mult">
+              <button type="button" class="segment-btn" data-value="32">32倍</button>
+              <button type="button" class="segment-btn active" data-value="64">64倍</button>
+              <button type="button" class="segment-btn" data-value="128">128倍</button>
+              <button type="button" class="segment-btn" data-value="0">不封顶</button>
+            </div>
+          </div>
+
+          <div class="setting-toggles-grid">
+            <div class="setting-toggle-item">
+              <div class="toggle-info">
+                <span class="toggle-title">🃏 底牌彩蛋加倍</span>
+                <span class="toggle-desc">底牌含王、顺子、同花或对子时惊喜加倍</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="setting-bottom-bonus" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-toggle-item">
+              <div class="toggle-info">
+                <span class="toggle-title">🔥 连胜奖励加成</span>
+                <span class="toggle-desc">2连胜+20%，3连胜+50%，4连胜直接翻倍</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="setting-streak-bonus" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-toggle-item">
+              <div class="toggle-info">
+                <span class="toggle-title">💣 炸弹彩金荣耀</span>
+                <span class="toggle-desc">记录局内炸弹数量并统计全场炸弹王</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="setting-bomb-bonus" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div id="settings-host-hint" class="settings-hint hidden">💡 您不是房主，当前仅可浏览规则，只有房主可保存修改</div>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-save-settings" class="btn btn-gold btn-block">保存设置</button>
         </div>
       </div>
     </div>
