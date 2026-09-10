@@ -48,6 +48,10 @@
   const btnSound = document.getElementById('btn-sound');
   const btnLeaveRoom = document.getElementById('btn-leave-room');
   const btnSettleLeave = document.getElementById('btn-settle-leave');
+  const btnToggleOrientation = document.getElementById('btn-toggle-orientation');
+  const orientationGuide = document.getElementById('orientation-guide');
+  const btnGuideForce = document.getElementById('btn-guide-force');
+  const btnGuideDismiss = document.getElementById('btn-guide-dismiss');
 
   // 牌桌元素
   const gameTableFelt = document.querySelector('.game-table-felt');
@@ -189,7 +193,7 @@
     .then(info => { serverInfo = info; })
     .catch(() => {});
 
-  // 渲染单张卡牌 DOM 组件
+  // 渲染单张卡牌 DOM 组件 (极度精致扑克：双角标、宫廷人物雕花、华丽大小王)
   function createCardElement(card, isSmall = false, isSelected = false) {
     const el = document.createElement('div');
     const isRed = ['♥', '♦'].includes(card.suit) || card.rank === 'RJ';
@@ -197,27 +201,74 @@
 
     el.className = `card-item ${isSmall ? 'mini-card' : ''} ${isSelected ? 'selected' : ''} ${isRed ? 'red' : 'black'} ${isJoker ? 'joker' : ''}`;
     el.dataset.id = card.id;
+    el.dataset.rank = card.rank;
 
     let displayRank = card.rank;
-    let displaySuit = card.suit;
-    let centerLabel = card.suit;
+    let displaySuit = card.suit || '';
+    let centerHtml = '';
 
     if (card.rank === 'BJ') {
       displayRank = '小';
       displaySuit = '王';
-      centerLabel = '小王';
+      centerHtml = `
+        <div class="joker-graphic black-joker">
+          <div class="joker-crown">🌙</div>
+          <div class="joker-text">小王</div>
+          <div class="joker-sub">BLACK JOKER</div>
+        </div>
+      `;
     } else if (card.rank === 'RJ') {
       displayRank = '大';
       displaySuit = '王';
-      centerLabel = '大王';
+      centerHtml = `
+        <div class="joker-graphic red-joker">
+          <div class="joker-crown">🌟</div>
+          <div class="joker-text">大王</div>
+          <div class="joker-sub">RED JOKER</div>
+        </div>
+      `;
+    } else if (card.rank === 'K') {
+      centerHtml = `
+        <div class="card-face-figure king">
+          <span class="figure-crown">👑</span>
+          <span class="figure-title">K</span>
+          <span class="figure-sub">${displaySuit}</span>
+        </div>
+      `;
+    } else if (card.rank === 'Q') {
+      centerHtml = `
+        <div class="card-face-figure queen">
+          <span class="figure-crown">👸</span>
+          <span class="figure-title">Q</span>
+          <span class="figure-sub">${displaySuit}</span>
+        </div>
+      `;
+    } else if (card.rank === 'J') {
+      centerHtml = `
+        <div class="card-face-figure jack">
+          <span class="figure-crown">⚔️</span>
+          <span class="figure-title">J</span>
+          <span class="figure-sub">${displaySuit}</span>
+        </div>
+      `;
+    } else if (card.rank === 'A') {
+      centerHtml = `<div class="card-center-suit card-center-ace">${displaySuit}</div>`;
+    } else if (card.rank === '2') {
+      centerHtml = `<div class="card-center-suit card-center-two">${displaySuit}</div>`;
+    } else {
+      centerHtml = `<div class="card-center-suit">${displaySuit}</div>`;
     }
 
     el.innerHTML = `
-      <div class="card-corner">
+      <div class="card-corner corner-top-left">
         <span class="card-rank">${displayRank}</span>
         <span class="card-suit">${displaySuit}</span>
       </div>
-      <div class="card-center-suit">${centerLabel}</div>
+      ${centerHtml}
+      <div class="card-corner corner-bottom-right">
+        <span class="card-rank">${displayRank}</span>
+        <span class="card-suit">${displaySuit}</span>
+      </div>
     `;
 
     return el;
@@ -233,6 +284,9 @@
     btnAutoToggle.classList.remove('hidden');
     if (btnLeaveRoom) btnLeaveRoom.classList.remove('hidden');
     currentRoomCodeEl.textContent = room.code;
+
+    // 移动端横屏智能提示检测
+    checkOrientationPrompt();
 
     const mySeat = room.mySeatIndex;
     const seats = room.seats;
@@ -295,6 +349,15 @@
         btnAutoToggle.style.color = '#fff';
       }
 
+      // 我的回合高亮轮廓
+      const isMyTurn = (room.gameState.phase === 'PLAYING' && room.gameState.currentTurnSeat === mySeat) ||
+                       (room.gameState.phase === 'BIDDING' && room.gameState.bidState.currentBidder === mySeat);
+      if (isMyTurn) {
+        pMy.avatar.parentElement?.classList.add('turn-active');
+      } else {
+        pMy.avatar.parentElement?.classList.remove('turn-active');
+      }
+
       // 渲染我的手牌
       renderMyHandCards(myData.handCards || []);
     }
@@ -317,6 +380,7 @@
       domElements.played.innerHTML = '';
       domElements.bubble.classList.add('hidden');
       domElements.timer.classList.add('hidden');
+      domElements.avatar.parentElement?.classList.remove('turn-active');
       return;
     }
 
@@ -376,10 +440,10 @@
 
     if (isCurrentTurn) {
       domElements.timer.classList.remove('hidden');
-      domElements.avatar.parentElement.style.boxShadow = '0 0 18px #fbbf24';
+      domElements.avatar.parentElement?.classList.add('turn-active');
     } else {
       domElements.timer.classList.add('hidden');
-      domElements.avatar.parentElement.style.boxShadow = 'none';
+      domElements.avatar.parentElement?.classList.remove('turn-active');
     }
   }
 
@@ -402,18 +466,41 @@
     }
   }
 
+  // 智能双击快捷全选/反选同点数牌 (出对子/三张/炸弹神技)
+  function toggleCardsByRank(targetRank) {
+    if (!currentRoom || currentRoom.mySeatIndex === -1) return;
+    const myHand = (currentRoom.seats[currentRoom.mySeatIndex] && currentRoom.seats[currentRoom.mySeatIndex].handCards) || [];
+    const sameRankCards = myHand.filter(card => card.rank === targetRank);
+    if (sameRankCards.length === 0) return;
+
+    const allSelected = sameRankCards.every(card => selectedCards.has(card.id));
+    sameRankCards.forEach(card => {
+      if (allSelected) {
+        selectedCards.delete(card.id);
+      } else {
+        selectedCards.add(card.id);
+      }
+    });
+
+    window.sfx && window.sfx.playCardSelect();
+    if (navigator.vibrate) navigator.vibrate([15, 30, 15]);
+    renderMyHandCards(myHand);
+    updateSelectedCardHUD();
+  }
+
   // 渲染我的手牌 (自适应扇形间距与滑选)
   function renderMyHandCards(cards) {
     pMy.cardsContainer.innerHTML = '';
     const total = cards.length;
     const containerWidth = pMy.cardsContainer.clientWidth || 360;
-    const cardWidth = 58;
+    const isLandscape = window.innerHeight < 580 || document.body.classList.contains('force-landscape');
+    const cardWidth = isLandscape ? 56 : 62;
 
     // 响应式负边距自适应排列
     let marginOffset = -22;
     if (total > 1) {
-      const maxSpan = Math.max(220, containerWidth - cardWidth - 24);
-      const step = Math.max(14, Math.min(32, maxSpan / (total - 1)));
+      const maxSpan = Math.max(220, containerWidth - cardWidth - 20);
+      const step = Math.max(12, Math.min(36, maxSpan / (total - 1)));
       marginOffset = -(cardWidth - step);
     }
 
@@ -425,8 +512,17 @@
       }
       cardEl.dataset.id = c.id;
 
-      // 单击单选
+      // 单击单选 & 双击同点数全选
+      let lastTap = 0;
       cardEl.addEventListener('click', (e) => {
+        const now = Date.now();
+        if (now - lastTap < 320 && now - lastTap > 0) {
+          lastTap = 0;
+          toggleCardsByRank(c.rank);
+          return;
+        }
+        lastTap = now;
+
         if (selectedCards.has(c.id)) {
           selectedCards.delete(c.id);
           cardEl.classList.remove('selected');
@@ -435,6 +531,7 @@
           cardEl.classList.add('selected');
         }
         window.sfx && window.sfx.playCardSelect();
+        if (navigator.vibrate) navigator.vibrate(8);
         updateSelectedCardHUD();
       });
 
@@ -492,7 +589,23 @@
     }
   }
 
-  // 手牌容器绑定滑动划选（Swipe Drag Selection）
+  // 辅助函数：划选过程中的卡牌命中检测
+  function handleDragOverPoint(clientX, clientY) {
+    const el = document.elementFromPoint(clientX, clientY);
+    if (!el) return;
+    const cardEl = el.closest('.card-item');
+    if (cardEl && cardEl.parentElement === pMy.cardsContainer) {
+      const id = cardEl.dataset.id;
+      if (id && !draggedCardIds.has(id)) {
+        draggedCardIds.add(id);
+        cardEl.classList.add('in-drag-select');
+        window.sfx && window.sfx.playCardSelect();
+        if (navigator.vibrate) navigator.vibrate(6);
+      }
+    }
+  }
+
+  // 手牌容器绑定滑动划选（支持 Pointer 与 Touch 原生触控）
   pMy.cardsContainer.addEventListener('pointerdown', (e) => {
     const cardEl = e.target.closest('.card-item');
     if (!cardEl) return;
@@ -507,25 +620,34 @@
 
   window.addEventListener('pointermove', (e) => {
     if (!isPointerDragging) return;
-    const el = document.elementFromPoint(e.clientX, e.clientY);
-    if (el) {
-      const cardEl = el.closest('.card-item');
-      if (cardEl && cardEl.parentElement === pMy.cardsContainer) {
-        const id = cardEl.dataset.id;
-        if (id && !draggedCardIds.has(id)) {
-          draggedCardIds.add(id);
-          cardEl.classList.add('in-drag-select');
-        }
-      }
-    }
+    handleDragOverPoint(e.clientX, e.clientY);
   });
 
-  window.addEventListener('pointerup', () => {
+  // 移动端专用 touch 划选补充 (解决部分手机浏览器 pointermove 捕获差异)
+  pMy.cardsContainer.addEventListener('touchstart', (e) => {
+    if (!e.touches || !e.touches[0]) return;
+    const touch = e.touches[0];
+    const cardEl = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.card-item');
+    if (!cardEl) return;
+    isPointerDragging = true;
+    draggedCardIds.clear();
+    const id = cardEl.dataset.id;
+    if (id) {
+      draggedCardIds.add(id);
+      cardEl.classList.add('in-drag-select');
+    }
+  }, { passive: true });
+
+  window.addEventListener('touchmove', (e) => {
+    if (!isPointerDragging || !e.touches || !e.touches[0]) return;
+    handleDragOverPoint(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: true });
+
+  function finishDragSelection() {
     if (!isPointerDragging) return;
     isPointerDragging = false;
 
     if (draggedCardIds.size > 1) {
-      // 多选划牌生效
       draggedCardIds.forEach(id => {
         if (selectedCards.has(id)) selectedCards.delete(id);
         else selectedCards.add(id);
@@ -540,7 +662,10 @@
       el.classList.remove('in-drag-select');
     });
     draggedCardIds.clear();
-  });
+  }
+
+  window.addEventListener('pointerup', finishDragSelection);
+  window.addEventListener('touchend', finishDragSelection);
 
   // 点击绿色桌面空白处自动取消选牌
   gameTableFelt.addEventListener('click', (e) => {
@@ -848,6 +973,73 @@
       modalSettle.classList.add('hidden');
     });
   }
+
+  // 横屏模式管理 (Orientation Management)
+  function toggleForceLandscape(forceState) {
+    const isForced = (forceState !== undefined) 
+      ? forceState 
+      : !document.body.classList.contains('force-landscape');
+      
+    if (isForced) {
+      document.body.classList.add('force-landscape');
+      document.getElementById('app')?.classList.add('force-landscape');
+      if (btnToggleOrientation) btnToggleOrientation.style.color = '#fbbf24';
+      showToast('🔄 已开启横屏沉浸对战模式');
+    } else {
+      document.body.classList.remove('force-landscape');
+      document.getElementById('app')?.classList.remove('force-landscape');
+      if (btnToggleOrientation) btnToggleOrientation.style.color = '#fff';
+      showToast('📱 已恢复默认方向模式');
+    }
+    
+    // 重新调整手牌宽度与布局
+    setTimeout(() => {
+      if (currentRoom && currentRoom.mySeatIndex !== -1) {
+        renderMyHandCards((currentRoom.seats[currentRoom.mySeatIndex] && currentRoom.seats[currentRoom.mySeatIndex].handCards) || []);
+      }
+    }, 200);
+  }
+
+  if (btnToggleOrientation) {
+    btnToggleOrientation.addEventListener('click', () => toggleForceLandscape());
+  }
+
+  if (btnGuideForce) {
+    btnGuideForce.addEventListener('click', () => {
+      toggleForceLandscape(true);
+      if (orientationGuide) orientationGuide.classList.add('hidden');
+      sessionStorage.setItem('doudizhu_guide_dismissed', '1');
+    });
+  }
+
+  if (btnGuideDismiss) {
+    btnGuideDismiss.addEventListener('click', () => {
+      if (orientationGuide) orientationGuide.classList.add('hidden');
+      sessionStorage.setItem('doudizhu_guide_dismissed', '1');
+    });
+  }
+
+  // 检查是否为移动端竖屏，若是且未提示过，则显示横屏引导
+  function checkOrientationPrompt() {
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    const isPortrait = window.innerHeight > window.innerWidth;
+    const dismissed = sessionStorage.getItem('doudizhu_guide_dismissed');
+
+    if (isMobile && isPortrait && !dismissed && orientationGuide && currentRoom) {
+      orientationGuide.classList.remove('hidden');
+    } else if (!isPortrait) {
+      // 玩家已经真实横屏，自动关闭虚拟横屏与引导
+      if (document.body.classList.contains('force-landscape')) {
+        document.body.classList.remove('force-landscape');
+        document.getElementById('app')?.classList.remove('force-landscape');
+        if (btnToggleOrientation) btnToggleOrientation.style.color = '#fff';
+      }
+      if (orientationGuide) orientationGuide.classList.add('hidden');
+    }
+  }
+
+  window.addEventListener('resize', checkOrientationPrompt);
+  window.addEventListener('orientationchange', checkOrientationPrompt);
 
   // 扫码邀请弹窗
   btnQuickInvite.addEventListener('click', () => {

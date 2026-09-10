@@ -1,17 +1,40 @@
-/* 欢乐斗地主 - 专属样式表 */
+/* ==========================================================================
+   欢乐斗地主 - 沉浸式豪华棋牌视觉系统 & 手机横屏高能体验
+   ========================================================================== */
+
 :root {
-  --felt-green: #1b4d3e;
-  --felt-dark: #092017;
+  --felt-green: #1b5e3f;
+  --felt-dark: #082419;
+  --felt-edge: #04130d;
+  --wood-border: #2d180c;
+  --wood-highlight: #b45309;
+  
   --gold-primary: #fbbf24;
   --gold-hover: #f59e0b;
+  --gold-glow: rgba(251, 191, 36, 0.4);
+  --gold-gradient: linear-gradient(135deg, #fde047 0%, #fbbf24 50%, #d97706 100%);
+  
+  --ruby-red: #e11d48;
+  --ruby-dark: #be123c;
+  --emerald-green: #10b981;
   --cyan-accent: #06b6d4;
   --danger-red: #ef4444;
-  --card-bg: #ffffff;
-  --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+
+  --card-w: 62px;
+  --card-h: 88px;
+  --mini-card-w: 40px;
+  --mini-card-h: 58px;
+
+  --card-bg: linear-gradient(165deg, #ffffff 0%, #fdfdfd 55%, #f3f5f8 100%);
+  --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --card-shadow-hover: 0 8px 18px rgba(0, 0, 0, 0.6), 0 0 10px rgba(251, 191, 36, 0.5);
+  
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
+  --radius-card: 7px;
   --font-base: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-poker: "Arial Rounded MT Bold", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 * {
@@ -20,15 +43,18 @@
   padding: 0;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
+  touch-action: manipulation;
 }
 
-body {
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #060b0e;
   font-family: var(--font-base);
-  background: #0d1117;
   color: #f3f4f6;
-  min-height: 100vh;
-  overflow-x: hidden;
-  position: relative;
 }
 
 #confetti-canvas {
@@ -44,136 +70,201 @@ body {
 #app {
   display: flex;
   flex-direction: column;
+  width: 100%;
   height: 100vh;
-  max-width: 1200px;
+  height: 100dvh;
+  max-width: 1300px;
   margin: 0 auto;
   position: relative;
+  overflow: hidden;
+  background: #0a0f14;
 }
 
-/* 顶部导航状态栏 */
+/* ==========================================================================
+   强制虚拟横屏模式 (Virtual Forced Landscape for Mobile with Orientation Lock)
+   ========================================================================== */
+body.force-landscape {
+  width: 100vw !important;
+  height: 100vh !important;
+  overflow: hidden !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+}
+
+body.force-landscape #app {
+  width: 100vh !important;
+  height: 100vw !important;
+  max-width: none !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 100vw !important;
+  transform: rotate(90deg) !important;
+  transform-origin: top left !important;
+  z-index: 900 !important;
+}
+
+/* ==========================================================================
+   顶部导航状态栏 (Header Bar)
+   ========================================================================== */
 .header-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 16px;
-  background: rgba(13, 17, 23, 0.85);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  z-index: 50;
+  padding: 8px 16px;
+  background: linear-gradient(180deg, rgba(13, 17, 23, 0.95) 0%, rgba(13, 17, 23, 0.8) 100%);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(251, 191, 36, 0.2);
+  z-index: 60;
+  flex-shrink: 0;
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .logo-badge {
   font-size: 16px;
-  font-weight: 800;
-  color: var(--gold-primary);
+  font-weight: 900;
+  background: var(--gold-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
   display: flex;
   align-items: center;
   gap: 6px;
+  letter-spacing: 0.5px;
+  text-shadow: 0 2px 8px rgba(251, 191, 36, 0.3);
+}
+
+.logo-badge span {
+  -webkit-text-fill-color: initial;
+  font-size: 18px;
 }
 
 .room-tag {
   font-size: 12px;
-  background: rgba(251, 191, 36, 0.15);
-  border: 1px solid rgba(251, 191, 36, 0.4);
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.45);
   color: var(--gold-primary);
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 20px;
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.2);
 }
 
 .mono-code {
   font-family: monospace;
-  font-weight: 700;
-  letter-spacing: 1px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #fff;
 }
 
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .icon-btn {
   background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   color: #fff;
   border-radius: 50%;
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   font-size: 16px;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
   text-decoration: none;
+  flex-shrink: 0;
 }
 
 .icon-btn:hover {
-  background: rgba(255, 255, 255, 0.18);
-  transform: scale(1.05);
+  background: rgba(255, 255, 255, 0.22);
+  transform: scale(1.08);
+  border-color: var(--gold-primary);
 }
 
-/* 按钮规范 */
+.icon-btn:active {
+  transform: scale(0.95);
+}
+
+/* 按钮通用规范 */
 .btn {
-  padding: 10px 18px;
+  padding: 9px 18px;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 800;
   border-radius: var(--radius-md);
   border: none;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  transition: all 0.2s ease;
+  gap: 6px;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+}
+
+.btn:active {
+  transform: scale(0.96);
 }
 
 .btn-lg {
-  padding: 14px 28px;
+  padding: 13px 26px;
   font-size: 16px;
   border-radius: var(--radius-lg);
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #10b981, #059669);
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   color: #fff;
-  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, #059669, #047857);
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  box-shadow: 0 6px 18px rgba(16, 185, 129, 0.6);
 }
 
 .btn-gold {
-  background: linear-gradient(135deg, #fbbf24, #d97706);
-  color: #1a1001;
-  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);
+  background: var(--gold-gradient);
+  color: #1c1303;
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  font-weight: 900;
 }
 
 .btn-gold:hover {
-  background: linear-gradient(135deg, #f59e0b, #b45309);
+  filter: brightness(1.08);
+  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.7);
 }
 
 .btn-secondary {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
   color: #f3f4f6;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(8px);
 }
 
 .btn-secondary:hover {
   background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
 }
 
 .btn-info {
-  background: linear-gradient(135deg, #06b6d4, #0284c7);
+  background: linear-gradient(135deg, #06b6d4 0%, #0284c7 100%);
   color: #fff;
-  box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3);
+  box-shadow: 0 4px 14px rgba(6, 182, 212, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.btn-info:hover {
+  background: linear-gradient(135deg, #0891b2 0%, #0369a1 100%);
 }
 
 .btn-text-link {
@@ -181,65 +272,72 @@ body {
   border: none;
   color: var(--cyan-accent);
   font-size: 12px;
+  font-weight: 700;
   cursor: pointer;
   text-decoration: underline;
+  padding: 4px 6px;
 }
 
-/* 首页大厅 */
+/* ==========================================================================
+   首页大厅 (View Home)
+   ========================================================================== */
 .main-container {
   flex: 1;
   display: flex;
   flex-direction: column;
   position: relative;
   overflow: hidden;
+  height: calc(100% - 52px);
 }
 
 .hero-card {
   margin: auto;
   max-width: 480px;
-  width: 90%;
-  background: rgba(26, 32, 44, 0.85);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  width: 92%;
+  background: rgba(20, 26, 38, 0.9);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(251, 191, 36, 0.3);
   border-radius: var(--radius-lg);
-  padding: 36px 28px;
+  padding: 30px 24px;
   text-align: center;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 30px rgba(251, 191, 36, 0.15);
 }
 
 .hero-icon {
-  font-size: 56px;
-  margin-bottom: 12px;
-  animation: bounce 2s infinite ease-in-out;
+  font-size: 52px;
+  margin-bottom: 8px;
+  animation: bounce 2.2s infinite ease-in-out;
 }
 
 .hero-title {
   font-size: 28px;
   font-weight: 900;
-  color: var(--gold-primary);
-  letter-spacing: 1px;
+  background: var(--gold-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: 2px;
 }
 
 .hero-desc {
   font-size: 13px;
   color: #9ca3af;
-  margin-top: 6px;
-  margin-bottom: 24px;
+  margin-top: 4px;
+  margin-bottom: 20px;
 }
 
 .player-profile-box {
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--radius-md);
-  padding: 16px;
-  margin-bottom: 24px;
+  padding: 14px;
+  margin-bottom: 20px;
   text-align: left;
 }
 
 .input-label {
   font-size: 12px;
-  color: #9ca3af;
-  font-weight: 600;
+  color: #d1d5db;
+  font-weight: 700;
   display: block;
   margin-bottom: 8px;
 }
@@ -247,13 +345,13 @@ body {
 .avatar-selector-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-  gap: 8px;
+  gap: 6px;
   margin-bottom: 12px;
 }
 
 .avatar-option {
   font-size: 22px;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.06);
   border: 2px solid transparent;
   border-radius: 8px;
   height: 40px;
@@ -266,8 +364,9 @@ body {
 
 .avatar-option.selected {
   border-color: var(--gold-primary);
-  background: rgba(251, 191, 36, 0.15);
-  transform: scale(1.1);
+  background: rgba(251, 191, 36, 0.2);
+  transform: scale(1.12);
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.4);
 }
 
 .input-group {
@@ -285,19 +384,25 @@ body {
 
 .input-group input {
   width: 100%;
-  padding: 10px 14px 10px 36px;
+  padding: 9px 12px 9px 36px;
   background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: var(--radius-sm);
   color: #fff;
   font-size: 14px;
   outline: none;
+  font-weight: 600;
+}
+
+.input-group input:focus {
+  border-color: var(--gold-primary);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .action-buttons-group {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 
 .action-buttons-group .btn-lg {
@@ -313,102 +418,131 @@ body {
   flex: 1;
   padding: 10px 14px;
   background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: var(--radius-md);
   color: #fff;
-  font-size: 14px;
+  font-size: 15px;
   text-align: center;
-  letter-spacing: 2px;
+  letter-spacing: 3px;
+  font-family: monospace;
+  font-weight: 800;
   outline: none;
 }
 
-/* 牌桌毛呢绿色桌面主体 */
+.join-room-bar input:focus {
+  border-color: var(--gold-primary);
+}
+
+/* ==========================================================================
+   豪华赌场级毛呢绿台布桌面 (Casino Felt Table)
+   ========================================================================== */
 .game-table-felt {
   flex: 1;
-  background: radial-gradient(circle at center, #1e5947 0%, #133e31 60%, #092017 100%);
   position: relative;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  border-radius: 12px;
-  margin: 8px;
-  border: 4px solid #36220e;
-  box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.7), 0 8px 30px rgba(0, 0, 0, 0.5);
+  margin: 6px;
+  border-radius: 18px;
+  border: 6px solid var(--wood-border);
+  outline: 2px solid var(--wood-highlight);
+  background: radial-gradient(ellipse at 50% 45%, #1d6a4c 0%, #134d36 45%, #0a2e20 80%, #051911 100%);
+  box-shadow: inset 0 0 70px rgba(0, 0, 0, 0.85), 0 12px 40px rgba(0, 0, 0, 0.8);
   overflow: hidden;
 }
 
-/* 桌面上方：3张底牌与倍数 */
+/* 牌桌中央艺术水印 */
+.table-watermark {
+  position: absolute;
+  top: 46%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  opacity: 0.15;
+  z-index: 1;
+}
+
+.watermark-suits {
+  font-size: 32px;
+  letter-spacing: 12px;
+  color: #fef08a;
+  text-shadow: 0 0 10px rgba(251, 191, 36, 0.6);
+}
+
+.watermark-text {
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 8px;
+  color: #fff;
+  margin-top: 4px;
+}
+
+/* ==========================================================================
+   桌面上方：豪华木雕底牌盘台 (Bottom Cards Tray)
+   ========================================================================== */
 .table-top-center {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: 14px;
-  gap: 6px;
-  z-index: 20;
+  padding-top: 8px;
+  gap: 4px;
+  z-index: 25;
+}
+
+.bottom-cards-tray {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: linear-gradient(180deg, rgba(30, 20, 10, 0.9) 0%, rgba(15, 10, 5, 0.95) 100%);
+  border: 1.5px solid #d97706;
+  border-radius: 10px;
+  padding: 4px 10px 6px 10px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6), 0 0 12px rgba(217, 119, 6, 0.25);
+  gap: 4px;
+}
+
+.tray-title-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tray-title {
+  font-size: 11px;
+  font-weight: 900;
+  color: #fef08a;
+  letter-spacing: 2px;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
 }
 
 .bottom-cards-box {
   display: flex;
-  gap: 8px;
-}
-
-.bottom-card-item {
-  width: 50px;
-  height: 70px;
-  background: #ffffff;
-  border-radius: 6px;
-  border: 1px solid #cbd5e1;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: 15px;
-  font-weight: 800;
-  position: relative;
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.bottom-card-item.card-back {
-  background: linear-gradient(135deg, #1e3a8a, #172554);
-  color: #60a5fa;
-  border-color: #3b82f6;
-  font-size: 18px;
+  gap: 6px;
 }
 
 .multiplier-tag {
-  background: rgba(0, 0, 0, 0.65);
+  background: rgba(0, 0, 0, 0.7);
   border: 1px solid var(--gold-primary);
   color: var(--gold-primary);
-  padding: 3px 12px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 800;
-  box-shadow: 0 0 10px rgba(251, 191, 36, 0.3);
-}
-
-/* 特效横幅 */
-.table-banner {
-  position: absolute;
-  top: 110px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: linear-gradient(90deg, rgba(239, 68, 68, 0.95), rgba(220, 38, 38, 0.95));
-  border: 2px solid #fef08a;
-  padding: 8px 24px;
-  border-radius: 30px;
-  font-size: 16px;
+  padding: 1px 8px;
+  border-radius: 12px;
+  font-size: 11px;
   font-weight: 900;
-  color: #fff;
-  box-shadow: 0 0 25px rgba(239, 68, 68, 0.8);
-  animation: bannerPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  z-index: 40;
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.35);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 
-/* 左右玩家槽位 */
+/* ==========================================================================
+   左右玩家槽位 (Player Slots)
+   ========================================================================== */
 .player-slot {
   position: absolute;
-  top: 90px;
+  top: 76px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -416,163 +550,214 @@ body {
 }
 
 .slot-left {
-  left: 16px;
+  left: 12px;
 }
 
 .slot-right {
-  right: 16px;
+  right: 12px;
 }
 
 .player-avatar-wrap {
   position: relative;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .player-avatar {
-  width: 54px;
-  height: 54px;
-  background: rgba(0, 0, 0, 0.45);
-  border: 2px solid rgba(255, 255, 255, 0.25);
+  width: 52px;
+  height: 52px;
+  background: radial-gradient(circle, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%);
+  border: 2.5px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 26px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  transition: border-color 0.25s, transform 0.25s;
+}
+
+.player-avatar-wrap.turn-active .player-avatar {
+  border-color: var(--gold-primary);
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.9), inset 0 0 10px rgba(251, 191, 36, 0.5);
+  animation: turnPulse 1.2s infinite ease-in-out alternate;
+}
+
+@keyframes turnPulse {
+  from { transform: scale(1); filter: drop-shadow(0 0 6px #fbbf24); }
+  to { transform: scale(1.08); filter: drop-shadow(0 0 14px #fbbf24); }
 }
 
 .role-badge {
   position: absolute;
   bottom: -4px;
-  right: -6px;
+  right: -8px;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 900;
   padding: 1px 6px;
-  border-radius: 10px;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
 }
 
 .role-badge.landlord {
-  background: #fbbf24;
-  color: #000;
+  background: var(--gold-gradient);
+  color: #1a1001;
+  border: 1px solid rgba(255, 255, 255, 0.6);
 }
 
 .role-badge.farmer {
-  background: #10b981;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
 .auto-badge {
   position: absolute;
   top: -4px;
-  left: -4px;
+  left: -6px;
   background: #06b6d4;
   color: #fff;
   font-size: 9px;
-  padding: 1px 4px;
+  padding: 1px 5px;
   border-radius: 4px;
-  font-weight: 700;
+  font-weight: 800;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
 .ready-badge {
   position: absolute;
   top: -4px;
-  right: -4px;
+  right: -6px;
   background: #10b981;
   color: #fff;
   font-size: 9px;
-  padding: 1px 4px;
+  padding: 1px 5px;
   border-radius: 4px;
-  font-weight: 700;
+  font-weight: 800;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
 .player-info {
-  margin-top: 6px;
+  margin-top: 5px;
   text-align: center;
 }
 
 .player-name {
   font-size: 12px;
   font-weight: 700;
-  max-width: 80px;
+  max-width: 84px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #e5e7eb;
+  color: #f3f4f6;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
 }
 
 .card-count-badge {
   font-size: 11px;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.65);
+  border: 1px solid rgba(251, 191, 36, 0.4);
   color: var(--gold-primary);
-  border-radius: 10px;
-  padding: 1px 6px;
-  margin-top: 2px;
+  border-radius: 12px;
+  padding: 1px 7px;
+  margin-top: 3px;
   display: inline-block;
-}
-
-/* 动作气泡 */
-.action-bubble {
-  position: absolute;
-  background: rgba(0, 0, 0, 0.85);
-  border: 1px solid var(--gold-primary);
-  color: var(--gold-primary);
-  font-size: 12px;
   font-weight: 800;
-  padding: 4px 10px;
-  border-radius: 14px;
-  white-space: nowrap;
-  z-index: 30;
-  animation: bubbleAppear 0.3s ease-out;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
-.slot-left .action-bubble {
-  left: 64px;
-  top: 10px;
+/* 报单与报双预警 */
+.card-count-badge.danger-single {
+  background: #ef4444 !important;
+  border-color: #fca5a5 !important;
+  color: #fff !important;
+  font-weight: 900;
+  box-shadow: 0 0 14px #ef4444 !important;
+  animation: dangerBlink 0.55s infinite alternate;
 }
 
-.slot-right .action-bubble {
-  right: 64px;
-  top: 10px;
+.card-count-badge.danger-double {
+  background: #f59e0b !important;
+  border-color: #fde68a !important;
+  color: #1a1001 !important;
+  font-weight: 900;
+  box-shadow: 0 0 12px #f59e0b !important;
+  animation: dangerBlink 0.8s infinite alternate;
 }
 
-#p-my-bubble {
-  position: absolute;
-  bottom: 180px;
-  left: 50%;
-  transform: translateX(-50%);
+@keyframes dangerBlink {
+  from { transform: scale(1); opacity: 0.85; }
+  to { transform: scale(1.15); opacity: 1; }
 }
 
 .timer-countdown {
   margin-top: 4px;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 900;
   color: #fca5a5;
-  background: rgba(239, 68, 68, 0.25);
-  padding: 1px 6px;
+  background: rgba(239, 68, 68, 0.35);
+  padding: 1px 7px;
   border-radius: 10px;
-  border: 1px solid rgba(239, 68, 68, 0.5);
+  border: 1px solid rgba(239, 68, 68, 0.6);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
 }
 
-/* 桌面上已出的牌展示 */
+/* 动作气泡 (不出 / 叫牌 / 互动短语) */
+.action-bubble {
+  position: absolute;
+  background: linear-gradient(135deg, rgba(20, 24, 33, 0.95) 0%, rgba(10, 14, 20, 0.98) 100%);
+  border: 1.5px solid var(--gold-primary);
+  color: var(--gold-primary);
+  font-size: 13px;
+  font-weight: 900;
+  padding: 5px 12px;
+  border-radius: 16px;
+  white-space: nowrap;
+  z-index: 35;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6), 0 0 10px rgba(251, 191, 36, 0.4);
+  animation: bubbleAppear 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.slot-left .action-bubble {
+  left: 68px;
+  top: 10px;
+}
+
+.slot-right .action-bubble {
+  right: 68px;
+  top: 10px;
+}
+
+#p-my-bubble {
+  position: absolute;
+  bottom: 160px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* ==========================================================================
+   桌面上已出牌展示区 (Played Cards)
+   ========================================================================== */
 .played-cards-area {
   position: absolute;
-  top: 60px;
+  top: 56px;
   display: flex;
   gap: 2px;
   z-index: 25;
 }
 
 .slot-left .played-cards-area {
-  left: 76px;
+  left: 74px;
 }
 
 .slot-right .played-cards-area {
-  right: 76px;
+  right: 74px;
   flex-direction: row-reverse;
 }
 
 .my-played-area {
   position: absolute;
-  bottom: 175px;
+  bottom: 145px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -580,163 +765,223 @@ body {
   z-index: 25;
 }
 
-/* 下方我的操作按钮条 */
-.my-controls-bar {
-  position: absolute;
-  bottom: 120px;
-  left: 0;
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  z-index: 30;
-}
-
-.control-panel {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(8px);
-  padding: 6px 16px;
-  border-radius: 30px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.timer-tag {
-  font-size: 14px;
-  font-weight: 800;
-  color: var(--gold-primary);
-  background: rgba(0, 0, 0, 0.6);
-  padding: 4px 10px;
-  border-radius: 12px;
-  border: 1px solid var(--gold-primary);
-}
-
-/* 下方我的手牌区域 */
-.my-hand-wrapper {
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(10px);
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 8px 12px 14px 12px;
-  z-index: 20;
-}
-
-.my-meta-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
-.my-badge-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.mini-avatar {
-  font-size: 20px;
-}
-
-.my-name-text {
-  font-size: 13px;
-  font-weight: 700;
-}
-
-/* 手牌重叠扇形排列 */
-.hand-cards-container {
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  height: 96px;
-  position: relative;
-  overflow-x: auto;
-  overflow-y: visible;
-  padding: 10px 10px 0 10px;
-}
-
-/* 扑克单张卡牌组件 */
+/* ==========================================================================
+   豪华扑克牌组件规范 (Ultra-Refined Playing Card Design)
+   ========================================================================== */
 .card-item {
-  width: 58px;
-  height: 84px;
+  width: var(--card-w);
+  height: var(--card-h);
   background: var(--card-bg);
-  border-radius: 6px;
+  border-radius: var(--radius-card);
   box-shadow: var(--card-shadow);
   border: 1px solid #cbd5e1;
   position: relative;
   cursor: pointer;
-  margin-left: -24px;
-  transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.15s;
+  margin-left: -22px;
+  transition: transform 0.16s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.16s, border-color 0.16s;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .card-item:first-child {
   margin-left: 0;
 }
 
-.card-item.selected {
-  transform: translateY(-22px) !important;
-  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.6), 0 0 10px rgba(251, 191, 36, 0.8);
-  border-color: var(--gold-primary);
+/* 卡牌内饰边线 (Inner fine hairline) */
+.card-item::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  right: 2px;
+  bottom: 2px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 5px;
+  pointer-events: none;
 }
 
+/* 卡牌高光质感 (Glass Sheen) */
+.card-item::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 45%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
+}
+
+/* 卡牌红/黑花色 */
 .card-item.red {
-  color: #dc2626;
+  color: var(--ruby-red);
 }
 
 .card-item.black {
   color: #0f172a;
 }
 
-/* 卡牌角落角标 */
+/* 选中高能浮起效果 */
+.card-item.selected {
+  transform: translateY(-24px) scale(1.03) !important;
+  box-shadow: 0 16px 28px rgba(0, 0, 0, 0.65), 0 0 16px rgba(251, 191, 36, 0.95) !important;
+  border-color: var(--gold-primary) !important;
+  z-index: 50;
+}
+
+.card-item.selected::before {
+  border-color: rgba(251, 191, 36, 0.5);
+}
+
+/* 滑选手势高亮 */
+.card-item.in-drag-select {
+  filter: brightness(1.15) drop-shadow(0 0 8px #fbbf24);
+  transform: translateY(-14px);
+}
+
+/* 卡牌双角标规范 (Dual Corners: Top-Left and Bottom-Right Inverted) */
 .card-corner {
   position: absolute;
-  top: 4px;
-  left: 5px;
   display: flex;
   flex-direction: column;
   align-items: center;
   line-height: 1;
+  z-index: 2;
+}
+
+.corner-top-left {
+  top: 3px;
+  left: 3px;
+}
+
+.corner-bottom-right {
+  bottom: 3px;
+  right: 3px;
+  transform: rotate(180deg);
 }
 
 .card-rank {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 900;
-  font-family: Arial, sans-serif;
+  font-family: var(--font-poker);
+  letter-spacing: -0.5px;
 }
 
 .card-suit {
   font-size: 11px;
+  margin-top: 1px;
 }
 
-/* 卡牌中心花色 */
+/* 卡牌中心艺术图案 */
 .card-center-suit {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 26px;
-  opacity: 0.85;
+  font-size: 28px;
+  opacity: 0.88;
+  z-index: 2;
 }
 
-/* 大小王特殊样式 */
-.card-item.joker .card-center-suit {
+.card-center-ace {
+  font-size: 34px;
+  opacity: 0.92;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.15));
+}
+
+.card-center-two {
+  font-size: 30px;
+  opacity: 0.92;
+  font-weight: 900;
+}
+
+/* 宫廷人物牌 (J, Q, K) 艺术徽章 */
+.card-face-figure {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.figure-crown {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.figure-title {
+  font-size: 14px;
+  font-weight: 900;
+  font-family: var(--font-poker);
+  margin-top: -2px;
+}
+
+.figure-sub {
+  font-size: 10px;
+  margin-top: -2px;
+}
+
+/* 大小王 (Jokers) 华丽专属样式 */
+.card-item.joker {
+  background: linear-gradient(145deg, #ffffff 0%, #fefce8 60%, #fef08a 100%);
+}
+
+.card-item.joker.red {
+  background: linear-gradient(145deg, #ffffff 0%, #fff1f2 50%, #fecdd3 100%);
+  border-color: #f43f5e;
+}
+
+.card-item.joker.black {
+  background: linear-gradient(145deg, #ffffff 0%, #f1f5f9 50%, #cbd5e1 100%);
+  border-color: #64748b;
+}
+
+.joker-graphic {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  text-align: center;
+}
+
+.joker-crown {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.joker-text {
   font-size: 13px;
   font-weight: 900;
-  text-align: center;
+  letter-spacing: 1px;
+}
+
+.joker-sub {
+  font-size: 7px;
+  font-weight: 800;
   letter-spacing: 0.5px;
-  writing-mode: vertical-rl;
+  opacity: 0.75;
 }
 
-/* 缩小版桌面已出卡牌 */
+/* 经典尊贵牌背 (Card Back) */
+.bottom-card-item,
 .mini-card {
-  width: 36px;
-  height: 52px;
-  margin-left: -16px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  width: var(--mini-card-w);
+  height: var(--mini-card-h);
+  margin-left: -18px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
 }
 
-.mini-card:first-child {
+.mini-card:first-child,
+.bottom-card-item:first-child {
   margin-left: 0;
 }
 
@@ -752,329 +997,285 @@ body {
   font-size: 16px;
 }
 
-/* 弹窗通用样式 */
-.modal-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(8px);
+.mini-card .figure-crown {
+  font-size: 13px;
+}
+
+.mini-card .figure-title {
+  font-size: 10px;
+}
+
+.mini-card .joker-crown {
+  font-size: 13px;
+}
+
+.mini-card .joker-text {
+  font-size: 9px;
+}
+
+/* 牌背：皇家蓝细密交错纹理 */
+.card-item.card-back,
+.bottom-card-item.card-back {
+  background: radial-gradient(circle at center, #1e3a8a 0%, #0f172a 100%) !important;
+  border: 1.5px solid #3b82f6 !important;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  position: relative;
+  overflow: hidden;
 }
 
-.modal-card {
-  background: #1e293b;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: var(--radius-lg);
-  max-width: 480px;
-  width: 90%;
-  padding: 24px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+.card-item.card-back::before,
+.bottom-card-item.card-back::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  right: 3px;
+  bottom: 3px;
+  border: 1px solid rgba(251, 191, 36, 0.6);
+  border-radius: 4px;
+  background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.06) 0, rgba(255,255,255,0.06) 2px, transparent 0, transparent 6px),
+                    repeating-linear-gradient(-45deg, rgba(255,255,255,0.06) 0, rgba(255,255,255,0.06) 2px, transparent 0, transparent 6px);
 }
 
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  color: #9ca3af;
-  font-size: 20px;
-  cursor: pointer;
-}
-
-.qrcode-wrapper {
-  display: flex;
-  justify-content: center;
-  background: #fff;
-  padding: 12px;
-  border-radius: var(--radius-md);
-  width: fit-content;
-  margin: 0 auto 16px auto;
-}
-
-.share-url-box {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.share-url-box input {
-  flex: 1;
-  padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: var(--radius-sm);
-  color: #fff;
-  font-size: 13px;
-  outline: none;
-}
-
-.ip-selector-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.rules-content ul {
-  padding-left: 20px;
-  margin-top: 8px;
-  margin-bottom: 16px;
-  font-size: 13px;
-  line-height: 1.6;
-  color: #cbd5e1;
-}
-
-.rules-content h4 {
-  color: var(--gold-primary);
-  margin-top: 12px;
-  font-size: 14px;
-}
-
-/* 结算弹窗 */
-.settle-card {
-  text-align: center;
-}
-
-.settle-header h2 {
-  font-size: 26px;
-  color: var(--gold-primary);
-  font-weight: 900;
-}
-
-.settle-sub {
-  font-size: 13px;
-  color: #cbd5e1;
-  margin-top: 4px;
-  margin-bottom: 16px;
-}
-
-.score-board-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin-bottom: 20px;
-}
-
-.score-col {
-  background: rgba(0, 0, 0, 0.25);
-  padding: 12px 6px;
-  border-radius: var(--radius-md);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.score-col.winner {
-  border-color: var(--gold-primary);
-  background: rgba(251, 191, 36, 0.15);
-}
-
-.score-val {
+.bottom-card-item.card-back::after {
+  content: '🎴';
   font-size: 18px;
-  font-weight: 900;
-  margin-top: 4px;
+  position: relative;
+  z-index: 2;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
 }
 
-.score-val.positive {
-  color: #10b981;
-}
-
-.score-val.negative {
-  color: #ef4444;
-}
-
-.revealed-hands-list {
-  text-align: left;
-  background: rgba(0, 0, 0, 0.3);
-  padding: 10px;
-  border-radius: var(--radius-md);
-  margin-bottom: 20px;
-  max-height: 140px;
-  overflow-y: auto;
-}
-
-.revealed-row {
-  margin-bottom: 8px;
-  font-size: 12px;
-}
-
-.revealed-row-cards {
+/* ==========================================================================
+   下方我的操作控制面板 (Controls Bar)
+   ========================================================================== */
+.my-controls-bar {
+  position: absolute;
+  bottom: 104px;
+  left: 0;
+  width: 100%;
   display: flex;
-  gap: 2px;
-  margin-top: 4px;
+  justify-content: center;
+  z-index: 40;
+  pointer-events: none;
 }
 
-.hidden {
-  display: none !important;
+.control-panel {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(10, 15, 24, 0.82);
+  backdrop-filter: blur(14px);
+  padding: 6px 16px;
+  border-radius: 30px;
+  border: 1.5px solid rgba(251, 191, 36, 0.35);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 14px rgba(251, 191, 36, 0.2);
 }
 
-@keyframes bubbleAppear {
-  from { opacity: 0; transform: scale(0.6); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-@keyframes bannerPop {
-  0% { transform: translateX(-50%) scale(0.4); opacity: 0; }
-  70% { transform: translateX(-50%) scale(1.1); opacity: 1; }
-  100% { transform: translateX(-50%) scale(1); opacity: 1; }
-}
-
-@keyframes bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
+.timer-tag {
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--gold-primary);
+  background: rgba(0, 0, 0, 0.7);
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--gold-primary);
+  font-family: monospace;
 }
 
 /* 实时牌型指示徽章 */
 .card-type-pill {
   font-size: 12px;
   font-weight: 800;
-  padding: 4px 10px;
+  padding: 4px 12px;
   border-radius: 20px;
   white-space: nowrap;
   transition: all 0.2s ease;
 }
 
 .card-type-pill.valid {
-  background: rgba(16, 185, 129, 0.25);
+  background: rgba(16, 185, 129, 0.28);
   border: 1px solid #10b981;
   color: #6ee7b7;
   box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
 }
 
 .card-type-pill.warning {
-  background: rgba(245, 158, 11, 0.25);
+  background: rgba(245, 158, 11, 0.28);
   border: 1px solid #f59e0b;
   color: #fcd34d;
 }
 
 .card-type-pill.invalid {
-  background: rgba(239, 68, 68, 0.25);
+  background: rgba(239, 68, 68, 0.28);
   border: 1px solid #ef4444;
   color: #fca5a5;
 }
 
-/* 出牌按钮就绪高亮 */
+/* 出牌按钮就绪高能呼吸灯 */
 #btn-submit-play.can-play {
-  animation: pulsePlayBtn 1s infinite alternate;
-  box-shadow: 0 0 16px rgba(16, 185, 129, 0.8);
+  animation: pulsePlayBtn 0.9s infinite alternate;
+  box-shadow: 0 0 18px rgba(16, 185, 129, 0.85);
 }
 
 @keyframes pulsePlayBtn {
   from { transform: scale(1); }
-  to { transform: scale(1.06); }
+  to { transform: scale(1.06); filter: brightness(1.1); }
 }
 
-/* 牌桌全屏震颤 (炸弹爆炸) */
+/* ==========================================================================
+   下方我的个人标识与手牌展示 (My Hand Section)
+   ========================================================================== */
+.my-hand-wrapper {
+  background: linear-gradient(180deg, rgba(8, 12, 18, 0.75) 0%, rgba(5, 8, 12, 0.95) 100%);
+  backdrop-filter: blur(14px);
+  border-top: 1.5px solid rgba(251, 191, 36, 0.25);
+  padding: 6px 14px 12px 14px;
+  z-index: 30;
+  flex-shrink: 0;
+}
+
+.my-meta-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.my-badge-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mini-avatar {
+  font-size: 20px;
+}
+
+.my-name-text {
+  font-size: 13px;
+  font-weight: 800;
+  color: #f3f4f6;
+}
+
+/* 手牌重叠排列容器 */
+.hand-cards-container {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  height: 98px;
+  position: relative;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: 14px 12px 0 12px;
+  touch-action: none; /* 禁用系统手势，启用丝滑划牌 */
+}
+
+/* ==========================================================================
+   特效动画 (Bomb, Rocket, Airplane, Spring, Banner)
+   ========================================================================== */
+.table-banner {
+  position: absolute;
+  top: 96px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(90deg, #dc2626 0%, #b91c1c 100%);
+  border: 2px solid #fef08a;
+  padding: 8px 24px;
+  border-radius: 30px;
+  font-size: 16px;
+  font-weight: 900;
+  color: #fff;
+  box-shadow: 0 0 30px rgba(220, 38, 38, 0.9), 0 4px 14px rgba(0, 0, 0, 0.6);
+  animation: bannerPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  z-index: 55;
+  white-space: nowrap;
+}
+
+@keyframes bannerPop {
+  0% { transform: translateX(-50%) scale(0.3); opacity: 0; }
+  70% { transform: translateX(-50%) scale(1.1); opacity: 1; }
+  100% { transform: translateX(-50%) scale(1); opacity: 1; }
+}
+
 .screen-shake {
   animation: tableShake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
 }
 
 @keyframes tableShake {
-  10%, 90% { transform: translate3d(-3px, 1px, 0); }
-  20%, 80% { transform: translate3d(4px, -2px, 0); }
-  30%, 50%, 70% { transform: translate3d(-6px, 4px, 0); }
-  40%, 60% { transform: translate3d(6px, -4px, 0); }
+  10%, 90% { transform: translate3d(-4px, 2px, 0); }
+  20%, 80% { transform: translate3d(5px, -3px, 0); }
+  30%, 50%, 70% { transform: translate3d(-7px, 5px, 0); }
+  40%, 60% { transform: translate3d(7px, -5px, 0); }
 }
 
-/* 手牌滑选高亮 */
-.card-item.in-drag-select {
-  filter: brightness(1.2) drop-shadow(0 0 8px #fbbf24);
-  transform: translateY(-12px);
-}
-
-/* 报单与报双紧急预警徽章 */
-.card-count-badge.danger-single {
-  background: #ef4444 !important;
-  color: #fff !important;
-  font-weight: 900;
-  box-shadow: 0 0 12px #ef4444;
-  animation: dangerBlink 0.6s infinite alternate;
-}
-
-.card-count-badge.danger-double {
-  background: #f59e0b !important;
-  color: #fff !important;
-  font-weight: 900;
-  box-shadow: 0 0 10px #f59e0b;
-  animation: dangerBlink 0.9s infinite alternate;
-}
-
-@keyframes dangerBlink {
-  from { transform: scale(1); opacity: 0.85; }
-  to { transform: scale(1.12); opacity: 1; }
-}
-
-/* 全屏特技动画 (飞机、火箭、炸弹) */
 .airplane-anim {
   position: absolute;
   top: 35%;
-  left: -100px;
-  font-size: 54px;
-  z-index: 55;
+  left: -120px;
+  font-size: 64px;
+  z-index: 58;
   pointer-events: none;
   animation: flyAirplane 1.8s ease-in-out forwards;
 }
 
 @keyframes flyAirplane {
-  0% { transform: translate(0, 0) scale(0.6); opacity: 0; left: -100px; }
-  20% { opacity: 1; transform: translate(150px, -30px) scale(1.1); }
-  60% { transform: translate(500px, 20px) scale(1.3); opacity: 1; }
-  100% { transform: translate(1100px, -50px) scale(0.8); opacity: 0; }
+  0% { transform: translate(0, 0) scale(0.5); opacity: 0; left: -120px; }
+  25% { opacity: 1; transform: translate(200px, -30px) scale(1.1); }
+  60% { transform: translate(600px, 20px) scale(1.3); opacity: 1; }
+  100% { transform: translate(1200px, -50px) scale(0.7); opacity: 0; }
 }
 
 .rocket-anim {
   position: absolute;
-  bottom: -100px;
+  bottom: -120px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 64px;
-  z-index: 55;
+  font-size: 72px;
+  z-index: 58;
   pointer-events: none;
   animation: launchRocket 1.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 
 @keyframes launchRocket {
-  0% { bottom: -100px; opacity: 0; transform: translateX(-50%) scale(0.6); }
+  0% { bottom: -120px; opacity: 0; transform: translateX(-50%) scale(0.5); }
   30% { opacity: 1; transform: translateX(-50%) scale(1.2); }
-  70% { bottom: 60%; transform: translateX(-50%) scale(1.4); opacity: 1; }
-  100% { bottom: 120%; transform: translateX(-50%) scale(0.5); opacity: 0; }
+  70% { bottom: 65%; transform: translateX(-50%) scale(1.5); opacity: 1; }
+  100% { bottom: 125%; transform: translateX(-50%) scale(0.5); opacity: 0; }
 }
 
 .bomb-anim {
   position: absolute;
-  top: 40%;
+  top: 42%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 72px;
-  z-index: 55;
+  font-size: 80px;
+  z-index: 58;
   pointer-events: none;
   animation: dropBomb 1.2s ease-out forwards;
 }
 
 @keyframes dropBomb {
-  0% { transform: translate(-50%, -200px) scale(0.4); opacity: 0; }
+  0% { transform: translate(-50%, -240px) scale(0.4); opacity: 0; }
   40% { transform: translate(-50%, -50%) scale(1.3); opacity: 1; }
-  70% { transform: translate(-50%, -50%) scale(1.6); opacity: 1; filter: brightness(2); }
-  100% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
+  70% { transform: translate(-50%, -50%) scale(1.7); opacity: 1; filter: brightness(2); }
+  100% { transform: translate(-50%, -50%) scale(2.2); opacity: 0; }
 }
 
-/* 悬浮快捷互动聊天按钮 */
+/* ==========================================================================
+   快捷互动与聊天弹窗 (Chat & Floating button)
+   ========================================================================== */
 .floating-chat-btn {
   position: absolute;
-  bottom: 120px;
+  bottom: 104px;
   right: 14px;
   width: 42px;
   height: 42px;
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid var(--gold-primary);
+  background: rgba(15, 23, 42, 0.85);
+  border: 1.5px solid var(--gold-primary);
   color: var(--gold-primary);
   border-radius: 50%;
   display: flex;
@@ -1082,29 +1283,28 @@ body {
   justify-content: center;
   font-size: 20px;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  z-index: 35;
-  transition: all 0.2s;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5), 0 0 10px rgba(251, 191, 36, 0.3);
+  z-index: 45;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .floating-chat-btn:hover {
-  transform: scale(1.1);
-  background: rgba(0, 0, 0, 0.85);
+  transform: scale(1.12);
+  background: rgba(15, 23, 42, 1);
 }
 
-/* 快捷互动弹窗 */
 .chat-popup {
   position: absolute;
-  bottom: 170px;
+  bottom: 154px;
   right: 14px;
   width: 290px;
-  background: rgba(15, 23, 42, 0.95);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(251, 191, 36, 0.4);
-  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.96);
+  backdrop-filter: blur(16px);
+  border: 1.5px solid rgba(251, 191, 36, 0.5);
+  border-radius: var(--radius-md);
   padding: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
-  z-index: 45;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.8);
+  z-index: 50;
 }
 
 .chat-popup-header {
@@ -1112,7 +1312,7 @@ body {
   justify-content: space-between;
   align-items: center;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--gold-primary);
   margin-bottom: 8px;
 }
@@ -1138,8 +1338,8 @@ body {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid transparent;
   font-size: 20px;
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   border-radius: 8px;
   cursor: pointer;
   display: flex;
@@ -1149,7 +1349,7 @@ body {
 }
 
 .chat-emoji-btn:hover {
-  background: rgba(251, 191, 36, 0.2);
+  background: rgba(251, 191, 36, 0.25);
   border-color: var(--gold-primary);
   transform: scale(1.15);
 }
@@ -1158,14 +1358,14 @@ body {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  max-height: 160px;
+  max-height: 150px;
   overflow-y: auto;
 }
 
 .chat-phrase-btn {
   text-align: left;
   background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   color: #e2e8f0;
   font-size: 12px;
   padding: 6px 10px;
@@ -1175,15 +1375,243 @@ body {
 }
 
 .chat-phrase-btn:hover {
-  background: rgba(251, 191, 36, 0.15);
+  background: rgba(251, 191, 36, 0.2);
   border-color: var(--gold-primary);
   color: #fff;
 }
 
-/* 优雅浮动 Toast */
+/* ==========================================================================
+   通用弹窗规范 (Modals)
+   ========================================================================== */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal-card {
+  background: linear-gradient(165deg, #1e293b 0%, #0f172a 100%);
+  border: 1.5px solid rgba(251, 191, 36, 0.35);
+  border-radius: var(--radius-lg);
+  max-width: 480px;
+  width: 90%;
+  padding: 22px;
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.8), 0 0 25px rgba(251, 191, 36, 0.15);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 22px;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.modal-close:hover {
+  color: #fff;
+}
+
+.qrcode-wrapper {
+  display: flex;
+  justify-content: center;
+  background: #fff;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  width: fit-content;
+  margin: 0 auto 14px auto;
+}
+
+.share-url-box {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.share-url-box input {
+  flex: 1;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--radius-sm);
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+}
+
+.rules-content ul {
+  padding-left: 20px;
+  margin-top: 8px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #cbd5e1;
+}
+
+.rules-content h4 {
+  color: var(--gold-primary);
+  margin-top: 10px;
+  font-size: 14px;
+}
+
+/* 结算弹窗 (Settle Modal) */
+.settle-card {
+  text-align: center;
+}
+
+.settle-header h2 {
+  font-size: 26px;
+  background: var(--gold-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 900;
+}
+
+.settle-sub {
+  font-size: 13px;
+  color: #cbd5e1;
+  margin-top: 4px;
+  margin-bottom: 14px;
+}
+
+.score-board-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.score-col {
+  background: rgba(0, 0, 0, 0.35);
+  padding: 10px 4px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.score-col.winner {
+  border-color: var(--gold-primary);
+  background: rgba(251, 191, 36, 0.18);
+  box-shadow: 0 0 14px rgba(251, 191, 36, 0.3);
+}
+
+.score-val {
+  font-size: 18px;
+  font-weight: 900;
+  margin-top: 4px;
+}
+
+.score-val.positive {
+  color: #10b981;
+}
+
+.score-val.negative {
+  color: #ef4444;
+}
+
+.revealed-hands-list {
+  text-align: left;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 10px;
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+  max-height: 130px;
+  overflow-y: auto;
+}
+
+.revealed-row {
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.revealed-row-cards {
+  display: flex;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+/* ==========================================================================
+   横屏引导弹窗 (Orientation Guide Overlay)
+   ========================================================================== */
+.orientation-guide {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(5, 8, 14, 0.88);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 120;
+}
+
+.orientation-guide-card {
+  background: linear-gradient(165deg, #1e293b 0%, #0f172a 100%);
+  border: 2px solid var(--gold-primary);
+  border-radius: var(--radius-lg);
+  max-width: 380px;
+  width: 86%;
+  padding: 24px;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(251, 191, 36, 0.3);
+  animation: bannerPop 0.35s ease-out;
+}
+
+.guide-rotate-icon {
+  font-size: 54px;
+  animation: rotatePhone 2.4s infinite ease-in-out;
+  margin-bottom: 12px;
+}
+
+@keyframes rotatePhone {
+  0%, 10% { transform: rotate(0deg); }
+  45%, 65% { transform: rotate(-90deg); }
+  90%, 100% { transform: rotate(0deg); }
+}
+
+.guide-title {
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--gold-primary);
+  margin-bottom: 6px;
+}
+
+.guide-desc {
+  font-size: 13px;
+  color: #94a3b8;
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.guide-btn-group {
+  display: flex;
+  gap: 10px;
+}
+
+.guide-btn-group .btn {
+  flex: 1;
+}
+
+/* 浮动 Toast 提示 */
 .toast-container {
   position: fixed;
-  top: 20px;
+  top: 16px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 1000;
@@ -1194,19 +1622,202 @@ body {
 }
 
 .toast {
-  background: rgba(15, 23, 42, 0.94);
-  border: 1px solid rgba(251, 191, 36, 0.7);
+  background: rgba(15, 23, 42, 0.96);
+  border: 1.5px solid var(--gold-primary);
   color: #fff;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 800;
   padding: 8px 18px;
   border-radius: 20px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 12px rgba(251, 191, 36, 0.4);
   animation: toastPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   pointer-events: auto;
 }
 
 @keyframes toastPop {
-  from { transform: translateY(-20px) scale(0.8); opacity: 0; }
+  from { transform: translateY(-20px) scale(0.85); opacity: 0; }
   to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.hidden {
+  display: none !important;
+}
+
+@keyframes bubbleAppear {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+/* ==========================================================================
+   移动端横屏专属布局优化 (Landscape Orientation Responsive Adjustments)
+   当手机横置 (orientation: landscape) 或使用虚拟横屏时触发
+   ========================================================================== */
+@media screen and (orientation: landscape) and (max-height: 580px), screen and (max-height: 520px) {
+  :root {
+    --card-w: 56px;
+    --card-h: 82px;
+    --mini-card-w: 36px;
+    --mini-card-h: 52px;
+  }
+
+  /* 顶部导航条极端精简，释放垂直黄金空间 */
+  .header-bar {
+    padding: 3px 12px;
+    height: 36px;
+  }
+
+  .logo-badge {
+    font-size: 13px;
+  }
+
+  .icon-btn {
+    width: 28px;
+    height: 28px;
+    font-size: 13px;
+  }
+
+  .room-tag {
+    font-size: 11px;
+    padding: 1px 6px;
+  }
+
+  /* 牌桌铺满 */
+  .game-table-felt {
+    margin: 2px 4px;
+    border-width: 4px;
+    border-radius: 12px;
+  }
+
+  /* 桌面上方底牌盘更紧凑 */
+  .table-top-center {
+    padding-top: 4px;
+  }
+
+  .bottom-cards-tray {
+    padding: 2px 8px 4px 8px;
+    border-radius: 8px;
+  }
+
+  .tray-title {
+    font-size: 10px;
+  }
+
+  .multiplier-tag {
+    font-size: 10px;
+    padding: 1px 6px;
+  }
+
+  /* 左右玩家座席贴靠两侧 */
+  .player-slot {
+    top: 36px;
+  }
+
+  .slot-left {
+    left: max(8px, env(safe-area-inset-left));
+  }
+
+  .slot-right {
+    right: max(8px, env(safe-area-inset-right));
+  }
+
+  .player-avatar {
+    width: 44px;
+    height: 44px;
+    font-size: 22px;
+  }
+
+  .player-name {
+    font-size: 11px;
+    max-width: 72px;
+  }
+
+  .card-count-badge {
+    font-size: 10px;
+    padding: 1px 5px;
+  }
+
+  .slot-left .played-cards-area {
+    left: 64px;
+    top: 48px;
+  }
+
+  .slot-right .played-cards-area {
+    right: 64px;
+    top: 48px;
+  }
+
+  /* 我的操作面板紧贴手牌上方 */
+  .my-controls-bar {
+    bottom: 84px;
+  }
+
+  .control-panel {
+    padding: 4px 12px;
+    gap: 8px;
+  }
+
+  .btn {
+    padding: 6px 14px;
+    font-size: 13px;
+  }
+
+  .timer-tag {
+    font-size: 12px;
+    padding: 2px 8px;
+  }
+
+  /* 我的手牌区域高度优化 */
+  .my-hand-wrapper {
+    padding: 3px 8px 6px 8px;
+  }
+
+  .my-meta-bar {
+    margin-bottom: 2px;
+  }
+
+  .mini-avatar {
+    font-size: 16px;
+  }
+
+  .my-name-text {
+    font-size: 12px;
+  }
+
+  .hand-cards-container {
+    height: 86px;
+    padding: 8px 8px 0 8px;
+  }
+
+  .my-played-area {
+    bottom: 115px;
+  }
+
+  #p-my-bubble {
+    bottom: 120px;
+  }
+
+  .floating-chat-btn {
+    bottom: 84px;
+    right: max(10px, env(safe-area-inset-right));
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+  }
+
+  .chat-popup {
+    bottom: 126px;
+    right: max(10px, env(safe-area-inset-right));
+    width: 260px;
+  }
+
+  .table-banner {
+    top: 60px;
+    font-size: 14px;
+    padding: 6px 18px;
+  }
 }

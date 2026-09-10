@@ -2,7 +2,14 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="screen-orientation" content="landscape">
+  <meta name="x5-orientation" content="landscape">
+  <meta name="full-screen" content="yes">
+  <meta name="x5-fullscreen" content="true">
+  <meta name="theme-color" content="#092017">
   <title>欢乐斗地主 - 聚会棋牌联机对战</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -23,6 +30,7 @@
       </div>
 
       <div class="header-actions">
+        <button id="btn-toggle-orientation" class="icon-btn" title="横屏/竖屏切换">🔄</button>
         <button id="btn-leave-room" class="icon-btn hidden" title="退出当前房间" style="background: rgba(244,63,94,0.18); border-color: rgba(244,63,94,0.4); color: #fca5a5;">🚪</button>
         <button id="btn-quick-invite" class="icon-btn" title="扫码邀请好友加入">📱</button>
         <button id="btn-auto-toggle" class="icon-btn hidden" title="托管开关">🤖</button>
@@ -66,15 +74,26 @@
       <!-- 牌桌主体背景与容器 -->
       <div class="game-table-felt">
         
+        <!-- 牌桌中央艺术水印 -->
+        <div class="table-watermark">
+          <div class="watermark-suits">♠ ♥ ♣ ♦</div>
+          <div class="watermark-text">经典三人竞技</div>
+        </div>
+
         <!-- 桌面上方：3张底牌与全局倍数 -->
         <div class="table-top-center">
-          <div class="bottom-cards-box" id="bottom-cards-container">
-            <div class="bottom-card-item card-back">?</div>
-            <div class="bottom-card-item card-back">?</div>
-            <div class="bottom-card-item card-back">?</div>
-          </div>
-          <div class="multiplier-tag" id="multiplier-tag">
-            倍数 <span id="table-multiplier-num">1</span> 倍
+          <div class="bottom-cards-tray">
+            <div class="tray-title-bar">
+              <span class="tray-title">底 牌</span>
+              <div class="multiplier-tag" id="multiplier-tag">
+                倍数 <span id="table-multiplier-num">1</span> 倍
+              </div>
+            </div>
+            <div class="bottom-cards-box" id="bottom-cards-container">
+              <div class="bottom-card-item card-back">?</div>
+              <div class="bottom-card-item card-back">?</div>
+              <div class="bottom-card-item card-back">?</div>
+            </div>
           </div>
         </div>
 
@@ -278,6 +297,19 @@
         <div class="modal-footer" style="display: flex; gap: 10px;">
           <button id="btn-settle-leave" class="btn btn-secondary" style="flex: 1;">🚪 退出房间</button>
           <button id="btn-play-again" class="btn btn-gold btn-lg" style="flex: 1.5;">再来一局</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 手机竖屏提示与快速转横屏引导 -->
+    <div id="orientation-guide" class="orientation-guide hidden">
+      <div class="orientation-guide-card">
+        <div class="guide-rotate-icon">📱↷</div>
+        <h3 class="guide-title">建议横屏游玩</h3>
+        <p class="guide-desc">横屏下扑克牌更大更清晰，三方对战尽收眼底！</p>
+        <div class="guide-btn-group">
+          <button id="btn-guide-force" class="btn btn-gold">🔄 开启横屏模式</button>
+          <button id="btn-guide-dismiss" class="btn btn-secondary">保持竖屏</button>
         </div>
       </div>
     </div>
