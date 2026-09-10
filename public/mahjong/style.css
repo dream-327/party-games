@@ -64,7 +64,7 @@ html, body {
   background: #05140d;
 }
 
-/* 强制横屏 */
+/* 强制虚拟横屏模式 */
 body.force-landscape {
   width: 100vw !important;
   height: 100vh !important;
@@ -72,6 +72,10 @@ body.force-landscape {
   position: fixed !important;
   top: 0 !important;
   left: 0 !important;
+  --tile-w: 42px;
+  --tile-h: 60px;
+  --tile-discard-w: 22px;
+  --tile-discard-h: 32px;
 }
 
 body.force-landscape #app {
@@ -83,6 +87,53 @@ body.force-landscape #app {
   left: 100vw !important;
   transform: rotate(90deg) !important;
   transform-origin: top left !important;
+  z-index: 100 !important;
+}
+
+body.force-landscape .header-bar {
+  height: 38px;
+  padding: 2px 10px;
+}
+
+body.force-landscape .table-compass {
+  width: 116px;
+  height: 116px;
+}
+
+body.force-landscape .compass-timer {
+  font-size: 20px;
+}
+
+body.force-landscape .my-hand-panel {
+  padding: 2px 8px 4px 8px;
+}
+
+body.force-landscape .my-tiles-container {
+  min-height: 64px;
+}
+
+body.force-landscape .action-btn {
+  width: 46px;
+  height: 46px;
+  font-size: 15px;
+}
+
+body.force-landscape .action-prompts-bar {
+  bottom: 84px;
+  right: 12px;
+}
+
+body.force-landscape .phase-action-bar {
+  bottom: 88px;
+  padding: 5px 14px;
+  font-size: 13px;
+}
+
+body.force-landscape .ting-helper-pill {
+  bottom: 88px;
+  left: 10px;
+  padding: 2px 8px;
+  font-size: 10px;
 }
 
 /* 顶部状态栏 */
@@ -619,14 +670,19 @@ body.force-landscape #app {
   width: 100%;
   height: 100%;
   position: relative;
-  background: linear-gradient(170deg, #ffffff 0%, #fbfcfd 60%, #e2e8f0 100%);
+  background: linear-gradient(172deg, #ffffff 0%, #fdfbf7 35%, #f7f2e9 75%, #eae2d3 100%);
   border-radius: 6px;
-  border: 1px solid #cbd5e1;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  border: 1px solid #dcd5c7;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.95), inset 0 -1.5px 2px rgba(0, 0, 0, 0.1);
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: filter 0.12s ease;
+}
+
+.mj-tile:hover .mj-tile-body {
+  filter: brightness(1.03);
 }
 
 /* 麻将正面的内容与矢量 SVG 绝对饱满贴合 */
@@ -641,13 +697,13 @@ body.force-landscape #app {
 }
 
 .mj-svg {
-  width: 90%;
-  height: 90%;
+  width: 92%;
+  height: 92%;
   display: block;
   pointer-events: none;
 }
 
-/* 麻将翡翠玉背厚度层 */
+/* 麻将翡翠玉背厚度层 (双层骨玉结构，上骨下玉，金线接缝) */
 .mj-tile::after {
   content: '';
   position: absolute;
@@ -657,17 +713,19 @@ body.force-landscape #app {
   height: 6px;
   background: linear-gradient(180deg, #059669 0%, #047857 50%, #022c22 100%);
   border-radius: 0 0 6px 6px;
+  border-top: 1px solid rgba(251, 191, 36, 0.45);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.5);
   z-index: -1;
 }
 
 /* 手牌选中悬浮 */
 .mj-tile.selected {
-  transform: translateY(-14px);
+  transform: translateY(-16px);
 }
 
 .mj-tile.selected .mj-tile-body {
-  border-color: #fbbf24;
-  box-shadow: 0 8px 18px rgba(251, 191, 36, 0.5), inset 0 0 8px rgba(251, 191, 36, 0.3);
+  border-color: #f59e0b;
+  box-shadow: 0 10px 24px rgba(245, 158, 11, 0.55), inset 0 0 8px rgba(254, 240, 138, 0.4);
 }
 
 /* 定缺牌警示变暗 */
@@ -1129,4 +1187,68 @@ body.force-landscape #app {
     padding: 2px 8px;
     font-size: 10px;
   }
+}
+
+/* ==========================================================================
+   手机端横屏引导弹窗 (Mobile Orientation Guide)
+   ========================================================================== */
+.orientation-guide {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(4, 15, 10, 0.88);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 150;
+}
+
+.orientation-guide-card {
+  background: linear-gradient(165deg, #0d3824 0%, #061e12 100%);
+  border: 2px solid #fbbf24;
+  border-radius: 20px;
+  max-width: 360px;
+  width: 86%;
+  padding: 24px;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(251, 191, 36, 0.3);
+  animation: bannerPop 0.35s ease-out;
+}
+
+.guide-rotate-icon {
+  font-size: 52px;
+  animation: rotatePhone 2.4s infinite ease-in-out;
+  margin-bottom: 12px;
+}
+
+@keyframes rotatePhone {
+  0%, 10% { transform: rotate(0deg); }
+  45%, 65% { transform: rotate(-90deg); }
+  90%, 100% { transform: rotate(0deg); }
+}
+
+.guide-title {
+  font-size: 20px;
+  font-weight: 900;
+  color: #fbbf24;
+  margin-bottom: 8px;
+}
+
+.guide-desc {
+  font-size: 13px;
+  color: #a7f3d0;
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.guide-btn-group {
+  display: flex;
+  gap: 10px;
+}
+
+.guide-btn-group .btn {
+  flex: 1;
 }

@@ -18,6 +18,7 @@
   let myAvatar = localStorage.getItem('mj_avatar') || AVATARS[0];
 
   let currentRoom = null;
+  let lastPhase = null;
   let selectedTileId = null;
   let selectedSwapIds = new Set();
   let timerInterval = null;
@@ -37,6 +38,9 @@
   const btnCreateRoom = document.getElementById('btn-create-room');
   const btnJoinRoom = document.getElementById('btn-join-room');
   const btnToggleOrientation = document.getElementById('btn-toggle-orientation');
+  const orientationGuide = document.getElementById('orientation-guide');
+  const btnGuideForce = document.getElementById('btn-guide-force');
+  const btnGuideDismiss = document.getElementById('btn-guide-dismiss');
   const btnSettings = document.getElementById('btn-settings');
   const btnLeaveRoom = document.getElementById('btn-leave-room');
   const btnQuickInvite = document.getElementById('btn-quick-invite');
@@ -206,6 +210,11 @@
 
   // 渲染麻将房间桌面状态
   function renderRoom(room) {
+    if (lastPhase === 'LOBBY' && room.gameState && room.gameState.phase !== 'LOBBY') {
+      window.sfx && window.sfx.playDeal();
+    }
+    lastPhase = room.gameState ? room.gameState.phase : null;
+
     currentRoom = room;
 
     viewHome.classList.add('hidden');
@@ -213,6 +222,9 @@
     roomCodeTag.classList.remove('hidden');
     if (btnLeaveRoom) btnLeaveRoom.classList.remove('hidden');
     currentRoomCodeEl.textContent = room.code;
+
+    // 提示竖屏移动端用户切换横屏
+    checkOrientationPrompt();
 
     const mySeat = room.mySeatIndex;
     const seats = room.seats;
@@ -498,7 +510,7 @@
       if (res && res.success) {
         selectedTileId = null;
         tingHelperPill.classList.add('hidden');
-        window.sfx && window.sfx.playTileDiscard();
+        if (btnDiscardSelected) btnDiscardSelected.classList.add('hidden');
       } else {
         showToast((res && res.message) || '出牌失败');
       }
@@ -609,10 +621,15 @@
 
   // 倒计时
   clearInterval(timerInterval);
+  let lastRemain = null;
   timerInterval = setInterval(() => {
     if (!currentRoom || !currentRoom.gameState.turnDeadline) return;
     const remain = Math.max(0, Math.ceil((currentRoom.gameState.turnDeadline - Date.now()) / 1000));
     turnCountdown.textContent = remain;
+    if (remain <= 5 && remain > 0 && remain !== lastRemain && currentRoom.gameState.phase === 'PLAYING') {
+      window.sfx && window.sfx.playTick();
+    }
+    lastRemain = remain;
   }, 1000);
 
   // 初始化设置与事件绑定
@@ -801,10 +818,15 @@
   // 退出房间
   function exitToHome() {
     currentRoom = null;
+    lastPhase = null;
     viewHome.classList.remove('hidden');
     viewTable.classList.add('hidden');
     roomCodeTag.classList.add('hidden');
     modalSettle.classList.add('hidden');
+    if (document.body.classList.contains('force-landscape')) {
+      toggleForceLandscape(false);
+    }
+    if (orientationGuide) orientationGuide.classList.add('hidden');
   }
 
   btnLeaveRoom.addEventListener('click', () => {
@@ -826,13 +848,78 @@
 
   btnCloseSettle.addEventListener('click', () => modalSettle.classList.add('hidden'));
 
+  // 横屏模式管理 (Orientation Management)
+  function toggleForceLandscape(forceState) {
+    const isForced = (forceState !== undefined)
+      ? forceState
+      : !document.body.classList.contains('force-landscape');
+
+    if (isForced) {
+      document.body.classList.add('force-landscape');
+      document.getElementById('app')?.classList.add('force-landscape');
+      if (btnToggleOrientation) btnToggleOrientation.style.color = '#fbbf24';
+      showToast('🔄 已开启横屏沉浸对战模式');
+    } else {
+      document.body.classList.remove('force-landscape');
+      document.getElementById('app')?.classList.remove('force-landscape');
+      if (btnToggleOrientation) btnToggleOrientation.style.color = '#fff';
+      showToast('📱 已恢复默认方向模式');
+    }
+
+    setTimeout(() => {
+      if (currentRoom && currentRoom.mySeatIndex !== -1) {
+        const myData = currentRoom.seats[currentRoom.mySeatIndex];
+        if (myData) renderMyHand(myData.handCards || [], myData.queSuit);
+      }
+    }, 200);
+  }
+
+  if (btnToggleOrientation) {
+    btnToggleOrientation.addEventListener('click', () => toggleForceLandscape());
+  }
+
+  if (btnGuideForce) {
+    btnGuideForce.addEventListener('click', () => {
+      toggleForceLandscape(true);
+      if (orientationGuide) orientationGuide.classList.add('hidden');
+      sessionStorage.setItem('mahjong_guide_dismissed', '1');
+    });
+  }
+
+  if (btnGuideDismiss) {
+    btnGuideDismiss.addEventListener('click', () => {
+      if (orientationGuide) orientationGuide.classList.add('hidden');
+      sessionStorage.setItem('mahjong_guide_dismissed', '1');
+    });
+  }
+
+  function checkOrientationPrompt() {
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    const isPortrait = window.innerHeight > window.innerWidth;
+    const dismissed = sessionStorage.getItem('mahjong_guide_dismissed');
+
+    if (isMobile && isPortrait && !dismissed && orientationGuide && currentRoom) {
+      orientationGuide.classList.remove('hidden');
+    } else if (!isPortrait) {
+      if (document.body.classList.contains('force-landscape')) {
+        document.body.classList.remove('force-landscape');
+        document.getElementById('app')?.classList.remove('force-landscape');
+        if (btnToggleOrientation) btnToggleOrientation.style.color = '#fff';
+      }
+      if (orientationGuide) orientationGuide.classList.add('hidden');
+    }
+  }
+
+  window.addEventListener('resize', checkOrientationPrompt);
+  window.addEventListener('orientationchange', checkOrientationPrompt);
+
   // Socket 核心响应监听
   socket.on('room_update', (room) => {
     renderRoom(room);
   });
 
   socket.on('tile_drawn', ({ tile, canZimo, gangOptions }) => {
-    window.sfx && window.sfx.playTileClick();
+    window.sfx && window.sfx.playDraw();
     if (canZimo) {
       btnActionHu.classList.remove('hidden');
       actionPromptsBar.classList.remove('hidden');
@@ -849,6 +936,23 @@
         socket.emit('action_my_gang', gangOptions[0]);
       };
     }
+  });
+
+  socket.on('tile_discarded', ({ seatIndex, tile }) => {
+    window.sfx && window.sfx.playTileDiscard();
+    if (tile && window.sfx) {
+      window.sfx.speakTile(tile);
+    }
+  });
+
+  socket.on('swap_three_finished', () => {
+    window.sfx && window.sfx.playSwap();
+    showToast('🔀 换三张完成！已换入手牌');
+  });
+
+  socket.on('ding_que_finished', () => {
+    window.sfx && window.sfx.playDingQue();
+    showToast('🎯 全员定缺完毕，牌局开始！');
   });
 
   socket.on('action_prompt', ({ tile, actions }) => {
@@ -898,6 +1002,7 @@
   });
 
   socket.on('game_over_announced', ({ reason, revealedSeats }) => {
+    window.sfx && window.sfx.playCoins();
     settleScoresGrid.innerHTML = '';
     (revealedSeats || []).forEach(s => {
       if (!s) return;
