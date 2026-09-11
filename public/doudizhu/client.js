@@ -218,81 +218,121 @@
     .then(info => { serverInfo = info; })
     .catch(() => {});
 
-  // 渲染单张卡牌 DOM 组件 (极度精致扑克：双角标、宫廷人物雕花、华丽大小王)
+  // 豪华扑克矢量花色 SVG 定义 (极清高保真矢量图腾)
+  const SUIT_SVGS = {
+    '♠': `<svg class="suit-icon" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2C10.6 4.6 5 11.2 5 15.3C5 18 7.1 20.1 9.7 20.1C11 20.1 11.7 19.4 12 18.7C12.3 19.4 13 20.1 14.3 20.1C16.9 20.1 19 18 19 15.3C19 11.2 13.4 4.6 12 2ZM13 18.5V21.5H11V18.5C11.3 18.6 11.7 18.7 12 18.7C12.3 18.7 12.7 18.6 13 18.5Z"/></svg>`,
+    '♥': `<svg class="suit-icon" viewBox="0 0 24 24"><path fill="currentColor" d="M12 21.35L10.55 20.03C5.4 15.36 2 12.28 2 8.5C2 5.42 4.42 3 7.5 3C9.24 3 10.91 3.81 12 5.09C13.09 3.81 14.76 3 16.5 3C19.58 3 22 5.42 22 8.5C22 12.28 18.6 15.36 13.45 20.04L12 21.35Z"/></svg>`,
+    '♣': `<svg class="suit-icon" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2C10.07 2 8.5 3.57 8.5 5.5C8.5 6.33 8.79 7.09 9.28 7.7C7.38 8.08 6 9.75 6 11.75C6 14.1 7.9 16 10.25 16C10.87 16 11.46 15.86 12 15.62C12.54 15.86 13.13 16 13.75 16C16.1 16 18 14.1 18 11.75C18 9.75 16.62 8.08 14.72 7.7C15.21 7.09 15.5 6.33 15.5 5.5C15.5 3.57 13.93 2 12 2ZM13 15.6V21.5H11V15.6C11.33 15.73 11.66 15.8 12 15.8C12.34 15.8 12.67 15.73 13 15.6Z"/></svg>`,
+    '♦': `<svg class="suit-icon" viewBox="0 0 24 24"><path fill="currentColor" d="M12 1.5L3.5 12L12 22.5L20.5 12L12 1.5Z"/></svg>`
+  };
+
+  // 渲染单张卡牌 DOM 组件 (赌场级高档扑克：象牙黑芯纸感、双微角标、古典宫廷雕花与尊贵大小王)
   function createCardElement(card, isSmall = false, isSelected = false) {
     const el = document.createElement('div');
     const isRed = ['♥', '♦'].includes(card.suit) || card.rank === 'RJ';
     const isJoker = card.rank === 'BJ' || card.rank === 'RJ';
+    const isTen = card.rank === '10';
 
     el.className = `card-item ${isSmall ? 'mini-card' : ''} ${isSelected ? 'selected' : ''} ${isRed ? 'red' : 'black'} ${isJoker ? 'joker' : ''}`;
     el.dataset.id = card.id;
     el.dataset.rank = card.rank;
 
     let displayRank = card.rank;
-    let displaySuit = card.suit || '';
+    let cornerSuitHtml = SUIT_SVGS[card.suit] || '';
     let centerHtml = '';
 
     if (card.rank === 'BJ') {
       displayRank = '小';
-      displaySuit = '王';
+      cornerSuitHtml = '<span class="joker-corner-char">王</span>';
       centerHtml = `
         <div class="joker-graphic black-joker">
-          <div class="joker-crown">🌙</div>
+          <svg class="joker-svg" viewBox="0 0 36 36">
+            <path fill="#64748b" d="M18 4C13 4 9 8 9 13c0 7 9 17 9 17s9-10 9-17c0-5-4-9-9-9zm0 13a4 4 0 110-8 4 4 0 010 8z"/>
+            <path fill="#94a3b8" d="M12 6l-3-3 1 5zm12 0l3-3-1 5z"/>
+          </svg>
           <div class="joker-text">小王</div>
           <div class="joker-sub">BLACK JOKER</div>
         </div>
       `;
     } else if (card.rank === 'RJ') {
       displayRank = '大';
-      displaySuit = '王';
+      cornerSuitHtml = '<span class="joker-corner-char">王</span>';
       centerHtml = `
         <div class="joker-graphic red-joker">
-          <div class="joker-crown">🌟</div>
+          <svg class="joker-svg" viewBox="0 0 36 36">
+            <path fill="#ef4444" d="M18 3c-1 0-8 5-8 12 0 7 8 18 8 18s8-11 8-18c0-7-7-12-8-12zm0 15a3 3 0 110-6 3 3 0 010 6z"/>
+            <path fill="#f59e0b" d="M18 1l2 4 4-2-1 4 4 1-3 3 3 3-4 1 1 4-4-2-2 4-2-4-4 2 1-4-4-1 3-3-3-3 4-1-1-4 4 2z" opacity="0.35"/>
+          </svg>
           <div class="joker-text">大王</div>
           <div class="joker-sub">RED JOKER</div>
         </div>
       `;
     } else if (card.rank === 'K') {
       centerHtml = `
-        <div class="card-face-figure king">
-          <span class="figure-crown">👑</span>
-          <span class="figure-title">K</span>
-          <span class="figure-sub">${displaySuit}</span>
+        <div class="court-badge king-badge">
+          <svg class="court-svg" viewBox="0 0 40 40">
+            <path fill="#f59e0b" d="M8 28h24v4H8zm2-6l3-10 7 6 7-6 3 10H10z"/>
+            <circle cx="20" cy="11" r="2.5" fill="#ef4444"/>
+            <circle cx="10" cy="12" r="2" fill="#fbbf24"/>
+            <circle cx="30" cy="12" r="2" fill="#fbbf24"/>
+          </svg>
+          <div class="court-rank">K</div>
+          <div class="court-suit">${SUIT_SVGS[card.suit] || ''}</div>
         </div>
       `;
     } else if (card.rank === 'Q') {
       centerHtml = `
-        <div class="card-face-figure queen">
-          <span class="figure-crown">👸</span>
-          <span class="figure-title">Q</span>
-          <span class="figure-sub">${displaySuit}</span>
+        <div class="court-badge queen-badge">
+          <svg class="court-svg" viewBox="0 0 40 40">
+            <path fill="#f59e0b" d="M10 27h20v3H10zm2-5l2-8 6 4 6-4 2 8H12z"/>
+            <circle cx="20" cy="14" r="2" fill="#ec4899"/>
+            <circle cx="12" cy="14" r="1.5" fill="#fbbf24"/>
+            <circle cx="28" cy="14" r="1.5" fill="#fbbf24"/>
+          </svg>
+          <div class="court-rank">Q</div>
+          <div class="court-suit">${SUIT_SVGS[card.suit] || ''}</div>
         </div>
       `;
     } else if (card.rank === 'J') {
       centerHtml = `
-        <div class="card-face-figure jack">
-          <span class="figure-crown">⚔️</span>
-          <span class="figure-title">J</span>
-          <span class="figure-sub">${displaySuit}</span>
+        <div class="court-badge jack-badge">
+          <svg class="court-svg" viewBox="0 0 40 40">
+            <path fill="#f59e0b" d="M12 28h16v3H12zm3-6l2-9 3 4 3-4 2 9H15z"/>
+            <path fill="currentColor" opacity="0.6" d="M17 19h6v3h-6z"/>
+          </svg>
+          <div class="court-rank">J</div>
+          <div class="court-suit">${SUIT_SVGS[card.suit] || ''}</div>
         </div>
       `;
     } else if (card.rank === 'A') {
-      centerHtml = `<div class="card-center-suit card-center-ace">${displaySuit}</div>`;
+      centerHtml = `
+        <div class="card-center-ace-wrap">
+          <div class="ace-halo"></div>
+          <div class="ace-suit">${SUIT_SVGS[card.suit] || ''}</div>
+        </div>
+      `;
     } else if (card.rank === '2') {
-      centerHtml = `<div class="card-center-suit card-center-two">${displaySuit}</div>`;
+      centerHtml = `
+        <div class="card-center-two-wrap">
+          <span class="two-num">2</span>
+          <div class="two-sub-suit">${SUIT_SVGS[card.suit] || ''}</div>
+        </div>
+      `;
     } else {
-      centerHtml = `<div class="card-center-suit">${displaySuit}</div>`;
+      centerHtml = `<div class="card-center-suit">${SUIT_SVGS[card.suit] || ''}</div>`;
     }
+
+    const rankClass = isTen ? 'card-rank rank-10' : 'card-rank';
 
     el.innerHTML = `
       <div class="card-corner corner-top-left">
-        <span class="card-rank">${displayRank}</span>
-        <span class="card-suit">${displaySuit}</span>
+        <span class="${rankClass}">${displayRank}</span>
+        <span class="card-suit">${cornerSuitHtml}</span>
       </div>
       ${centerHtml}
       <div class="card-corner corner-bottom-right">
-        <span class="card-rank">${displayRank}</span>
-        <span class="card-suit">${displaySuit}</span>
+        <span class="${rankClass}">${displayRank}</span>
+        <span class="card-suit">${cornerSuitHtml}</span>
       </div>
     `;
 
@@ -413,6 +453,14 @@
 
       // 渲染我的手牌
       renderMyHandCards(myData.handCards || []);
+      if (!pMy.cardsContainer.clientWidth) {
+        requestAnimationFrame(() => {
+          if (currentRoom && currentRoom.mySeatIndex !== -1) {
+            const myH = (currentRoom.seats[currentRoom.mySeatIndex] && currentRoom.seats[currentRoom.mySeatIndex].handCards) || [];
+            renderMyHandCards(myH);
+          }
+        });
+      }
     }
 
     // 6. 渲染桌面上一手出的有效牌
@@ -571,20 +619,110 @@
     updateSelectedCardHUD();
   }
 
-  // 渲染我的手牌 (自适应扇形间距与滑选)
+  // 渲染我的手牌 (自适应扇形间距与滑选，彻底杜绝重叠遮挡与左右溢出)
   function renderMyHandCards(cards) {
     pMy.cardsContainer.innerHTML = '';
     const total = cards.length;
-    const containerWidth = pMy.cardsContainer.clientWidth || 360;
-    const isLandscape = window.innerHeight < 580 || document.body.classList.contains('force-landscape');
-    const cardWidth = isLandscape ? 56 : 62;
+    if (total === 0) {
+      updateSelectedCardHUD();
+      return;
+    }
 
-    // 响应式负边距自适应排列
-    let marginOffset = -22;
+    const isForcedLandscape = document.body.classList.contains('force-landscape');
+    const isPhysicalLandscape = window.innerWidth > window.innerHeight;
+    const isLandscape = isPhysicalLandscape || isForcedLandscape || (window.innerHeight < 580);
+    const viewportWidth = isForcedLandscape ? window.innerHeight : window.innerWidth;
+
+    // 动态精确测算手牌容器可用宽度
+    let containerWidth = pMy.cardsContainer.clientWidth;
+    if (!containerWidth || containerWidth < 200) {
+      // 容错：若容器未完成渲染或初次进入房间，根据视口宽度计算
+      const parentWidth = pMy.cardsContainer.parentElement ? pMy.cardsContainer.parentElement.clientWidth : 0;
+      containerWidth = parentWidth > 200 ? parentWidth : Math.min(viewportWidth - (isLandscape ? 24 : 16), 1200);
+    }
+
+    // 可用总排卡宽度 (留出两侧安全呼吸间距)
+    const availSpan = Math.max(260, containerWidth - (isLandscape ? 20 : 16));
+
+    // 根据屏幕形态与当前剩余牌数，智能动态自适应单张卡牌尺寸
+    let cardWidth = 54;
+    let cardHeight = 78;
+
+    if (viewportWidth >= 980 && window.innerHeight >= 620 && !isForcedLandscape) {
+      // 宽屏桌面端
+      cardWidth = 62;
+      cardHeight = 88;
+    } else if (isLandscape) {
+      // 移动端横屏或强制横屏
+      if (total <= 8) {
+        cardWidth = 56;
+        cardHeight = 80;
+      } else if (total <= 14) {
+        cardWidth = 50;
+        cardHeight = 72;
+      } else {
+        // 15~20张超多牌 (初始发牌或地主拿3张底牌)
+        cardWidth = 46;
+        cardHeight = 66;
+      }
+    } else {
+      // 移动端竖屏
+      if (total <= 8) {
+        cardWidth = 50;
+        cardHeight = 72;
+      } else if (total <= 14) {
+        cardWidth = 44;
+        cardHeight = 64;
+      } else {
+        cardWidth = 38;
+        cardHeight = 56;
+      }
+    }
+
+    // 动态下发 CSS 变量，确保 DOM 元素与数学排版 100% 绝对同构
+    pMy.cardsContainer.style.setProperty('--card-w', `${cardWidth}px`);
+    pMy.cardsContainer.style.setProperty('--card-h', `${cardHeight}px`);
+
+    // 计算步长 step 与负边距 marginOffset
+    let step = cardWidth;
+    let marginOffset = 0;
+
     if (total > 1) {
-      const maxSpan = Math.max(220, containerWidth - cardWidth - 20);
-      const step = Math.max(12, Math.min(36, maxSpan / (total - 1)));
+      // 理想展示步长 (牌少时尽量舒展展开，牌多时适当重叠但绝不遮挡左上角角标)
+      let preferredStep = isLandscape ? 34 : 26;
+      if (total <= 6) preferredStep = Math.min(cardWidth, 46);
+      else if (total <= 12) preferredStep = Math.min(cardWidth, 36);
+      else preferredStep = Math.min(cardWidth, 28);
+
+      // 计算能放下的最大步长: cardWidth + (total - 1) * maxStep <= availSpan
+      const maxAllowedStep = Math.max(12, (availSpan - cardWidth) / (total - 1));
+
+      // 左上角角标的安全保护距离：角标宽度约 13px，步长必须 >= 18px 确保绝不被相邻牌遮挡
+      const minSafeStep = isLandscape ? (total > 16 ? 19 : 22) : (total > 16 ? 15 : 18);
+
+      if (maxAllowedStep >= preferredStep) {
+        step = preferredStep;
+      } else if (maxAllowedStep >= minSafeStep) {
+        step = maxAllowedStep;
+      } else {
+        // 极限极窄屏幕兜底微调
+        const shrinkWidth = Math.max(34, Math.floor(cardWidth * 0.9));
+        cardWidth = shrinkWidth;
+        cardHeight = Math.round(cardWidth * 1.45);
+        pMy.cardsContainer.style.setProperty('--card-w', `${cardWidth}px`);
+        pMy.cardsContainer.style.setProperty('--card-h', `${cardHeight}px`);
+        step = Math.max(14, (availSpan - cardWidth) / (total - 1));
+      }
+
       marginOffset = -(cardWidth - step);
+    }
+
+    // 总排布宽度校验与对齐：若总宽度在容器内则居中，若边缘占满则起始对齐防止截断
+    const totalHandSpan = cardWidth + (total - 1) * step;
+    if (totalHandSpan <= containerWidth) {
+      pMy.cardsContainer.style.justifyContent = 'center';
+    } else {
+      pMy.cardsContainer.style.justifyContent = 'flex-start';
     }
 
     cards.forEach((c, idx) => {
@@ -593,6 +731,7 @@
       if (idx > 0) {
         cardEl.style.marginLeft = `${marginOffset}px`;
       }
+      cardEl.style.zIndex = isSelected ? (100 + idx) : (idx + 1);
       cardEl.dataset.id = c.id;
 
       // 单击单选 & 双击同点数全选
@@ -609,9 +748,11 @@
         if (selectedCards.has(c.id)) {
           selectedCards.delete(c.id);
           cardEl.classList.remove('selected');
+          cardEl.style.zIndex = idx + 1;
         } else {
           selectedCards.add(c.id);
           cardEl.classList.add('selected');
+          cardEl.style.zIndex = 100 + idx;
         }
         window.sfx && window.sfx.playCardSelect();
         if (navigator.vibrate) navigator.vibrate(8);
@@ -1245,12 +1386,14 @@
       showToast('📱 已恢复默认方向模式');
     }
     
-    // 重新调整手牌宽度与布局
-    setTimeout(() => {
+    // 双重定时重新调整手牌宽度与布局，彻底适应旋转后真实容器尺寸
+    const refreshHandCards = () => {
       if (currentRoom && currentRoom.mySeatIndex !== -1) {
         renderMyHandCards((currentRoom.seats[currentRoom.mySeatIndex] && currentRoom.seats[currentRoom.mySeatIndex].handCards) || []);
       }
-    }, 200);
+    };
+    setTimeout(refreshHandCards, 60);
+    setTimeout(refreshHandCards, 260);
   }
 
   if (btnToggleOrientation) {
@@ -1291,8 +1434,21 @@
     }
   }
 
-  window.addEventListener('resize', checkOrientationPrompt);
-  window.addEventListener('orientationchange', checkOrientationPrompt);
+  // 视口尺寸变化 (旋转屏幕/分屏/折叠屏) 防抖自动重排手牌
+  let viewportResizeDebounceTimer = null;
+  function handleViewportResize() {
+    checkOrientationPrompt();
+    clearTimeout(viewportResizeDebounceTimer);
+    viewportResizeDebounceTimer = setTimeout(() => {
+      if (currentRoom && currentRoom.mySeatIndex !== -1) {
+        const myHand = (currentRoom.seats[currentRoom.mySeatIndex] && currentRoom.seats[currentRoom.mySeatIndex].handCards) || [];
+        renderMyHandCards(myHand);
+      }
+    }, 120);
+  }
+
+  window.addEventListener('resize', handleViewportResize);
+  window.addEventListener('orientationchange', handleViewportResize);
 
   // 扫码邀请弹窗
   btnQuickInvite.addEventListener('click', () => {

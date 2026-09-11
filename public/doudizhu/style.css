@@ -14,8 +14,8 @@
   --gold-glow: rgba(251, 191, 36, 0.4);
   --gold-gradient: linear-gradient(135deg, #fde047 0%, #fbbf24 50%, #d97706 100%);
   
-  --ruby-red: #e11d48;
-  --ruby-dark: #be123c;
+  --ruby-red: #c5161d;
+  --ruby-dark: #991b1b;
   --emerald-green: #10b981;
   --cyan-accent: #06b6d4;
   --danger-red: #ef4444;
@@ -25,16 +25,16 @@
   --mini-card-w: 40px;
   --mini-card-h: 58px;
 
-  --card-bg: linear-gradient(165deg, #ffffff 0%, #fdfdfd 55%, #f3f5f8 100%);
-  --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.3);
-  --card-shadow-hover: 0 8px 18px rgba(0, 0, 0, 0.6), 0 0 10px rgba(251, 191, 36, 0.5);
+  --card-bg: linear-gradient(175deg, #ffffff 0%, #faf8f5 48%, #f3efe6 100%);
+  --card-shadow: 0 3px 8px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.25);
+  --card-shadow-hover: 0 8px 18px rgba(0, 0, 0, 0.6), 0 0 12px rgba(251, 191, 36, 0.6);
   
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
   --radius-card: 7px;
   --font-base: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  --font-poker: "Arial Rounded MT Bold", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-poker: "Arial Rounded MT Bold", "Arial Black", -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 * {
@@ -102,6 +102,176 @@ body.force-landscape #app {
   transform: rotate(90deg) !important;
   transform-origin: top left !important;
   z-index: 900 !important;
+}
+
+/* 强制虚拟横屏的移动端专属精简布局 */
+body.force-landscape {
+  --card-w: 52px;
+  --card-h: 74px;
+  --mini-card-w: 34px;
+  --mini-card-h: 48px;
+}
+
+body.force-landscape .header-bar {
+  padding: 3px 12px;
+  height: 36px;
+}
+
+body.force-landscape .logo-badge {
+  font-size: 13px;
+}
+
+body.force-landscape .icon-btn {
+  width: 28px;
+  height: 28px;
+  font-size: 13px;
+}
+
+body.force-landscape .room-tag {
+  font-size: 11px;
+  padding: 1px 6px;
+}
+
+body.force-landscape .game-table-felt {
+  margin: 2px 4px;
+  border-width: 4px;
+  border-radius: 12px;
+}
+
+body.force-landscape .table-top-center {
+  padding-top: 4px;
+}
+
+body.force-landscape .bottom-cards-tray {
+  padding: 2px 8px 4px 8px;
+  border-radius: 8px;
+}
+
+body.force-landscape .tray-title {
+  font-size: 10px;
+}
+
+body.force-landscape .multiplier-tag {
+  font-size: 10px;
+  padding: 1px 6px;
+}
+
+body.force-landscape .player-slot {
+  top: 36px;
+}
+
+body.force-landscape .slot-left {
+  left: 8px;
+}
+
+body.force-landscape .slot-right {
+  right: 8px;
+}
+
+body.force-landscape .player-avatar {
+  width: 44px;
+  height: 44px;
+  font-size: 22px;
+}
+
+body.force-landscape .player-name {
+  font-size: 11px;
+  max-width: 72px;
+}
+
+body.force-landscape .card-count-badge {
+  font-size: 10px;
+  padding: 1px 5px;
+}
+
+body.force-landscape .slot-left .played-cards-area {
+  left: 64px;
+  top: 48px;
+}
+
+body.force-landscape .slot-right .played-cards-area {
+  right: 64px;
+  top: 48px;
+}
+
+body.force-landscape .my-controls-bar {
+  bottom: 84px;
+}
+
+body.force-landscape .control-panel {
+  padding: 4px 12px;
+  gap: 8px;
+}
+
+body.force-landscape .btn {
+  padding: 6px 14px;
+  font-size: 13px;
+}
+
+body.force-landscape .timer-tag {
+  font-size: 12px;
+  padding: 2px 8px;
+}
+
+body.force-landscape .my-hand-wrapper {
+  padding: 2px 8px 4px 8px;
+}
+
+body.force-landscape .my-meta-bar {
+  margin-bottom: 2px;
+}
+
+body.force-landscape .mini-avatar {
+  font-size: 16px;
+}
+
+body.force-landscape .my-name-text {
+  font-size: 12px;
+}
+
+body.force-landscape .hand-cards-container {
+  height: 84px;
+  padding: 6px 4px 0 4px;
+}
+
+body.force-landscape .my-played-area {
+  bottom: 115px;
+}
+
+body.force-landscape #p-my-bubble {
+  bottom: 120px;
+}
+
+body.force-landscape .floating-chat-btn {
+  bottom: 84px;
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  font-size: 16px;
+}
+
+body.force-landscape .chat-popup {
+  bottom: 126px;
+  right: 10px;
+  width: 260px;
+}
+
+body.force-landscape .table-banner {
+  top: 60px;
+  font-size: 14px;
+  padding: 6px 18px;
+}
+
+body.force-landscape .room-rules-pill {
+  font-size: 10px;
+  padding: 2px 8px;
+  margin-top: 3px;
+}
+
+body.force-landscape .bottom-bonus-alert {
+  top: 60px;
+  font-size: 12px;
+  padding: 4px 14px;
 }
 
 /* ==========================================================================
@@ -769,25 +939,26 @@ body.force-landscape #app {
    豪华扑克牌组件规范 (Ultra-Refined Playing Card Design)
    ========================================================================== */
 .card-item {
-  width: var(--card-w);
-  height: var(--card-h);
-  background: var(--card-bg);
-  border-radius: var(--radius-card);
-  box-shadow: var(--card-shadow);
-  border: 1px solid #cbd5e1;
+  width: var(--card-w, 62px);
+  height: var(--card-h, 88px);
+  background: var(--card-bg, linear-gradient(175deg, #ffffff 0%, #faf8f5 48%, #f3efe6 100%));
+  border-radius: var(--radius-card, 7px);
+  box-shadow: var(--card-shadow, 0 3px 8px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.25));
+  border: 1px solid rgba(0, 0, 0, 0.15);
   position: relative;
   cursor: pointer;
   margin-left: -22px;
-  transition: transform 0.16s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.16s, border-color 0.16s;
+  transition: transform 0.18s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.18s, border-color 0.18s;
   flex-shrink: 0;
   overflow: hidden;
+  will-change: transform;
 }
 
 .card-item:first-child {
   margin-left: 0;
 }
 
-/* 卡牌内饰边线 (Inner fine hairline) */
+/* 卡牌内饰边线 (Inner fine hairline & subtle inner bevel) */
 .card-item::before {
   content: '';
   position: absolute;
@@ -797,46 +968,50 @@ body.force-landscape #app {
   bottom: 2px;
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 5px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
   pointer-events: none;
+  z-index: 1;
 }
 
-/* 卡牌高光质感 (Glass Sheen) */
+/* 卡牌高光质感 (Silky Glass Sheen) */
 .card-item::after {
   content: '';
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
-  height: 45%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0) 100%);
+  height: 40%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 100%);
   pointer-events: none;
+  z-index: 3;
 }
 
 /* 卡牌红/黑花色 */
 .card-item.red {
-  color: var(--ruby-red);
+  color: var(--ruby-red, #c5161d);
+  --suit-color: #c5161d;
 }
 
 .card-item.black {
-  color: #0f172a;
+  color: #111827;
+  --suit-color: #111827;
 }
 
 /* 选中高能浮起效果 */
 .card-item.selected {
-  transform: translateY(-24px) scale(1.03) !important;
-  box-shadow: 0 16px 28px rgba(0, 0, 0, 0.65), 0 0 16px rgba(251, 191, 36, 0.95) !important;
-  border-color: var(--gold-primary) !important;
-  z-index: 50;
+  transform: translateY(-20px) scale(1.04) !important;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.65), 0 0 16px rgba(245, 158, 11, 0.85) !important;
+  border-color: #f59e0b !important;
 }
 
 .card-item.selected::before {
-  border-color: rgba(251, 191, 36, 0.5);
+  border-color: rgba(245, 158, 11, 0.5);
 }
 
 /* 滑选手势高亮 */
 .card-item.in-drag-select {
-  filter: brightness(1.15) drop-shadow(0 0 8px #fbbf24);
-  transform: translateY(-14px);
+  filter: brightness(1.12) drop-shadow(0 0 8px #fbbf24);
+  transform: translateY(-12px);
 }
 
 /* 卡牌双角标规范 (Dual Corners: Top-Left and Bottom-Right Inverted) */
@@ -846,7 +1021,9 @@ body.force-landscape #app {
   flex-direction: column;
   align-items: center;
   line-height: 1;
-  z-index: 2;
+  z-index: 5;
+  pointer-events: none;
+  width: 14px;
 }
 
 .corner-top-left {
@@ -864,39 +1041,104 @@ body.force-landscape #app {
   font-size: 15px;
   font-weight: 900;
   font-family: var(--font-poker);
-  letter-spacing: -0.5px;
+  letter-spacing: -0.6px;
+  text-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.1);
+  line-height: 1.05;
+}
+
+.card-rank.rank-10 {
+  font-size: 13.5px;
+  letter-spacing: -1.8px;
 }
 
 .card-suit {
-  font-size: 11px;
+  width: 12px;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-top: 1px;
 }
 
-/* 卡牌中心艺术图案 */
+.card-suit .suit-icon {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.joker-corner-char {
+  font-size: 11px;
+  font-weight: 900;
+  margin-top: -1px;
+  line-height: 1;
+}
+
+/* 卡牌中心艺术图案 (中心花色水印) */
 .card-center-suit {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 28px;
-  opacity: 0.88;
+  width: 24px;
+  height: 24px;
+  opacity: 0.85;
   z-index: 2;
+  pointer-events: none;
 }
 
-.card-center-ace {
-  font-size: 34px;
-  opacity: 0.92;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.15));
+.card-center-suit .suit-icon {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
-.card-center-two {
-  font-size: 30px;
-  opacity: 0.92;
-  font-weight: 900;
+/* A 牌皇徽章 */
+.card-center-ace-wrap {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  z-index: 2;
+  pointer-events: none;
 }
 
-/* 宫廷人物牌 (J, Q, K) 艺术徽章 */
-.card-face-figure {
+.card-center-ace-wrap .ace-halo {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  border: 1px dashed rgba(0, 0, 0, 0.15);
+  border-radius: 50%;
+  animation: rotateAceHalo 25s linear infinite;
+}
+
+@keyframes rotateAceHalo {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.card-item.red .card-center-ace-wrap .ace-halo {
+  border-color: rgba(197, 22, 29, 0.25);
+}
+
+.card-center-ace-wrap .ace-suit {
+  width: 26px;
+  height: 26px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+}
+
+.card-center-ace-wrap .ace-suit .suit-icon {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* 2 牌王霸气徽章 */
+.card-center-two-wrap {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -906,37 +1148,87 @@ body.force-landscape #app {
   align-items: center;
   justify-content: center;
   z-index: 2;
+  pointer-events: none;
 }
 
-.figure-crown {
-  font-size: 20px;
+.card-center-two-wrap .two-num {
+  font-size: 24px;
+  font-weight: 900;
+  font-family: var(--font-poker);
+  line-height: 1;
+  opacity: 0.95;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.card-center-two-wrap .two-sub-suit {
+  width: 12px;
+  height: 12px;
+  margin-top: 1px;
+}
+
+.card-center-two-wrap .two-sub-suit .suit-icon {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* 宫廷人物牌 (J, Q, K) 古典艺术徽章 */
+.court-badge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 44px;
+  border: 1px solid rgba(217, 119, 6, 0.35);
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(254, 243, 199, 0.6) 0%, rgba(253, 230, 138, 0.25) 100%);
+  box-shadow: inset 0 0 6px rgba(217, 119, 6, 0.15);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.court-svg {
+  width: 20px;
+  height: 20px;
+}
+
+.court-rank {
+  font-size: 13px;
+  font-weight: 900;
+  font-family: var(--font-poker);
+  margin-top: -3px;
   line-height: 1;
 }
 
-.figure-title {
-  font-size: 14px;
-  font-weight: 900;
-  font-family: var(--font-poker);
-  margin-top: -2px;
+.court-suit {
+  width: 10px;
+  height: 10px;
+  margin-top: 1px;
 }
 
-.figure-sub {
-  font-size: 10px;
-  margin-top: -2px;
+.court-suit .suit-icon {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 /* 大小王 (Jokers) 华丽专属样式 */
 .card-item.joker {
-  background: linear-gradient(145deg, #ffffff 0%, #fefce8 60%, #fef08a 100%);
+  background: linear-gradient(160deg, #ffffff 0%, #fafaf9 40%, #f5f5f4 100%);
 }
 
 .card-item.joker.red {
-  background: linear-gradient(145deg, #ffffff 0%, #fff1f2 50%, #fecdd3 100%);
-  border-color: #f43f5e;
+  background: linear-gradient(160deg, #ffffff 0%, #fff7ed 40%, #fed7aa 100%);
+  border-color: #f97316;
 }
 
 .card-item.joker.black {
-  background: linear-gradient(145deg, #ffffff 0%, #f1f5f9 50%, #cbd5e1 100%);
+  background: linear-gradient(160deg, #ffffff 0%, #f8fafc 40%, #cbd5e1 100%);
   border-color: #64748b;
 }
 
@@ -951,33 +1243,37 @@ body.force-landscape #app {
   justify-content: center;
   width: 100%;
   text-align: center;
+  z-index: 2;
+  pointer-events: none;
 }
 
-.joker-crown {
-  font-size: 20px;
-  line-height: 1;
+.joker-svg {
+  width: 22px;
+  height: 22px;
 }
 
 .joker-text {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
   letter-spacing: 1px;
+  margin-top: 2px;
 }
 
 .joker-sub {
-  font-size: 7px;
-  font-weight: 800;
+  font-size: 6.5px;
+  font-weight: 900;
   letter-spacing: 0.5px;
   opacity: 0.75;
 }
 
-/* 经典尊贵牌背 (Card Back) */
+/* 经典尊贵迷你卡与牌背 (Mini Cards & Card Back) */
 .bottom-card-item,
 .mini-card {
-  width: var(--mini-card-w);
-  height: var(--mini-card-h);
+  width: var(--mini-card-w, 40px);
+  height: var(--mini-card-h, 58px);
   margin-left: -18px;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  border-radius: 4px;
 }
 
 .mini-card:first-child,
@@ -985,32 +1281,98 @@ body.force-landscape #app {
   margin-left: 0;
 }
 
+.mini-card .card-corner {
+  width: 10px;
+}
+
+.mini-card .corner-top-left {
+  top: 2px;
+  left: 2px;
+}
+
+.mini-card .corner-bottom-right {
+  bottom: 2px;
+  right: 2px;
+}
+
 .mini-card .card-rank {
   font-size: 11px;
 }
 
+.mini-card .card-rank.rank-10 {
+  font-size: 9.5px;
+  letter-spacing: -1.2px;
+}
+
 .mini-card .card-suit {
-  font-size: 8px;
+  width: 8px;
+  height: 8px;
+}
+
+.mini-card .joker-corner-char {
+  font-size: 8.5px;
 }
 
 .mini-card .card-center-suit {
-  font-size: 16px;
+  width: 14px;
+  height: 14px;
 }
 
-.mini-card .figure-crown {
-  font-size: 13px;
+.mini-card .card-center-ace-wrap {
+  width: 20px;
+  height: 20px;
 }
 
-.mini-card .figure-title {
-  font-size: 10px;
+.mini-card .card-center-ace-wrap .ace-halo {
+  width: 18px;
+  height: 18px;
 }
 
-.mini-card .joker-crown {
-  font-size: 13px;
+.mini-card .card-center-ace-wrap .ace-suit {
+  width: 14px;
+  height: 14px;
+}
+
+.mini-card .card-center-two-wrap .two-num {
+  font-size: 15px;
+}
+
+.mini-card .card-center-two-wrap .two-sub-suit {
+  width: 8px;
+  height: 8px;
+}
+
+.mini-card .court-badge {
+  width: 20px;
+  height: 28px;
+}
+
+.mini-card .court-svg {
+  width: 12px;
+  height: 12px;
+}
+
+.mini-card .court-rank {
+  font-size: 9px;
+  margin-top: -2px;
+}
+
+.mini-card .court-suit {
+  width: 7px;
+  height: 7px;
+}
+
+.mini-card .joker-svg {
+  width: 14px;
+  height: 14px;
 }
 
 .mini-card .joker-text {
-  font-size: 9px;
+  font-size: 8px;
+}
+
+.mini-card .joker-sub {
+  display: none;
 }
 
 /* 牌背：皇家蓝细密交错纹理 */
@@ -1170,8 +1532,14 @@ body.force-landscape #app {
   position: relative;
   overflow-x: auto;
   overflow-y: visible;
-  padding: 14px 12px 0 12px;
+  padding: 14px 6px 0 6px;
   touch-action: none; /* 禁用系统手势，启用丝滑划牌 */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.hand-cards-container::-webkit-scrollbar {
+  display: none;
 }
 
 /* ==========================================================================
@@ -1789,8 +2157,8 @@ body.force-landscape #app {
   }
 
   .hand-cards-container {
-    height: 86px;
-    padding: 8px 8px 0 8px;
+    height: 84px;
+    padding: 6px 4px 0 4px;
   }
 
   .my-played-area {
