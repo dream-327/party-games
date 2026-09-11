@@ -70,8 +70,10 @@
     name: document.getElementById('p-top-name'),
     chips: document.getElementById('p-top-chips'),
     que: document.getElementById('p-top-que'),
+    ting: document.getElementById('p-top-ting'),
     ready: document.getElementById('p-top-ready'),
     hu: document.getElementById('p-top-hu'),
+    bubble: document.getElementById('p-top-bubble'),
     melds: document.getElementById('p-top-melds'),
     discards: document.getElementById('p-top-discards'),
     handBack: document.getElementById('p-top-hand-back')
@@ -82,8 +84,10 @@
     name: document.getElementById('p-left-name'),
     chips: document.getElementById('p-left-chips'),
     que: document.getElementById('p-left-que'),
+    ting: document.getElementById('p-left-ting'),
     ready: document.getElementById('p-left-ready'),
     hu: document.getElementById('p-left-hu'),
+    bubble: document.getElementById('p-left-bubble'),
     melds: document.getElementById('p-left-melds'),
     discards: document.getElementById('p-left-discards'),
     handBack: document.getElementById('p-left-hand-back')
@@ -94,8 +98,10 @@
     name: document.getElementById('p-right-name'),
     chips: document.getElementById('p-right-chips'),
     que: document.getElementById('p-right-que'),
+    ting: document.getElementById('p-right-ting'),
     ready: document.getElementById('p-right-ready'),
     hu: document.getElementById('p-right-hu'),
+    bubble: document.getElementById('p-right-bubble'),
     melds: document.getElementById('p-right-melds'),
     discards: document.getElementById('p-right-discards'),
     handBack: document.getElementById('p-right-hand-back')
@@ -106,7 +112,9 @@
     name: document.getElementById('my-name'),
     chips: document.getElementById('my-chips'),
     que: document.getElementById('my-que'),
+    ting: document.getElementById('p-my-ting'),
     streak: document.getElementById('my-streak'),
+    bubble: document.getElementById('p-my-bubble'),
     melds: document.getElementById('p-my-melds'),
     discards: document.getElementById('p-my-discards'),
     handContainer: document.getElementById('my-hand-container')
@@ -297,8 +305,10 @@
       dom.name.textContent = '空座位';
       dom.chips.textContent = '';
       dom.que.classList.add('hidden');
+      if (dom.ting) dom.ting.classList.add('hidden');
       dom.ready.classList.add('hidden');
       dom.hu.classList.add('hidden');
+      if (dom.bubble) dom.bubble.classList.add('hidden');
       dom.melds.innerHTML = '';
       dom.discards.innerHTML = '';
       dom.handBack.innerHTML = '';
@@ -327,11 +337,19 @@
       dom.que.classList.add('hidden');
     }
 
-    // 胡牌状态
+    // 胡牌与听牌状态
     if (seatData.hasHu) {
       dom.hu.classList.remove('hidden');
+      if (dom.ting) dom.ting.classList.add('hidden');
     } else {
       dom.hu.classList.add('hidden');
+      if (dom.ting) {
+        if (seatData.isTing) {
+          dom.ting.classList.remove('hidden');
+        } else {
+          dom.ting.classList.add('hidden');
+        }
+      }
     }
 
     // 行牌光环
@@ -380,12 +398,67 @@
     });
   }
 
+  // 计算全场未明示的剩余牌张数 (一副麻将每种牌共 4 张)
+  function getRemainingTileCount(targetSuit, targetRank) {
+    if (!currentRoom) return 4;
+    let visible = 0;
+    const myData = (currentRoom.mySeatIndex !== -1) ? currentRoom.seats[currentRoom.mySeatIndex] : null;
+    if (myData && myData.handCards) {
+      myData.handCards.forEach(t => {
+        if (t.suit === targetSuit && t.rank === targetRank) visible++;
+      });
+    }
+    (currentRoom.seats || []).forEach(s => {
+      if (!s) return;
+      (s.melds || []).forEach(m => {
+        (m.tiles || []).forEach(t => {
+          if (t.suit === targetSuit && t.rank === targetRank) visible++;
+        });
+      });
+      (s.discards || []).forEach(t => {
+        if (t.suit === targetSuit && t.rank === targetRank) visible++;
+      });
+    });
+    return Math.max(0, 4 - visible);
+  }
+
+  // 玩家头像语音气泡弹出提示
+  function showSpeechBubble(text, seatIndex) {
+    let bubbleEl = null;
+    if (seatIndex === null || (currentRoom && seatIndex === currentRoom.mySeatIndex)) {
+      bubbleEl = pMy.bubble;
+    } else if (currentRoom && currentRoom.mySeatIndex !== -1) {
+      const my = currentRoom.mySeatIndex;
+      const rightIdx = (my + 1) % 4;
+      const topIdx = (my + 2) % 4;
+      const leftIdx = (my + 3) % 4;
+      if (seatIndex === rightIdx) bubbleEl = pRight.bubble;
+      else if (seatIndex === topIdx) bubbleEl = pTop.bubble;
+      else if (seatIndex === leftIdx) bubbleEl = pLeft.bubble;
+    }
+    if (bubbleEl) {
+      bubbleEl.textContent = `💬 ${text}`;
+      bubbleEl.classList.remove('hidden');
+      clearTimeout(bubbleEl._timer);
+      bubbleEl._timer = setTimeout(() => {
+        bubbleEl.classList.add('hidden');
+      }, 1800);
+    }
+  }
+
+  window.addEventListener('mj_voice_bubble', (e) => {
+    if (e.detail && e.detail.text) {
+      showSpeechBubble(e.detail.text, e.detail.seatIndex);
+    }
+  });
+
   // 渲染我的手牌
   function renderMyHand(tiles, queSuit) {
     pMy.handContainer.innerHTML = '';
 
     const isPlaying = (currentRoom && currentRoom.gameState.phase === 'PLAYING');
     const isMyTurn = (isPlaying && currentRoom.gameState.currentTurnSeat === currentRoom.mySeatIndex);
+    const myMelds = (currentRoom && currentRoom.mySeatIndex !== -1) ? (currentRoom.seats[currentRoom.mySeatIndex]?.melds || []) : [];
     const hasQue = window.MahjongRules ? window.MahjongRules.hasQueSuit(tiles, queSuit) : false;
 
     // 检查是否有选中的牌在当前手中
@@ -411,15 +484,53 @@
       return;
     }
 
+    // 智能听牌雷达计算 (打出哪些牌可听牌)
+    const tingDiscardsMap = new Map();
+    if (isPlaying && window.MahjongRules && !hasQue && isMyTurn) {
+      const analysis = window.MahjongRules.analyzeDiscardsForTing(tiles, myMelds, queSuit);
+      if (!analysis.mustDiscardQue && analysis.recommendations) {
+        analysis.recommendations.forEach(rec => {
+          tingDiscardsMap.set(rec.discardTile.id, rec.huTiles);
+        });
+      }
+    }
+
+    // 非自己回合时若已处于听牌状态 (有叫)，常驻展示听牌信息与头像听牌角标
+    if (isPlaying && window.MahjongRules && !isMyTurn) {
+      const tingInfo = window.MahjongRules.getTingInfo(tiles, myMelds, queSuit);
+      if (tingInfo.isTing && tingInfo.huTiles.length > 0) {
+        if (pMy.ting) pMy.ting.classList.remove('hidden');
+        tingHelperPill.classList.remove('hidden');
+        tingTilesList.innerHTML = '';
+        const titleSpan = document.createElement('span');
+        titleSpan.style.cssText = 'color: #34d399; font-weight: 900; margin-right: 4px;';
+        titleSpan.textContent = '已听牌 (有叫):';
+        tingTilesList.appendChild(titleSpan);
+
+        tingInfo.huTiles.forEach(h => {
+          const remain = getRemainingTileCount(h.suit, h.rank);
+          const item = document.createElement('span');
+          item.style.cssText = 'padding: 1px 6px; background: rgba(16,185,129,0.28); border: 1px solid rgba(52,211,153,0.5); border-radius: 4px; font-weight: 800; color: #fef08a;';
+          item.textContent = `${h.rank}${window.MahjongRules.SUIT_NAMES[h.suit]} (余${remain}张)`;
+          tingTilesList.appendChild(item);
+        });
+      } else {
+        if (pMy.ting) pMy.ting.classList.add('hidden');
+        if (!selectedTileId) tingHelperPill.classList.add('hidden');
+      }
+    }
+
     tiles.forEach((tile, idx) => {
       const isQue = (tile.suit === queSuit);
       const isSelected = (tile.id === selectedTileId) || selectedSwapIds.has(tile.id);
       const isNewDraw = (tiles.length % 3 === 2 && idx === tiles.length - 1);
+      const isTing = isMyTurn && tingDiscardsMap.has(tile.id);
 
       const tileEl = window.MahjongTiles.createTileElement(tile, {
         size: 'normal',
         isSelected,
         isQue,
+        isTing,
         isNewDraw
       });
 
@@ -459,7 +570,11 @@
         }
 
         // 计算此牌打出后的听牌提示
-        updateTingHelper(tile, tiles, queSuit);
+        if (selectedTileId) {
+          updateTingHelper(tile, tiles, queSuit);
+        } else {
+          updateTingHelper(null, tiles, queSuit);
+        }
       });
 
       pMy.handContainer.appendChild(tileEl);
@@ -519,16 +634,45 @@
 
   function updateTingHelper(candidateTile, allTiles, queSuit) {
     if (!window.MahjongRules) return;
-    const remaining = allTiles.filter(t => t.id !== candidateTile.id);
-    const tingInfo = window.MahjongRules.getTingInfo(remaining, [], queSuit);
+    const myMelds = (currentRoom && currentRoom.mySeatIndex !== -1) ? (currentRoom.seats[currentRoom.mySeatIndex]?.melds || []) : [];
 
-    if (tingInfo.isTing && tingInfo.huTiles.length > 0) {
+    if (candidateTile) {
+      const remaining = allTiles.filter(t => t.id !== candidateTile.id);
+      const tingInfo = window.MahjongRules.getTingInfo(remaining, myMelds, queSuit);
+
+      if (tingInfo.isTing && tingInfo.huTiles.length > 0) {
+        tingHelperPill.classList.remove('hidden');
+        tingTilesList.innerHTML = '';
+        const tip = document.createElement('span');
+        tip.style.cssText = 'color: #fbbf24; font-weight: 900; margin-right: 4px;';
+        tip.textContent = `打出此牌听 (${tingInfo.huTiles.length}门):`;
+        tingTilesList.appendChild(tip);
+
+        tingInfo.huTiles.forEach(h => {
+          const remain = getRemainingTileCount(h.suit, h.rank);
+          const item = document.createElement('span');
+          item.style.cssText = 'padding: 1px 6px; background: rgba(16,185,129,0.28); border: 1px solid rgba(52,211,153,0.5); border-radius: 4px; font-weight: 800; color: #fef08a;';
+          item.textContent = `${h.rank}${window.MahjongRules.SUIT_NAMES[h.suit]} (余${remain}张)`;
+          tingTilesList.appendChild(item);
+        });
+        return;
+      }
+    }
+
+    // 默认展示手牌自身听牌状态
+    const baseTing = window.MahjongRules.getTingInfo(allTiles, myMelds, queSuit);
+    if (baseTing.isTing && baseTing.huTiles.length > 0) {
       tingHelperPill.classList.remove('hidden');
       tingTilesList.innerHTML = '';
-      tingInfo.huTiles.forEach(h => {
+      const prefix = document.createElement('span');
+      prefix.style.cssText = 'color: #34d399; font-weight: 900; margin-right: 4px;';
+      prefix.textContent = '当前已听牌 (有叫):';
+      tingTilesList.appendChild(prefix);
+      baseTing.huTiles.forEach(h => {
+        const remain = getRemainingTileCount(h.suit, h.rank);
         const item = document.createElement('span');
-        item.style.cssText = 'padding: 1px 5px; background: rgba(16,185,129,0.25); border-radius: 4px; font-weight: 800;';
-        item.textContent = `${h.rank}${window.MahjongRules.SUIT_NAMES[h.suit]}`;
+        item.style.cssText = 'padding: 1px 6px; background: rgba(16,185,129,0.28); border: 1px solid rgba(52,211,153,0.5); border-radius: 4px; font-weight: 800; color: #fef08a;';
+        item.textContent = `${h.rank}${window.MahjongRules.SUIT_NAMES[h.suit]} (余${remain}张)`;
         tingTilesList.appendChild(item);
       });
     } else {
@@ -941,7 +1085,7 @@
   socket.on('tile_discarded', ({ seatIndex, tile }) => {
     window.sfx && window.sfx.playTileDiscard();
     if (tile && window.sfx) {
-      window.sfx.speakTile(tile);
+      window.sfx.speakTile(tile, seatIndex);
     }
   });
 
@@ -964,7 +1108,7 @@
   });
 
   socket.on('action_peng_announced', ({ seatIndex, fromSeat, tile }) => {
-    window.sfx && window.sfx.playPeng();
+    window.sfx && window.sfx.playPeng(seatIndex);
     bannerText.textContent = '✨ 碰牌！';
     tableBannerAlert.classList.remove('hidden');
     setTimeout(() => tableBannerAlert.classList.add('hidden'), 2000);
@@ -972,7 +1116,7 @@
 
   socket.on('gang_announced', ({ type, seatIndex, tile }) => {
     const isXiayu = (type === 'an_gang');
-    window.sfx && window.sfx.playGang(isXiayu);
+    window.sfx && window.sfx.playGang(isXiayu, seatIndex);
     if (isXiayu) {
       vfxRain.classList.remove('hidden');
       setTimeout(() => vfxRain.classList.add('hidden'), 1500);
@@ -988,7 +1132,7 @@
 
   socket.on('player_hu_announced', ({ winnerSeat, isZimo, fanInfo, score, huOrder }) => {
     const isMe = (currentRoom && currentRoom.mySeatIndex === winnerSeat);
-    window.sfx && window.sfx.playHu(isZimo);
+    window.sfx && window.sfx.playHu(isZimo, winnerSeat);
 
     vfxHu.classList.remove('hidden');
     setTimeout(() => vfxHu.classList.add('hidden'), 2000);

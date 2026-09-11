@@ -103,8 +103,10 @@
         <!-- 上方：对家 (北家 / Player 2) -->
         <div id="player-top" class="player-slot slot-top">
           <div class="player-avatar-wrap">
+            <div class="speech-bubble hidden" id="p-top-bubble">💬 碰！</div>
             <div class="player-avatar" id="p-top-avatar">🧐</div>
             <div class="que-badge hidden" id="p-top-que">缺万</div>
+            <div class="ting-badge hidden" id="p-top-ting">已听</div>
             <div class="ready-badge hidden" id="p-top-ready">已准备</div>
             <div class="hu-badge hidden" id="p-top-hu">已胡</div>
           </div>
@@ -120,8 +122,10 @@
         <!-- 左侧：上家 (西家 / Player 3) -->
         <div id="player-left" class="player-slot slot-left">
           <div class="player-avatar-wrap">
+            <div class="speech-bubble hidden" id="p-left-bubble">💬 碰！</div>
             <div class="player-avatar" id="p-left-avatar">🤠</div>
             <div class="que-badge hidden" id="p-left-que">缺筒</div>
+            <div class="ting-badge hidden" id="p-left-ting">已听</div>
             <div class="ready-badge hidden" id="p-left-ready">已准备</div>
             <div class="hu-badge hidden" id="p-left-hu">已胡</div>
           </div>
@@ -137,8 +141,10 @@
         <!-- 右侧：下家 (东家 / Player 1) -->
         <div id="player-right" class="player-slot slot-right">
           <div class="player-avatar-wrap">
+            <div class="speech-bubble hidden" id="p-right-bubble">💬 碰！</div>
             <div class="player-avatar" id="p-right-avatar">😎</div>
             <div class="que-badge hidden" id="p-right-que">缺条</div>
+            <div class="ting-badge hidden" id="p-right-ting">已听</div>
             <div class="ready-badge hidden" id="p-right-ready">已准备</div>
             <div class="hu-badge hidden" id="p-right-hu">已胡</div>
           </div>
@@ -199,10 +205,14 @@
           <div class="my-hand-panel">
             <div class="my-meta-bar">
               <div class="my-meta-left">
-                <span id="my-avatar" class="mini-avatar">👑</span>
+                <div class="avatar-bubble-wrap" style="position: relative; display: flex; align-items: center;">
+                  <div class="speech-bubble hidden" id="p-my-bubble">💬 碰！</div>
+                  <span id="my-avatar" class="mini-avatar">👑</span>
+                </div>
                 <span id="my-name" class="my-name-text">我</span>
                 <span id="my-chips" class="player-chips-pill">🪙 1,000</span>
                 <span id="my-que" class="que-badge hidden">缺万</span>
+                <span id="p-my-ting" class="ting-badge hidden">已听</span>
                 <span id="my-streak" class="streak-badge hidden">🔥 2连胜</span>
               </div>
               <div class="my-meta-right">
@@ -289,6 +299,12 @@
             <li><strong>定缺</strong>：摸牌前必须选择一门（万/筒/条）弃牌，必须打光定缺牌才能胡牌。若带定缺牌则无法胡牌且流局视为“花猪”。</li>
             <li><strong>刮风下雨 (杠牌)</strong>：直杠（刮风）点杠者出 2 倍底分；暗杠（下雨）全员每人出 2 倍底分；弯杠全员出 1 倍底分。</li>
             <li><strong>血战到底</strong>：一家胡牌后退出摸打，其余玩家继续打，直至 3 家胡牌或摸完牌墙。</li>
+          </ul>
+          <h4>🎯 听牌 (叫牌/停牌) 与查大叫</h4>
+          <ul>
+            <li><strong>为什么没有“报听/停牌”按钮？</strong>：川麻崇尚变通，玩家不需要像日麻那样锁定手牌“报停”，随时可自由变卦换牌！游戏内置全自动智能听牌雷达，手牌右上角带有<strong>【听】</strong>字角标的牌打出即可听牌！</li>
+            <li><strong>查大叫 (关键流局惩罚)</strong>：牌墙摸完流局时，所有<strong>未听牌（没叫）</strong>的玩家，必须把可能达到的最大番数全额赔付给<strong>已听牌（有叫）</strong>的玩家！</li>
+            <li><strong>查花猪</strong>：流局时手里依然握有定缺牌者，按满番全场赔付。</li>
           </ul>
           <h4>🏆 经典番型</h4>
           <ul>

@@ -1,99 +1,86 @@
-// 极清国风立体骨玉麻将牌组件渲染引擎 (SVG & CSS 拟真骨玉雕花 + 极速角标辨析)
+// 极清国风立体骨玉麻将牌组件渲染引擎 (纯正传统牌面 + 去除杂乱文字 + 极美高雅花色)
 (function(exports) {
   const NUMERALS = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
 
-  // 生成单张麻将牌内部高辨识度 3D 矢量雕刻 SVG
+  // 生成单张麻将牌内部高辨识度矢量雕刻 SVG (纯粹国风，无左上角现代文字角标)
   function getTileSvg(suit, rank) {
     if (suit === 'wan') {
       const num = NUMERALS[rank] || rank;
-      // 1万与5万传统经典大红，其余万字为深邃曜黑
+      // 1万与5万传统经典大红，其余万字为纯正国风墨黑
       const isRedNum = (rank === 1 || rank === 5);
-      const numColor = isRedNum ? '#dc2626' : '#0f172a';
+      const numColor = isRedNum ? '#dc2626' : '#1e293b';
       return `
         <svg viewBox="0 0 100 135" class="mj-svg" width="100%" height="100%">
           <defs>
             <filter id="carve-shadow" x="-10%" y="-10%" width="120%" height="120%">
-              <feDropShadow dx="0.5" dy="1" stdDeviation="0.5" flood-color="rgba(0,0,0,0.22)"/>
+              <feDropShadow dx="0.5" dy="1" stdDeviation="0.6" flood-color="rgba(0,0,0,0.2)"/>
             </filter>
           </defs>
-          <!-- 左上角极速辨认小角标 (专为手机端小屏幕速辨设计) -->
-          <g opacity="0.85">
-            <text x="12" y="23" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="17" text-anchor="middle" fill="${numColor}">${rank}</text>
-            <text x="12" y="37" font-family="'Noto Serif SC', 'Songti SC', 'SimSun', serif" font-weight="900" font-size="12" text-anchor="middle" fill="#dc2626">萬</text>
-          </g>
-          <!-- 牌面正中央雕刻大字 -->
+          <!-- 传统经典楷书大字 (一至九 + 繁体經典萬) -->
           <g filter="url(#carve-shadow)">
-            <text x="54" y="58" font-family="'Noto Serif SC', 'Songti SC', 'SimSun', serif" font-weight="900" font-size="47" text-anchor="middle" fill="${numColor}">${num}</text>
-            <text x="54" y="115" font-family="'Noto Serif SC', 'Songti SC', 'SimSun', serif" font-weight="900" font-size="49" text-anchor="middle" fill="#dc2626">萬</text>
+            <text x="50" y="55" font-family="'Kaiti', 'STKaiti', 'KaiTi_GB2312', 'FZKai-Z03S', 'Noto Serif SC', serif" font-weight="900" font-size="46" text-anchor="middle" fill="${numColor}">${num}</text>
+            <text x="50" y="112" font-family="'Kaiti', 'STKaiti', 'KaiTi_GB2312', 'FZKai-Z03S', 'Noto Serif SC', serif" font-weight="900" font-size="48" text-anchor="middle" fill="#dc2626">萬</text>
           </g>
         </svg>
       `;
     }
 
     if (suit === 'tong') {
-      // 铜钱轮宝点位坐标与配色彩格
       if (rank === 1) {
-        // 大一筒：华丽帝王宝相花四色轮盘
+        // 大一筒：华美四色同心宝相花神轮
         return `
           <svg viewBox="0 0 100 135" class="mj-svg" width="100%" height="100%">
             <defs>
-              <radialGradient id="tong1-sun" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stop-color="#ef4444"/>
-                <stop offset="50%" stop-color="#b91c1c"/>
-                <stop offset="75%" stop-color="#047857"/>
-                <stop offset="100%" stop-color="#064e3b"/>
+              <radialGradient id="tong1-glow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#f87171"/>
+                <stop offset="45%" stop-color="#dc2626"/>
+                <stop offset="70%" stop-color="#059669"/>
+                <stop offset="100%" stop-color="#047857"/>
               </radialGradient>
             </defs>
-            <!-- 左上角速辨小角标 -->
-            <g opacity="0.85">
-              <text x="12" y="23" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="900" font-size="17" text-anchor="middle" fill="#2563eb">1</text>
-              <text x="12" y="37" font-family="'Noto Serif SC', serif" font-weight="900" font-size="12" text-anchor="middle" fill="#15803d">筒</text>
-            </g>
-            <g transform="translate(4, 3)">
-              <!-- 外圈吉祥金齿花轮 -->
-              <circle cx="50" cy="66" r="42" fill="none" stroke="#d97706" stroke-width="2.5" stroke-dasharray="6,3"/>
-              <circle cx="50" cy="66" r="39" fill="url(#tong1-sun)" stroke="#047857" stroke-width="2"/>
-              <!-- 12 瓣金线花芒 -->
-              <circle cx="50" cy="66" r="26" fill="#f8fafc" stroke="#b45309" stroke-width="1.5"/>
-              <circle cx="50" cy="66" r="17" fill="#dc2626"/>
-              <circle cx="50" cy="66" r="7" fill="#fef08a"/>
-              <circle cx="50" cy="66" r="2.5" fill="#991b1b"/>
+            <g transform="translate(0, 0)">
+              <!-- 外圈 8 瓣祥瑞如意翡翠金齿花轮 -->
+              <circle cx="50" cy="67.5" r="43" fill="none" stroke="#d97706" stroke-width="2.5" stroke-dasharray="7,3.5"/>
+              <circle cx="50" cy="67.5" r="40" fill="url(#tong1-glow)" stroke="#047857" stroke-width="2"/>
+              <!-- 16 颗同心金珍珠圈 -->
+              <circle cx="50" cy="67.5" r="28" fill="#fdfbf7" stroke="#b45309" stroke-width="1.8"/>
+              <!-- 内层朱红宝相花 -->
+              <circle cx="50" cy="67.5" r="19" fill="#dc2626" stroke="#fbbf24" stroke-width="1.2"/>
+              <!-- 金蕊宝石核心 -->
+              <circle cx="50" cy="67.5" r="9" fill="#fef08a" stroke="#b45309" stroke-width="1"/>
+              <circle cx="50" cy="67.5" r="4" fill="#1d4ed8"/>
             </g>
           </svg>
         `;
       }
 
-      // 2~9 筒的点位与经典川麻配色 (绿、蓝、红)
+      // 2~9 筒的点位与传统川麻配色 (孔雀绿、宝蓝、正红)
       const dotCoords = {
-        2: [ [50, 36, '#2563eb'], [50, 99, '#15803d'] ],
-        3: [ [27, 32, '#2563eb'], [50, 67.5, '#dc2626'], [73, 103, '#15803d'] ],
-        4: [ [33, 36, '#2563eb'], [67, 36, '#15803d'], [33, 99, '#15803d'], [67, 99, '#2563eb'] ],
-        5: [ [28, 32, '#2563eb'], [72, 32, '#15803d'], [50, 67.5, '#dc2626'], [28, 103, '#15803d'], [72, 103, '#2563eb'] ],
-        6: [ [33, 30, '#15803d'], [67, 30, '#15803d'], [33, 67.5, '#dc2626'], [67, 67.5, '#dc2626'], [33, 105, '#dc2626'], [67, 105, '#dc2626'] ],
-        7: [ [25, 26, '#15803d'], [50, 42, '#15803d'], [75, 58, '#15803d'], [33, 85, '#dc2626'], [67, 85, '#dc2626'], [33, 112, '#dc2626'], [67, 112, '#dc2626'] ],
-        8: [ [33, 24, '#2563eb'], [67, 24, '#2563eb'], [33, 53, '#2563eb'], [67, 53, '#2563eb'], [33, 82, '#2563eb'], [67, 82, '#2563eb'], [33, 111, '#2563eb'], [67, 111, '#2563eb'] ],
-        9: [ [26, 26, '#15803d'], [50, 26, '#2563eb'], [74, 26, '#dc2626'], [26, 67.5, '#15803d'], [50, 67.5, '#2563eb'], [74, 67.5, '#dc2626'], [26, 109, '#15803d'], [50, 109, '#2563eb'], [74, 109, '#dc2626'] ]
+        2: [ [50, 37, '#1d4ed8'], [50, 98, '#15803d'] ],
+        3: [ [27, 32, '#1d4ed8'], [50, 67.5, '#dc2626'], [73, 103, '#15803d'] ],
+        4: [ [31, 36, '#1d4ed8'], [69, 36, '#15803d'], [31, 99, '#15803d'], [69, 99, '#1d4ed8'] ],
+        5: [ [27, 32, '#1d4ed8'], [73, 32, '#15803d'], [50, 67.5, '#dc2626', 15], [27, 103, '#15803d'], [73, 103, '#1d4ed8'] ],
+        6: [ [31, 32, '#15803d'], [69, 32, '#15803d'], [31, 67.5, '#dc2626'], [69, 67.5, '#dc2626'], [31, 103, '#dc2626'], [69, 103, '#dc2626'] ],
+        7: [ [25, 26, '#15803d'], [50, 43, '#15803d'], [75, 60, '#15803d'], [31, 86, '#dc2626'], [69, 86, '#dc2626'], [31, 112, '#dc2626'], [69, 112, '#dc2626'] ],
+        8: [ [31, 25, '#1d4ed8'], [69, 25, '#1d4ed8'], [31, 53, '#1d4ed8'], [69, 53, '#1d4ed8'], [31, 82, '#1d4ed8'], [69, 82, '#1d4ed8'], [31, 110, '#1d4ed8'], [69, 110, '#1d4ed8'] ],
+        9: [ [26, 27, '#15803d'], [50, 27, '#1d4ed8'], [74, 27, '#dc2626'], [26, 67.5, '#15803d'], [50, 67.5, '#1d4ed8'], [74, 67.5, '#dc2626'], [26, 108, '#15803d'], [50, 108, '#1d4ed8'], [74, 108, '#dc2626'] ]
       };
 
-      // 制作立体铜钱凹凸花纹
-      const dotsSvg = (dotCoords[rank] || []).map(([cx, cy, color]) => {
+      // 制作立体纯正同心圆雕花铜钱
+      const dotsSvg = (dotCoords[rank] || []).map(([cx, cy, color, customRadius]) => {
+        const r = customRadius || 13;
         return `
           <g>
-            <circle cx="${cx}" cy="${cy}" r="13" fill="${color}" stroke="#0f172a" stroke-width="1.2" />
-            <circle cx="${cx}" cy="${cy}" r="9" fill="none" stroke="#f8fafc" stroke-width="1.8" opacity="0.9" />
-            <circle cx="${cx}" cy="${cy}" r="5" fill="#f8fafc" opacity="0.9" />
-            <circle cx="${cx}" cy="${cy}" r="2" fill="${color}" />
+            <circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}" stroke="#0f172a" stroke-width="1.2" />
+            <circle cx="${cx}" cy="${cy}" r="${r * 0.72}" fill="none" stroke="#fdfbf7" stroke-width="1.8" opacity="0.92" />
+            <circle cx="${cx}" cy="${cy}" r="${r * 0.38}" fill="#fdfbf7" opacity="0.9" />
+            <circle cx="${cx}" cy="${cy}" r="${r * 0.16}" fill="${color}" />
           </g>
         `;
       }).join('');
 
       return `
         <svg viewBox="0 0 100 135" class="mj-svg" width="100%" height="100%">
-          <!-- 左上角速辨小角标 -->
-          <g opacity="0.85">
-            <text x="12" y="23" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="900" font-size="17" text-anchor="middle" fill="#2563eb">${rank}</text>
-            <text x="12" y="37" font-family="'Noto Serif SC', serif" font-weight="900" font-size="12" text-anchor="middle" fill="#15803d">筒</text>
-          </g>
           ${dotsSvg}
         </svg>
       `;
@@ -101,25 +88,36 @@
 
     if (suit === 'tiao') {
       if (rank === 1) {
-        // 一条：吉祥神鸟雀雀 (麻雀神鸟)
+        // 一条：吉祥展翅雀雀 (麻雀神鸟踏竹)
         return `
           <svg viewBox="0 0 100 135" class="mj-svg" width="100%" height="100%">
-            <!-- 左上角速辨小角标 -->
-            <g opacity="0.85">
-              <text x="12" y="23" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="900" font-size="17" text-anchor="middle" fill="#15803d">1</text>
-              <text x="12" y="37" font-family="'Noto Serif SC', serif" font-weight="900" font-size="12" text-anchor="middle" fill="#15803d">条</text>
-            </g>
-            <!-- 雀鸟躯干与羽毛 -->
-            <g transform="translate(3, 2)">
-              <path d="M50 14 C38 24 33 40 40 56 C33 62 23 77 30 96 C36 112 48 122 48 122 C48 122 60 112 66 96 C73 77 63 62 56 56 C63 40 58 24 50 14 Z" fill="#15803d" stroke="#064e3b" stroke-width="1.5"/>
-              <path d="M48 20 C40 35 43 49 48 51 C53 49 56 35 50 20 Z" fill="#ef4444"/>
-              <circle cx="45" cy="30" r="3" fill="#fef08a"/>
-              <circle cx="45" cy="30" r="1.5" fill="#0f172a"/>
-              <path d="M28 65 Q16 80 23 105 Q33 90 33 75 Z" fill="#16a34a" stroke="#064e3b" stroke-width="1"/>
-              <path d="M68 65 Q80 80 73 105 Q63 90 63 75 Z" fill="#16a34a" stroke="#064e3b" stroke-width="1"/>
-              <!-- 红宝石尾羽珍珠 -->
-              <circle cx="48" cy="85" r="7.5" fill="#dc2626" stroke="#fbbf24" stroke-width="1.5"/>
-              <path d="M45 118 L41 130 M51 118 L55 130" stroke="#b45309" stroke-width="3.5" stroke-linecap="round"/>
+            <defs>
+              <linearGradient id="bird-wing" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#15803d"/>
+                <stop offset="70%" stop-color="#047857"/>
+                <stop offset="100%" stop-color="#064e3b"/>
+              </linearGradient>
+            </defs>
+            <g transform="translate(0, 2)">
+              <!-- 栖木竹节 -->
+              <line x1="20" y1="120" x2="80" y2="120" stroke="#15803d" stroke-width="6" stroke-linecap="round"/>
+              <circle cx="50" cy="120" r="4.5" fill="#fef08a" stroke="#78350f" stroke-width="1"/>
+              <!-- 雀鸟尾羽孔雀翎 -->
+              <path d="M42 90 C36 106 30 114 26 118" stroke="#15803d" stroke-width="4.5" stroke-linecap="round"/>
+              <path d="M50 92 L50 118" stroke="#15803d" stroke-width="5" stroke-linecap="round"/>
+              <path d="M58 90 C64 106 70 114 74 118" stroke="#15803d" stroke-width="4.5" stroke-linecap="round"/>
+              <circle cx="50" cy="98" r="7.5" fill="#dc2626" stroke="#fbbf24" stroke-width="1.5"/>
+              <!-- 雀鸟躯干与华羽 -->
+              <path d="M50 14 C36 26 32 44 40 60 C32 66 22 82 32 98 C40 110 50 114 50 114 C50 114 60 110 68 98 C78 82 68 66 60 60 C68 44 64 26 50 14 Z" fill="url(#bird-wing)" stroke="#064e3b" stroke-width="1.2"/>
+              <!-- 锦绣胸羽与脸颊 -->
+              <path d="M48 22 C38 38 42 52 48 54 C54 52 58 38 52 22 Z" fill="#ef4444"/>
+              <circle cx="45" cy="31" r="3.2" fill="#fef08a"/>
+              <circle cx="45" cy="31" r="1.6" fill="#0f172a"/>
+              <!-- 左右振翅羽毛 -->
+              <path d="M26 64 Q14 80 22 102 Q33 88 33 74 Z" fill="#16a34a" stroke="#064e3b" stroke-width="1"/>
+              <path d="M74 64 Q86 80 78 102 Q67 88 67 74 Z" fill="#16a34a" stroke="#064e3b" stroke-width="1"/>
+              <!-- 金色灵冠 -->
+              <polygon points="50,9 46,16 54,16" fill="#fbbf24"/>
             </g>
           </svg>
         `;
@@ -128,37 +126,32 @@
       // 2~9 条的竹节立柱布局
       const barCoords = {
         2: [ [50, 22, 50, 60, '#15803d'], [50, 75, 50, 113, '#15803d'] ],
-        3: [ [50, 22, 50, 58, '#2563eb'], [32, 77, 32, 113, '#15803d'], [68, 77, 68, 113, '#15803d'] ],
-        4: [ [32, 22, 32, 60, '#15803d'], [68, 22, 68, 60, '#2563eb'], [32, 75, 32, 113, '#2563eb'], [68, 75, 68, 113, '#15803d'] ],
-        5: [ [28, 22, 28, 60, '#15803d'], [72, 22, 72, 60, '#2563eb'], [50, 50, 50, 85, '#dc2626'], [28, 75, 28, 113, '#2563eb'], [72, 75, 72, 113, '#15803d'] ],
+        3: [ [50, 22, 50, 58, '#1d4ed8'], [32, 77, 32, 113, '#15803d'], [68, 77, 68, 113, '#15803d'] ],
+        4: [ [32, 22, 32, 60, '#15803d'], [68, 22, 68, 60, '#1d4ed8'], [32, 75, 32, 113, '#1d4ed8'], [68, 75, 68, 113, '#15803d'] ],
+        5: [ [28, 22, 28, 60, '#15803d'], [72, 22, 72, 60, '#1d4ed8'], [50, 49, 50, 86, '#dc2626'], [28, 75, 28, 113, '#1d4ed8'], [72, 75, 72, 113, '#15803d'] ],
         6: [ [28, 22, 28, 60, '#15803d'], [50, 22, 50, 60, '#15803d'], [72, 22, 72, 60, '#15803d'], [28, 75, 28, 113, '#15803d'], [50, 75, 50, 113, '#15803d'], [72, 75, 72, 113, '#15803d'] ],
         7: [ [50, 18, 50, 52, '#dc2626'], [28, 48, 28, 78, '#15803d'], [72, 48, 72, 78, '#15803d'], [28, 85, 28, 115, '#15803d'], [42, 85, 42, 115, '#15803d'], [58, 85, 58, 115, '#15803d'], [72, 85, 72, 115, '#15803d'] ],
         8: [ [26, 20, 26, 55, '#15803d'], [42, 20, 42, 55, '#15803d'], [58, 20, 58, 55, '#15803d'], [74, 20, 74, 55, '#15803d'], [26, 80, 26, 115, '#15803d'], [42, 80, 42, 115, '#15803d'], [58, 80, 58, 115, '#15803d'], [74, 80, 74, 115, '#15803d'] ],
-        9: [ [26, 20, 26, 52, '#dc2626'], [50, 20, 50, 52, '#2563eb'], [74, 20, 74, 52, '#15803d'], [26, 52, 26, 84, '#dc2626'], [50, 52, 50, 84, '#2563eb'], [74, 52, 74, 84, '#15803d'], [26, 84, 26, 116, '#dc2626'], [50, 84, 50, 116, '#2563eb'], [74, 84, 74, 116, '#15803d'] ]
+        9: [ [26, 20, 26, 52, '#dc2626'], [50, 20, 50, 52, '#1d4ed8'], [74, 20, 74, 52, '#15803d'], [26, 52, 26, 84, '#dc2626'], [50, 52, 50, 84, '#1d4ed8'], [74, 52, 74, 84, '#15803d'], [26, 84, 26, 116, '#dc2626'], [50, 84, 50, 116, '#1d4ed8'], [74, 84, 74, 116, '#15803d'] ]
       };
 
       const bars = (barCoords[rank] || []).map(([x1, y1, x2, y2, col]) => {
         const midY = (y1 + y2) / 2;
         return `
           <g>
-            <!-- 双段竹节主干 -->
-            <line x1="${x1}" y1="${y1}" x2="${x1}" y2="${midY - 2}" stroke="${col}" stroke-width="6.5" stroke-linecap="round" />
-            <line x1="${x1}" y1="${midY + 2}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="6.5" stroke-linecap="round" />
-            <!-- 竹节凸起金红骨节扣 -->
-            <circle cx="${x1}" cy="${y1}" r="3.5" fill="#fef08a" stroke="#78350f" stroke-width="0.8" />
-            <circle cx="${x1}" cy="${midY}" r="4.5" fill="#dc2626" stroke="#fef08a" stroke-width="1" />
-            <circle cx="${x2}" cy="${y2}" r="3.5" fill="#fef08a" stroke="#78350f" stroke-width="0.8" />
+            <!-- 双段仿真青竹干 -->
+            <line x1="${x1}" y1="${y1}" x2="${x1}" y2="${midY - 2.5}" stroke="${col}" stroke-width="6.5" stroke-linecap="round" />
+            <line x1="${x1}" y1="${midY + 2.5}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="6.5" stroke-linecap="round" />
+            <!-- 竹节骨结扣 (金圈红宝) -->
+            <circle cx="${x1}" cy="${y1}" r="3.2" fill="#fef08a" stroke="#78350f" stroke-width="0.8" />
+            <circle cx="${x1}" cy="${midY}" r="4.5" fill="#dc2626" stroke="#fef08a" stroke-width="1.2" />
+            <circle cx="${x2}" cy="${y2}" r="3.2" fill="#fef08a" stroke="#78350f" stroke-width="0.8" />
           </g>
         `;
       }).join('');
 
       return `
         <svg viewBox="0 0 100 135" class="mj-svg" width="100%" height="100%">
-          <!-- 左上角速辨小角标 -->
-          <g opacity="0.85">
-            <text x="12" y="23" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="900" font-size="17" text-anchor="middle" fill="#15803d">${rank}</text>
-            <text x="12" y="37" font-family="'Noto Serif SC', serif" font-weight="900" font-size="12" text-anchor="middle" fill="#15803d">条</text>
-          </g>
           ${bars}
         </svg>
       `;

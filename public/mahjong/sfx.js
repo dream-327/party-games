@@ -4,6 +4,46 @@
     constructor() {
       this.ctx = null;
       this.enabled = localStorage.getItem('mj_sound') !== 'false';
+      this.cnVoice = null;
+      this.speechUnlocked = false;
+      this.initVoices();
+
+      // 用户任意手势解锁音效与语音
+      if (typeof window !== 'undefined') {
+        const unlock = () => {
+          this.init();
+          this.unlockSpeech();
+          window.removeEventListener('click', unlock);
+          window.removeEventListener('touchstart', unlock);
+        };
+        window.addEventListener('click', unlock, { once: true });
+        window.addEventListener('touchstart', unlock, { once: true });
+      }
+    }
+
+    initVoices() {
+      if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+      const setVoice = () => {
+        try {
+          const voices = window.speechSynthesis.getVoices();
+          this.cnVoice = voices.find(v => v.lang === 'zh-CN' || v.lang.startsWith('zh')) || null;
+        } catch (e) {}
+      };
+      setVoice();
+      if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = setVoice;
+      }
+    }
+
+    unlockSpeech() {
+      if (this.speechUnlocked || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+      try {
+        window.speechSynthesis.resume();
+        const utter = new SpeechSynthesisUtterance('');
+        utter.volume = 0;
+        window.speechSynthesis.speak(utter);
+        this.speechUnlocked = true;
+      } catch (e) {}
     }
 
     init() {
@@ -185,15 +225,15 @@
     }
 
     // 7. 碰牌！清脆双连击
-    playPeng() {
+    playPeng(seatIndex = null) {
       if (!this.enabled) return;
       this.playTileClick();
       setTimeout(() => this.playTileClick(), 75);
-      this.speak('碰！');
+      this.speak('碰！', seatIndex);
     }
 
     // 8. 杠牌（刮风 / 下雨）呼啸与雷鸣
-    playGang(isXiayu = false) {
+    playGang(isXiayu = false, seatIndex = null) {
       if (!this.enabled) return;
       this.init();
       if (!this.ctx) return;
@@ -225,11 +265,11 @@
       noise.start(t);
       noise.stop(t + 0.45);
 
-      this.speak(isXiayu ? '下雨咯！' : '刮风！');
+      this.speak(isXiayu ? '下雨咯！' : '刮风！', seatIndex);
     }
 
     // 9. 胡牌大满贯盛典和弦
-    playHu(isZimo = false) {
+    playHu(isZimo = false, seatIndex = null) {
       if (!this.enabled) return;
       this.init();
       if (!this.ctx) return;
@@ -252,7 +292,7 @@
         osc.stop(this.ctx.currentTime + idx * 0.07 + 0.9);
       });
 
-      this.speak(isZimo ? '自摸，胡啦！' : '胡啦！');
+      this.speak(isZimo ? '自摸，胡啦！' : '胡啦！', seatIndex);
     }
 
     // 10. 倒计时警示滴答声 (最后5秒)
@@ -303,29 +343,52 @@
     }
 
     // 12. 智能牌名朗读播报 (如 "一万"、"五筒"、"八条")
-    speakTile(tile) {
-      if (!this.enabled || !tile) return;
+    speakTile(tile, seatIndex = null) {
+      if (!tile) return;
       const NUM_NAMES = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
       const SUIT_NAMES = { wan: '万', tong: '筒', tiao: '条' };
 
       const numStr = NUM_NAMES[tile.rank] || tile.rank;
       const suitStr = SUIT_NAMES[tile.suit] || '';
       if (numStr && suitStr) {
-        this.speak(`${numStr}${suitStr}`);
+        this.speak(`${numStr}${suitStr}`, seatIndex);
       }
     }
 
-    // 语音朗读辅助 (Web Speech API)
-    speak(text) {
+    // 语音朗读辅助 (Web Speech API 智能普通话 + 桌面视觉气泡)
+    speak(text, seatIndex = null) {
+      // 1. 触发 UI 视觉语音气泡 (即使设备静音也绝不漏听出牌)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('mj_voice_bubble', {
+          detail: { text, seatIndex }
+        }));
+      }
+
+      // 2. 语音合成播报
       if (!this.enabled) return;
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         try {
-          window.speechSynthesis.cancel(); // 取消正在读的，避免堆叠延时
-          const utter = new SpeechSynthesisUtterance(text);
-          utter.lang = 'zh-CN';
-          utter.rate = 1.3;
-          utter.pitch = 1.15;
-          window.speechSynthesis.speak(utter);
+          window.speechSynthesis.resume();
+          // 如果当前正在播报，取消前一个
+          if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+            window.speechSynthesis.cancel();
+          }
+
+          setTimeout(() => {
+            try {
+              const utter = new SpeechSynthesisUtterance(text);
+              if (!this.cnVoice) {
+                const voices = window.speechSynthesis.getVoices();
+                this.cnVoice = voices.find(v => v.lang === 'zh-CN' || v.lang.startsWith('zh')) || null;
+              }
+              if (this.cnVoice) utter.voice = this.cnVoice;
+              utter.lang = 'zh-CN';
+              utter.rate = 1.25;
+              utter.pitch = 1.08;
+              utter.volume = 1.0;
+              window.speechSynthesis.speak(utter);
+            } catch (err) {}
+          }, 15);
         } catch (e) {}
       }
     }
