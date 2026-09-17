@@ -15,7 +15,8 @@
       <div class="logo-badge">
         <span>🕵️‍♂️</span> 谁是卧底 Party
       </div>
-      <div class="header-actions">
+      <!-- 桌面端完整操作栏 (>=900px) -->
+      <div class="header-actions desktop-only">
         <button id="btn-lan-share" class="action-tag-btn" title="扫码邀请好友加入">
           <span class="tag-icon">📱</span><span class="tag-text">邀请</span>
         </button>
@@ -38,6 +39,15 @@
           <span class="tag-icon">🏠</span><span class="tag-text">大厅</span>
         </a>
       </div>
+      <!-- 移动端精简防误触操作栏 (<900px) -->
+      <div class="header-actions mobile-only">
+        <button id="btn-mobile-share" class="action-tag-btn" title="扫码邀请好友加入">
+          <span class="tag-icon">📱</span><span class="tag-text">邀请</span>
+        </button>
+        <button id="btn-mobile-menu" class="action-tag-btn" title="快捷菜单">
+          <span class="tag-icon">⚙️</span><span class="tag-text">菜单</span>
+        </button>
+      </div>
     </header>
 
     <!-- 观战者专属全局横幅提示 -->
@@ -45,13 +55,10 @@
       👀 您正在观战中，当前对局结束后下一局自动加入！
     </div>
 
-    <!-- 8. 公屏线索留存区 (每一轮打的字都会留存在这里) -->
-    <section id="public-screen-container" class="card hidden" style="margin-bottom: 16px; border: 2px solid #38bdf8; box-shadow: 0 0 15px rgba(56,189,248,0.2);">
-      <div style="font-weight: 800; font-size: 14px; color: #38bdf8; margin-bottom: 8px;">💬 大家的描述公屏 (历史记录)</div>
-      <div id="public-screen-logs" style="max-height: 180px; overflow-y: auto; font-size: 13px; display: flex; flex-direction: column; gap: 6px; padding-right: 4px;">
-        <div id="public-screen-empty" style="color: var(--text-muted); text-align: center;">暂无描述记录</div>
-      </div>
-    </section>
+    <!-- 响应式主舞台与情报看板双栏容器 -->
+    <div id="game-layout-wrapper" class="game-layout-wrapper">
+      <!-- 左侧主舞台列 -->
+      <main id="main-stage-col" class="main-stage-col">
 
     <!-- 1. 首页 / 登录界面 -->
     <section id="view-home" class="card">
@@ -453,16 +460,39 @@
     </section>
 
     <!-- 底部快捷表情互动栏 -->
-    <div class="reaction-bar" id="reaction-bar">
-      <span class="reaction-label">💬 互动:</span>
-      <button class="reaction-btn" data-emoji="😂" title="笑哭">😂</button>
-      <button class="reaction-btn" data-emoji="🧐" title="吃瓜/怀疑">🧐</button>
-      <button class="reaction-btn" data-emoji="🤫" title="嘘/保密">🤫</button>
-      <button class="reaction-btn" data-emoji="🔥" title="热血/开打">🔥</button>
-      <button class="reaction-btn" data-emoji="💣" title="炸裂">💣</button>
-      <button class="reaction-btn" data-emoji="🍺" title="干杯">🍺</button>
-      <button class="reaction-btn" data-emoji="🏆" title="点赞/祝贺">🏆</button>
-    </div>
+      <div class="reaction-bar" id="reaction-bar">
+        <span class="reaction-label">💬 互动:</span>
+        <button class="reaction-btn" data-emoji="😂" title="笑哭">😂</button>
+        <button class="reaction-btn" data-emoji="🧐" title="吃瓜/怀疑">🧐</button>
+        <button class="reaction-btn" data-emoji="🤫" title="嘘/保密">🤫</button>
+        <button class="reaction-btn" data-emoji="🔥" title="热血/开打">🔥</button>
+        <button class="reaction-btn" data-emoji="💣" title="炸裂">💣</button>
+        <button class="reaction-btn" data-emoji="🍺" title="干杯">🍺</button>
+        <button class="reaction-btn" data-emoji="🏆" title="点赞/祝贺">🏆</button>
+      </div>
+    </main>
+
+    <!-- 右侧情报侧边栏 (桌面宽屏常驻展示，手机竖屏置顶为可折叠胶囊) -->
+    <aside id="game-sidebar-col" class="game-sidebar-col">
+      <section id="public-screen-container" class="card public-screen-card hidden collapsed">
+        <div class="public-screen-header" id="public-screen-header">
+          <div class="public-screen-title-wrap">
+            <span class="public-screen-icon">💬</span>
+            <span class="public-screen-title">公屏发言</span>
+            <span class="public-screen-badge" id="public-screen-badge">0条</span>
+          </div>
+          <div class="public-screen-summary" id="public-screen-summary">暂无记录</div>
+          <button id="btn-toggle-screen" class="btn-toggle-screen" type="button" aria-label="展开或收起公屏">
+            <span id="screen-toggle-text">展开</span>
+            <span id="screen-toggle-icon">▲</span>
+          </button>
+        </div>
+        <div id="public-screen-logs" class="public-screen-logs">
+          <div id="public-screen-empty" style="color: var(--text-muted); text-align: center;">暂无描述记录</div>
+        </div>
+      </section>
+    </aside>
+  </div><!-- end #game-layout-wrapper -->
 
     <!-- 弹窗：邀请好友与二维码 -->
     <div class="modal-overlay hidden" id="modal-lan">
@@ -585,6 +615,67 @@
             • <strong>白板独赢</strong>：卧底全灭后，白板成功苟活到最后（存活 ≤ 2人），白板独赢！<br>
             • <strong>绝地猜词</strong>：卧底或白板出局时可限时猜平民词，猜中直接逆风翻盘获胜！
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 弹窗：移动端快捷控制面板 -->
+    <div class="modal-overlay hidden" id="modal-mobile-menu">
+      <div class="modal-content mobile-menu-content">
+        <div class="modal-header">
+          <h3 class="modal-title">⚙️ 游戏快捷菜单</h3>
+          <button class="close-btn" id="btn-close-mobile-menu">✕</button>
+        </div>
+        <div class="mobile-menu-grid">
+          <button id="btn-mobile-sound" class="mobile-menu-item">
+            <span class="menu-icon" id="mobile-sound-icon">🔊</span>
+            <div class="menu-info">
+              <div class="menu-title" id="mobile-sound-title">游戏音效</div>
+              <div class="menu-desc" id="mobile-sound-desc">开启中</div>
+            </div>
+          </button>
+          <button id="btn-mobile-voice" class="mobile-menu-item">
+            <span class="menu-icon" id="mobile-voice-icon">🔇</span>
+            <div class="menu-info">
+              <div class="menu-title" id="mobile-voice-title">语音播报</div>
+              <div class="menu-desc" id="mobile-voice-desc">已关闭</div>
+            </div>
+          </button>
+          <button id="btn-mobile-rules" class="mobile-menu-item">
+            <span class="menu-icon">📖</span>
+            <div class="menu-info">
+              <div class="menu-title">玩法规则</div>
+              <div class="menu-desc">游戏说明与胜利条件</div>
+            </div>
+          </button>
+          <button id="btn-mobile-share-menu" class="mobile-menu-item">
+            <span class="menu-icon">📱</span>
+            <div class="menu-info">
+              <div class="menu-title">邀请好友</div>
+              <div class="menu-desc">扫码或复制房间链接</div>
+            </div>
+          </button>
+          <button id="btn-mobile-host-reset" class="mobile-menu-item warn hidden">
+            <span class="menu-icon">🔄</span>
+            <div class="menu-info">
+              <div class="menu-title">重置对局 (房主)</div>
+              <div class="menu-desc">强制结束本局回到大厅</div>
+            </div>
+          </button>
+          <button id="btn-mobile-leave" class="mobile-menu-item danger hidden">
+            <span class="menu-icon">🚪</span>
+            <div class="menu-info">
+              <div class="menu-title">退出房间</div>
+              <div class="menu-desc">离开当前对战房间</div>
+            </div>
+          </button>
+          <a href="/" id="link-mobile-lobby" class="mobile-menu-item" style="text-decoration:none;">
+            <span class="menu-icon">🏠</span>
+            <div class="menu-info">
+              <div class="menu-title">游戏总大厅</div>
+              <div class="menu-desc">返回派对游戏主界面</div>
+            </div>
+          </a>
         </div>
       </div>
     </div>

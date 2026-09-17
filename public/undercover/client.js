@@ -98,25 +98,45 @@
       }
     });
 
+    const showPublicScreenViews = ['speaking', 'voting', 'pk', 'guess', 'elimination'];
+    const isGameStage = showPublicScreenViews.includes(activeViewName);
+
+    // 动态切换桌面双栏布局 class
+    const layoutWrapper = document.getElementById('game-layout-wrapper');
+    if (layoutWrapper) {
+      layoutWrapper.classList.toggle('has-sidebar', isGameStage);
+    }
+
     // 仅在真实对局环节展示公屏记录；在首页 (home)、大厅 (lobby)、看牌 (card)、结算 (gameOver) 阶段严格隐藏并清空残留
     const publicScreenContainer = document.getElementById('public-screen-container');
     const publicScreenLogs = document.getElementById('public-screen-logs');
+    const publicScreenSummary = document.getElementById('public-screen-summary');
+    const publicScreenBadge = document.getElementById('public-screen-badge');
     if (publicScreenContainer) {
-      const showPublicScreenViews = ['speaking', 'voting', 'pk', 'guess', 'elimination'];
-      if (!showPublicScreenViews.includes(activeViewName)) {
+      if (!isGameStage) {
         publicScreenContainer.classList.add('hidden');
         if (publicScreenLogs && (activeViewName === 'home' || activeViewName === 'lobby')) {
           publicScreenLogs.innerHTML = '<div style="color: var(--text-muted); text-align: center;">暂无描述记录</div>';
+          if (publicScreenSummary) publicScreenSummary.innerText = '暂无记录';
+          if (publicScreenBadge) publicScreenBadge.innerText = '0条';
         }
       }
     }
 
     const headerLeaveBtn = document.getElementById('btn-header-leave');
+    const mobileLeaveBtn = document.getElementById('btn-mobile-leave');
     if (headerLeaveBtn) {
       if (activeViewName === 'home') {
         headerLeaveBtn.classList.add('hidden');
       } else {
         headerLeaveBtn.classList.remove('hidden');
+      }
+    }
+    if (mobileLeaveBtn) {
+      if (activeViewName === 'home') {
+        mobileLeaveBtn.classList.add('hidden');
+      } else {
+        mobileLeaveBtn.classList.remove('hidden');
       }
     }
   }
@@ -131,9 +151,15 @@
       if (publicScreen) publicScreen.classList.add('hidden');
       const publicScreenLogs = document.getElementById('public-screen-logs');
       if (publicScreenLogs) publicScreenLogs.innerHTML = '<div style="color: var(--text-muted); text-align: center;">暂无描述记录</div>';
+      const publicScreenSummary = document.getElementById('public-screen-summary');
+      if (publicScreenSummary) publicScreenSummary.innerText = '暂无记录';
+      const publicScreenBadge = document.getElementById('public-screen-badge');
+      if (publicScreenBadge) publicScreenBadge.innerText = '0条';
       switchView('home');
       const hostResetBtn = document.getElementById('btn-host-reset');
       if (hostResetBtn) hostResetBtn.classList.add('hidden');
+      const mobileHostResetBtn = document.getElementById('btn-mobile-host-reset');
+      if (mobileHostResetBtn) mobileHostResetBtn.classList.add('hidden');
     }
   }
 
@@ -339,10 +365,15 @@
 
     // 3. 房主重置按钮控制
     const hostResetBtn = document.getElementById('btn-host-reset');
-    if (isHost && room.gameState.phase !== 'LOBBY') {
-      hostResetBtn.classList.remove('hidden');
-    } else {
-      hostResetBtn.classList.add('hidden');
+    const mobileHostResetBtn = document.getElementById('btn-mobile-host-reset');
+    const isResetAvailable = isHost && room.gameState.phase !== 'LOBBY';
+    if (hostResetBtn) {
+      if (isResetAvailable) hostResetBtn.classList.remove('hidden');
+      else hostResetBtn.classList.add('hidden');
+    }
+    if (mobileHostResetBtn) {
+      if (isResetAvailable) mobileHostResetBtn.classList.remove('hidden');
+      else mobileHostResetBtn.classList.add('hidden');
     }
 
     document.querySelectorAll('.btn-host-reset-action').forEach(btn => {
@@ -420,14 +451,19 @@
     // 5. 渲染公屏记录 (仅在发言、投票、争辩、猜词、淘汰等活跃对局环节展示；大厅、看牌、结算、首页坚决隐藏并重置)
     const publicScreenContainer = document.getElementById('public-screen-container');
     const publicScreenLogs = document.getElementById('public-screen-logs');
+    const publicScreenBadge = document.getElementById('public-screen-badge');
+    const publicScreenSummary = document.getElementById('public-screen-summary');
     if (publicScreenContainer && publicScreenLogs) {
       const activeGamePhases = ['SPEAKING', 'VOTING', 'PK_SPEAKING', 'PK_VOTING', 'GUESS_WORD', 'ELIMINATION'];
       if (activeGamePhases.includes(phase)) {
         publicScreenContainer.classList.remove('hidden');
         
         const logs = room.gameState.clueLogs || [];
+        if (publicScreenBadge) publicScreenBadge.innerText = `${logs.length}条`;
+
         if (logs.length === 0) {
           publicScreenLogs.innerHTML = '<div style="color: var(--text-muted); text-align: center;">暂无描述记录</div>';
+          if (publicScreenSummary) publicScreenSummary.innerText = '暂无记录';
         } else {
           publicScreenLogs.innerHTML = logs.map(log => {
             const prefix = log.isPk ? `<span style="color: #ef4444;">[PK发言]</span>` : `<span style="color: #a855f7;">[第${log.round}轮]</span>`;
@@ -436,6 +472,11 @@
             </div>`;
           }).join('');
           
+          const lastLog = logs[logs.length - 1];
+          if (publicScreenSummary && lastLog) {
+            publicScreenSummary.innerText = `${lastLog.playerName}: ${lastLog.clue}`;
+          }
+
           // 自动滚动到底部
           setTimeout(() => {
             publicScreenLogs.scrollTop = publicScreenLogs.scrollHeight;
@@ -445,6 +486,8 @@
         publicScreenContainer.classList.add('hidden');
         if (phase === 'LOBBY' || phase === 'CARD_VIEW') {
           publicScreenLogs.innerHTML = '<div style="color: var(--text-muted); text-align: center;">暂无描述记录</div>';
+          if (publicScreenSummary) publicScreenSummary.innerText = '暂无记录';
+          if (publicScreenBadge) publicScreenBadge.innerText = '0条';
         }
       }
     }
@@ -1120,8 +1163,21 @@
       if (publicScreenLogs.innerHTML.includes('暂无描述记录')) {
         publicScreenLogs.innerHTML = '';
       }
-      
       publicScreenLogs.appendChild(newLog);
+
+      const count = publicScreenLogs.children.length;
+      const badge = document.getElementById('public-screen-badge');
+      if (badge) {
+        badge.innerText = `${count}条`;
+        badge.classList.remove('badge-pulse');
+        void badge.offsetWidth;
+        badge.classList.add('badge-pulse');
+      }
+      const summary = document.getElementById('public-screen-summary');
+      if (summary) {
+        summary.innerText = `${data.playerName}: ${data.clue}`;
+      }
+
       setTimeout(() => {
         publicScreenLogs.scrollTop = publicScreenLogs.scrollHeight;
       }, 50);
@@ -2094,32 +2150,145 @@
     modalSettings.classList.add('hidden');
   });
 
-  // 音效开关
-  const soundBtn = document.getElementById('btn-sound');
-  soundBtn.addEventListener('click', () => {
-    window.sfx.enabled = !window.sfx.enabled;
+  // ----------------------------------------------------
+  // 音效与语音播报控制 (多端状态同步)
+  // ----------------------------------------------------
+  function updateSoundUI() {
     const icon = document.getElementById('sound-icon');
     const text = document.getElementById('sound-text');
     if (icon) icon.innerText = window.sfx.enabled ? '🔊' : '🔇';
     if (text) text.innerText = window.sfx.enabled ? '音效' : '静音';
-    window.sfx.playClick();
-  });
 
-  // 语音播报开关
+    const mIcon = document.getElementById('mobile-sound-icon');
+    const mDesc = document.getElementById('mobile-sound-desc');
+    if (mIcon) mIcon.innerText = window.sfx.enabled ? '🔊' : '🔇';
+    if (mDesc) mDesc.innerText = window.sfx.enabled ? '开启中' : '已静音';
+  }
+
+  function toggleSound() {
+    window.sfx.enabled = !window.sfx.enabled;
+    updateSoundUI();
+    window.sfx.playClick();
+  }
+
+  const soundBtn = document.getElementById('btn-sound');
+  if (soundBtn) soundBtn.addEventListener('click', toggleSound);
+  const btnMobileSound = document.getElementById('btn-mobile-sound');
+  if (btnMobileSound) btnMobileSound.addEventListener('click', toggleSound);
+
+  function updateVoiceUI() {
+    const icon = document.getElementById('voice-icon');
+    const text = document.getElementById('voice-text');
+    if (icon) icon.innerText = window.sfx.voiceEnabled ? '🗣️' : '🔇';
+    if (text) text.innerText = window.sfx.voiceEnabled ? '语音:开' : '语音:关';
+
+    const mIcon = document.getElementById('mobile-voice-icon');
+    const mDesc = document.getElementById('mobile-voice-desc');
+    if (mIcon) mIcon.innerText = window.sfx.voiceEnabled ? '🗣️' : '🔇';
+    if (mDesc) mDesc.innerText = window.sfx.voiceEnabled ? '开启中' : '已关闭';
+  }
+
+  function toggleVoice() {
+    window.sfx.voiceEnabled = !window.sfx.voiceEnabled;
+    updateVoiceUI();
+    window.sfx.playClick();
+    if (window.sfx.voiceEnabled) {
+      window.sfx.speak('语音播报已开启');
+    } else {
+      window.speechSynthesis && window.speechSynthesis.cancel();
+    }
+  }
+
   const voiceBtn = document.getElementById('btn-voice');
-  if (voiceBtn) {
-    voiceBtn.addEventListener('click', () => {
-      window.sfx.voiceEnabled = !window.sfx.voiceEnabled;
-      const icon = document.getElementById('voice-icon');
-      const text = document.getElementById('voice-text');
-      if (icon) icon.innerText = window.sfx.voiceEnabled ? '🗣️' : '🔇';
-      if (text) text.innerText = window.sfx.voiceEnabled ? '语音:开' : '语音:关';
+  if (voiceBtn) voiceBtn.addEventListener('click', toggleVoice);
+  const btnMobileVoice = document.getElementById('btn-mobile-voice');
+  if (btnMobileVoice) btnMobileVoice.addEventListener('click', toggleVoice);
+
+  updateSoundUI();
+  updateVoiceUI();
+
+  // ----------------------------------------------------
+  // 移动端公屏折叠/展开与胶囊状态控制
+  // ----------------------------------------------------
+  const publicScreenContainer = document.getElementById('public-screen-container');
+  const publicScreenHeader = document.getElementById('public-screen-header');
+  const screenToggleText = document.getElementById('screen-toggle-text');
+  const screenToggleIcon = document.getElementById('screen-toggle-icon');
+
+  function togglePublicScreenCollapse() {
+    if (!publicScreenContainer) return;
+    window.sfx.playClick();
+    const isCollapsed = publicScreenContainer.classList.toggle('collapsed');
+    if (screenToggleText) screenToggleText.innerText = isCollapsed ? '展开' : '收起';
+    if (screenToggleIcon) screenToggleIcon.innerText = isCollapsed ? '▲' : '▼';
+  }
+
+  if (publicScreenHeader) {
+    publicScreenHeader.addEventListener('click', () => {
+      togglePublicScreenCollapse();
+    });
+  }
+
+  // ----------------------------------------------------
+  // 移动端安全快捷菜单控制面板
+  // ----------------------------------------------------
+  const modalMobileMenu = document.getElementById('modal-mobile-menu');
+  const btnMobileMenu = document.getElementById('btn-mobile-menu');
+  const btnCloseMobileMenu = document.getElementById('btn-close-mobile-menu');
+  const btnMobileShare = document.getElementById('btn-mobile-share');
+  const btnMobileShareMenu = document.getElementById('btn-mobile-share-menu');
+  const btnMobileRules = document.getElementById('btn-mobile-rules');
+  const btnMobileHostReset = document.getElementById('btn-mobile-host-reset');
+  const btnMobileLeave = document.getElementById('btn-mobile-leave');
+
+  function openMobileMenu() {
+    window.sfx.playClick();
+    if (modalMobileMenu) modalMobileMenu.classList.remove('hidden');
+  }
+
+  function closeMobileMenu() {
+    if (modalMobileMenu) modalMobileMenu.classList.add('hidden');
+  }
+
+  if (btnMobileMenu) btnMobileMenu.addEventListener('click', openMobileMenu);
+  if (btnCloseMobileMenu) btnCloseMobileMenu.addEventListener('click', closeMobileMenu);
+  if (modalMobileMenu) {
+    modalMobileMenu.addEventListener('click', (e) => {
+      if (e.target === modalMobileMenu) closeMobileMenu();
+    });
+  }
+
+  function triggerLanShare() {
+    window.sfx.playClick();
+    renderLanModal();
+    const modalLan = document.getElementById('modal-lan');
+    if (modalLan) modalLan.classList.remove('hidden');
+    closeMobileMenu();
+  }
+
+  if (btnMobileShare) btnMobileShare.addEventListener('click', triggerLanShare);
+  if (btnMobileShareMenu) btnMobileShareMenu.addEventListener('click', triggerLanShare);
+
+  if (btnMobileRules) {
+    btnMobileRules.addEventListener('click', () => {
       window.sfx.playClick();
-      if (window.sfx.voiceEnabled) {
-        window.sfx.speak('语音播报已开启');
-      } else {
-        window.speechSynthesis && window.speechSynthesis.cancel();
-      }
+      const modalRules = document.getElementById('modal-rules');
+      if (modalRules) modalRules.classList.remove('hidden');
+      closeMobileMenu();
+    });
+  }
+
+  if (btnMobileHostReset) {
+    btnMobileHostReset.addEventListener('click', () => {
+      closeMobileMenu();
+      requestResetToLobby();
+    });
+  }
+
+  if (btnMobileLeave) {
+    btnMobileLeave.addEventListener('click', () => {
+      closeMobileMenu();
+      confirmLeaveRoom();
     });
   }
 
