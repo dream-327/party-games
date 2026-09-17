@@ -66,6 +66,43 @@
   let customWordPairs = [];
   let serverInfo = null;
 
+  let pendingRoomSettings = {
+    undercoverCount: 1,
+    whiteboardCount: 0,
+    speechTimeLimit: 90,
+    voteTimeLimit: 60,
+    speechOrderMode: 'random',
+    revealRoleOnEliminate: true,
+    allowGuessWord: true,
+    enablePunishment: true,
+    category: 'all',
+    customWords: []
+  };
+
+  function formatSettingsSummary(settings) {
+    if (!settings) return '';
+    const catMap = {
+      all: '综合随机', classic: '经典对决', life: '生活日常',
+      fun: '搞笑扎心', pop: '影视动漫', food: '吃货天下', custom_only: '自定义'
+    };
+    const catText = catMap[settings.category] || '综合随机';
+    const isDarkCard = settings.revealRoleOnEliminate === false;
+    const canGuess = settings.allowGuessWord !== false;
+    const speechLimit = settings.speechTimeLimit > 0 ? `${settings.speechTimeLimit}s发言` : '不限时发言';
+    const voteLimit = settings.voteTimeLimit > 0 ? `${settings.voteTimeLimit}s投票` : '手动投票';
+    const orderText = settings.speechOrderMode === 'seat' ? '顺时针轮转' : '随机乱序';
+    const punishText = settings.enablePunishment === false ? '无惩罚' : '大冒险';
+
+    return `${settings.undercoverCount}卧底 · ${settings.whiteboardCount}白板 · ${isDarkCard ? '🎭暗牌' : '📢明牌'} · ${canGuess ? '🎯猜词' : '纯淘汰'} · ${speechLimit} · ${voteLimit} · ${orderText} · ${catText}`;
+  }
+
+  function updateHomeSettingsTag() {
+    const tag = document.getElementById('home-settings-tag');
+    if (tag) {
+      tag.innerText = formatSettingsSummary(pendingRoomSettings);
+    }
+  }
+
   // DOM 元素引用
   const views = {
     home: document.getElementById('view-home'),
@@ -204,6 +241,16 @@
         joinBtn.classList.add('btn-start-game-glow');
       }
     }
+
+    const btnHomeSettings = document.getElementById('btn-home-toggle-settings');
+    if (btnHomeSettings) {
+      btnHomeSettings.addEventListener('click', () => {
+        window.sfx.playClick();
+        populateSettingsModal(pendingRoomSettings);
+        modalSettings.classList.remove('hidden');
+      });
+    }
+    updateHomeSettingsTag();
   }
 
   // 获取服务器网络信息并准备二维码
@@ -222,14 +269,7 @@
     const name = document.getElementById('input-nickname').value.trim() || myNickname;
     socket.emit('create_room', {
       player: { id: myPlayerId, name, avatar: myAvatar },
-      settings: {
-        undercoverCount: 1,
-        whiteboardCount: 0,
-        category: 'all',
-        speechTimeLimit: 90,
-        revealRoleOnEliminate: true,
-        customWords: customWordPairs
-      }
+      settings: pendingRoomSettings
     }, (res) => {
       if (!res.success) {
         alert(res.message || '创建房间失败');
@@ -578,12 +618,7 @@
     const lobbyStartTip = document.getElementById('lobby-start-tip');
     const btnStartGame = document.getElementById('btn-start-game');
 
-    const catMap = {
-      all: '综合随机', classic: '经典对决', life: '生活日常',
-      fun: '搞笑扎心', pop: '影视动漫', food: '吃货天下', custom_only: '自定义'
-    };
-    const catText = catMap[room.settings.category] || '综合随机';
-    const settingsSummary = `${room.settings.undercoverCount}卧底 · ${room.settings.whiteboardCount}白板 · ${catText}`;
+    const settingsSummary = formatSettingsSummary(room.settings);
 
     const hostSettingsSummary = document.getElementById('lobby-settings-summary');
     if (hostSettingsSummary) hostSettingsSummary.innerText = settingsSummary;
@@ -1700,14 +1735,29 @@
         WHITEBOARD: '<span class="role-tag WHITEBOARD">白板 📄</span>'
       };
       const votesText = (typeof elim.votes === 'number' && elim.votes > 0) ? `获得 ${elim.votes} 票` : '';
-      container.innerHTML = `
-        <div style="font-size: 56px; margin-bottom: 8px;">${elim.avatar}</div>
-        <div style="font-size: 22px; font-weight: 800; margin-bottom: 8px;">${escapeHtml(elim.name)} 被投出局！</div>
-        ${votesText ? `<div style="font-size: 14px; margin-bottom: 12px; color: #fca5a5;">${votesText}</div>` : ''}
-        ${room.settings.revealRoleOnEliminate ? `<div style="font-size: 16px;">真实的身份是：${roleMap[elim.role] || elim.role}</div>` : ''}
-      `;
-      const roleCn = elim.role === 'UNDERCOVER' ? '卧底' : (elim.role === 'WHITEBOARD' ? '白板' : '平民');
-      window.sfx.speak(`${elim.name} 被投出局，真实身份是 ${roleCn}`);
+      const isSecretMode = (room.settings.revealRoleOnEliminate === false) || elim.isSecret;
+
+      if (isSecretMode) {
+        container.innerHTML = `
+          <div style="font-size: 56px; margin-bottom: 8px;">${elim.avatar}</div>
+          <div style="font-size: 22px; font-weight: 800; margin-bottom: 8px;">${escapeHtml(elim.name)} 被投出局！</div>
+          ${votesText ? `<div style="font-size: 14px; margin-bottom: 12px; color: #fca5a5;">${votesText}</div>` : ''}
+          <div style="margin-top: 10px; display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: rgba(168,85,247,0.15); border: 1px dashed rgba(168,85,247,0.4); border-radius: 999px; font-size: 14px; color: #d8b4fe; font-weight: 700;">
+            🎭 暗牌模式：真实身份保密
+          </div>
+        `;
+        window.sfx.speak(`${elim.name} 被投出局，暗牌模式下身份保密`);
+      } else {
+        container.innerHTML = `
+          <div style="font-size: 56px; margin-bottom: 8px;">${elim.avatar}</div>
+          <div style="font-size: 22px; font-weight: 800; margin-bottom: 8px;">${escapeHtml(elim.name)} 被投出局！</div>
+          ${votesText ? `<div style="font-size: 14px; margin-bottom: 12px; color: #fca5a5;">${votesText}</div>` : ''}
+          <div style="font-size: 16px;">真实的身份是：${roleMap[elim.role] || elim.role}</div>
+        `;
+        const roleCn = elim.role === 'UNDERCOVER' ? '卧底' : (elim.role === 'WHITEBOARD' ? '白板' : '平民');
+        window.sfx.speak(`${elim.name} 被投出局，真实身份是 ${roleCn}`);
+      }
+
       if (elim.id === myPlayerId) {
         window.sfx.vibrate('eliminated');
       }
@@ -1805,8 +1855,17 @@
     });
 
     // 惩罚卡
-    const punishmentText = document.getElementById('punishment-text');
-    punishmentText.innerText = room.gameState.punishment || '模仿一种动物叫声！';
+    const punishContainer = document.getElementById('punishment-card-container');
+    const hasPunishment = room.settings.enablePunishment !== false && Boolean(room.gameState.punishment);
+    if (punishContainer) {
+      if (hasPunishment) {
+        punishContainer.classList.remove('hidden');
+        const punishmentText = document.getElementById('punishment-text');
+        if (punishmentText) punishmentText.innerText = room.gameState.punishment || '模仿一种动物叫声！';
+      } else {
+        punishContainer.classList.add('hidden');
+      }
+    }
 
     const hostActions = document.getElementById('game-over-host-actions');
     const guestMsg = document.getElementById('game-over-guest-msg');
@@ -2073,14 +2132,37 @@
 
   // 设置弹窗
   const modalSettings = document.getElementById('modal-settings');
+
+  function populateSettingsModal(settings) {
+    if (!settings) return;
+    const s = Object.assign({}, pendingRoomSettings, settings);
+    const spyEl = document.getElementById('val-spy-count');
+    if (spyEl) spyEl.innerText = s.undercoverCount ?? 1;
+    const wbEl = document.getElementById('val-wb-count');
+    if (wbEl) wbEl.innerText = s.whiteboardCount ?? 0;
+    const speechEl = document.getElementById('select-speech-timer');
+    if (speechEl) speechEl.value = String(s.speechTimeLimit ?? 90);
+    const voteEl = document.getElementById('select-vote-timer');
+    if (voteEl) voteEl.value = String(s.voteTimeLimit ?? 60);
+    const orderEl = document.getElementById('select-speech-order');
+    if (orderEl) orderEl.value = s.speechOrderMode || 'random';
+    const revealEl = document.getElementById('select-reveal-mode');
+    if (revealEl) revealEl.value = s.revealRoleOnEliminate === false ? 'false' : 'true';
+    const guessEl = document.getElementById('select-guess-mode');
+    if (guessEl) guessEl.value = s.allowGuessWord === false ? 'false' : 'true';
+    const punishEl = document.getElementById('select-punishment-mode');
+    if (punishEl) punishEl.value = s.enablePunishment === false ? 'false' : 'true';
+    const catEl = document.getElementById('select-category');
+    if (catEl) catEl.value = s.category || 'all';
+
+    customWordPairs = Array.isArray(s.customWords) ? [...s.customWords] : [];
+    renderCustomWordsBadges();
+  }
+
   document.getElementById('btn-open-settings').addEventListener('click', () => {
     window.sfx.playClick();
     if (!currentRoom) return;
-    document.getElementById('val-spy-count').innerText = currentRoom.settings.undercoverCount;
-    document.getElementById('val-wb-count').innerText = currentRoom.settings.whiteboardCount;
-    document.getElementById('select-speech-timer').value = currentRoom.settings.speechTimeLimit;
-    document.getElementById('select-category').value = currentRoom.settings.category;
-    renderCustomWordsBadges();
+    populateSettingsModal(currentRoom.settings);
     modalSettings.classList.remove('hidden');
   });
 
@@ -2139,14 +2221,25 @@
 
   // 保存设置
   document.getElementById('btn-save-settings').addEventListener('click', () => {
+    window.sfx.playClick();
     const newSettings = {
-      undercoverCount: parseInt(document.getElementById('val-spy-count').innerText),
-      whiteboardCount: parseInt(document.getElementById('val-wb-count').innerText),
-      speechTimeLimit: parseInt(document.getElementById('select-speech-timer').value),
-      category: document.getElementById('select-category').value,
+      undercoverCount: parseInt(document.getElementById('val-spy-count').innerText) || 1,
+      whiteboardCount: parseInt(document.getElementById('val-wb-count').innerText) || 0,
+      speechTimeLimit: parseInt(document.getElementById('select-speech-timer').value) || 0,
+      voteTimeLimit: parseInt(document.getElementById('select-vote-timer').value) || 0,
+      speechOrderMode: document.getElementById('select-speech-order').value || 'random',
+      revealRoleOnEliminate: document.getElementById('select-reveal-mode').value === 'true',
+      allowGuessWord: document.getElementById('select-guess-mode').value === 'true',
+      enablePunishment: document.getElementById('select-punishment-mode').value === 'true',
+      category: document.getElementById('select-category').value || 'all',
       customWords: customWordPairs
     };
-    socket.emit('update_settings', newSettings);
+
+    if (currentRoom && currentRoom.code) {
+      socket.emit('update_settings', newSettings);
+    }
+    pendingRoomSettings = Object.assign({}, pendingRoomSettings, newSettings);
+    updateHomeSettingsTag();
     modalSettings.classList.add('hidden');
   });
 

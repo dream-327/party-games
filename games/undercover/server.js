@@ -226,13 +226,18 @@ function startSpeakingPhase(undercoverIo, room) {
     .filter(p => p.isAlive && !p.isSpectator)
     .map(p => p.id);
 
-  // 洗牌发言顺序
-  for (let i = alivePlayers.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [alivePlayers[i], alivePlayers[j]] = [alivePlayers[j], alivePlayers[i]];
+  if (room.settings && room.settings.speechOrderMode === 'seat') {
+    // 顺时针固定轮转：按玩家在房间的固定座次（Map插入顺序），不进行打乱
+    room.gameState.speakingOrder = alivePlayers;
+  } else {
+    // 随机洗牌发言顺序
+    for (let i = alivePlayers.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [alivePlayers[i], alivePlayers[j]] = [alivePlayers[j], alivePlayers[i]];
+    }
+    room.gameState.speakingOrder = alivePlayers;
   }
 
-  room.gameState.speakingOrder = alivePlayers;
   room.gameState.currentSpeakerIndex = 0;
   scheduleNextSpeaker(undercoverIo, room);
 }
@@ -335,16 +340,19 @@ function startVotingPhase(undercoverIo, room) {
   room.gameState.phase = PHASES.VOTING;
   room.gameState.votes = {};
   room.gameState.voteStartTime = Date.now();
-  room.gameState.voteTimeLimit = 60;
+  const timeLimit = typeof room.settings.voteTimeLimit === 'number' ? room.settings.voteTimeLimit : 60;
+  room.gameState.voteTimeLimit = timeLimit;
   room.players.forEach(p => { p.hasVoted = false; });
   broadcastRoom(undercoverIo, room);
   scheduleAiVotes(undercoverIo, room, false);
 
-  room.gameState.voteSafetyTimer = setTimeout(() => {
-    if (room.gameState.phase === PHASES.VOTING) {
-      forceResolveVotes(undercoverIo, room);
-    }
-  }, 62000);
+  if (timeLimit > 0) {
+    room.gameState.voteSafetyTimer = setTimeout(() => {
+      if (room.gameState.phase === PHASES.VOTING) {
+        forceResolveVotes(undercoverIo, room);
+      }
+    }, (timeLimit + 2) * 1000);
+  }
 }
 
 function startPkSpeakingPhase(undercoverIo, room, candidateIds) {
@@ -503,8 +511,9 @@ function handleEliminateWithGuess(undercoverIo, room, playerId, votes = 0) {
     return;
   }
 
-  // 卧底或白板被投票淘汰时触发绝地猜词翻盘机会 (延长至30秒，留足真人打字与思考时间)
-  if (p.role === ROLES.UNDERCOVER || p.role === ROLES.WHITEBOARD) {
+  // 卧底或白板被投票淘汰时触发绝地猜词翻盘机会 (若房间规则开启猜词机制，延长至30秒)
+  const canGuess = room.settings && room.settings.allowGuessWord !== false;
+  if (canGuess && (p.role === ROLES.UNDERCOVER || p.role === ROLES.WHITEBOARD)) {
     room.gameState.phase = PHASES.GUESS_WORD;
     room.gameState.guessTarget = {
       id: p.id,
@@ -569,7 +578,8 @@ function submitGuessWord(undercoverIo, room, playerId, guessedWord) {
       guessedWord: guess,
       winningWord: room.gameState.winningWord
     };
-    room.gameState.punishment = getRandomPunishment();
+    const enablePunish = room.settings && room.settings.enablePunishment !== false;
+    room.gameState.punishment = enablePunish ? getRandomPunishment() : null;
     broadcastRoom(undercoverIo, room);
     return { success: true, message: '猜词成功，逆转获胜！' };
   } else {
@@ -591,6 +601,8 @@ function eliminatePlayer(undercoverIo, room, playerId, tieMessage = null, votes 
   clearRoomTimers(room);
   room.gameState.phase = PHASES.ELIMINATION;
 
+  const isReveal = room.settings && room.settings.revealRoleOnEliminate !== false;
+
   if (playerId) {
     const p = room.players.get(playerId);
     if (p) {
@@ -599,8 +611,9 @@ function eliminatePlayer(undercoverIo, room, playerId, tieMessage = null, votes 
         id: p.id,
         name: p.name,
         avatar: p.avatar,
-        role: p.role,
-        word: p.word,
+        role: isReveal ? p.role : null,
+        word: isReveal ? p.word : null,
+        isSecret: !isReveal,
         votes: votes,
         isTieNoElimination: false
       };
@@ -621,7 +634,8 @@ function eliminatePlayer(undercoverIo, room, playerId, tieMessage = null, votes 
     room.gameState.gameOverTimer = setTimeout(() => {
       room.gameState.phase = PHASES.GAME_OVER;
       room.gameState.winner = checkResult.winner;
-      room.gameState.punishment = getRandomPunishment();
+      const enablePunish = room.settings && room.settings.enablePunishment !== false;
+      room.gameState.punishment = enablePunish ? getRandomPunishment() : null;
       broadcastRoom(undercoverIo, room);
     }, 2500);
   } else if (!playerId) {
@@ -870,7 +884,11 @@ function setupUndercover(io, app) {
             undercoverCount: Math.max(1, Math.min(4, sData.undercoverCount || 1)),
             whiteboardCount: Math.max(0, Math.min(2, sData.whiteboardCount || 0)),
             speechTimeLimit: typeof sData.speechTimeLimit === 'number' ? sData.speechTimeLimit : 90,
+            voteTimeLimit: typeof sData.voteTimeLimit === 'number' ? sData.voteTimeLimit : 60,
+            speechOrderMode: sData.speechOrderMode === 'seat' ? 'seat' : 'random',
             revealRoleOnEliminate: sData.revealRoleOnEliminate !== false,
+            allowGuessWord: sData.allowGuessWord !== false,
+            enablePunishment: sData.enablePunishment !== false,
             category: sData.category || 'all',
             customWords: Array.isArray(sData.customWords) ? sData.customWords : []
           },
@@ -1121,8 +1139,20 @@ function setupUndercover(io, app) {
         if (typeof newSettings.speechTimeLimit === 'number') {
           sanitized.speechTimeLimit = Math.max(0, Math.min(300, Math.floor(newSettings.speechTimeLimit)));
         }
+        if (typeof newSettings.voteTimeLimit === 'number') {
+          sanitized.voteTimeLimit = Math.max(0, Math.min(120, Math.floor(newSettings.voteTimeLimit)));
+        }
+        if (typeof newSettings.speechOrderMode === 'string') {
+          sanitized.speechOrderMode = newSettings.speechOrderMode === 'seat' ? 'seat' : 'random';
+        }
         if (typeof newSettings.revealRoleOnEliminate === 'boolean') {
           sanitized.revealRoleOnEliminate = newSettings.revealRoleOnEliminate;
+        }
+        if (typeof newSettings.allowGuessWord === 'boolean') {
+          sanitized.allowGuessWord = newSettings.allowGuessWord;
+        }
+        if (typeof newSettings.enablePunishment === 'boolean') {
+          sanitized.enablePunishment = newSettings.enablePunishment;
         }
         if (typeof newSettings.category === 'string') {
           sanitized.category = newSettings.category.substring(0, 20);
