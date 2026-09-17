@@ -16,13 +16,27 @@
         <span>🕵️‍♂️</span> 谁是卧底 Party
       </div>
       <div class="header-actions">
-        <button id="btn-header-leave" class="icon-btn hidden" title="退出当前房间" style="background: rgba(244,63,94,0.18); border-color: rgba(244,63,94,0.4); color: #fca5a5;">🚪</button>
-        <a href="/" id="link-home-lobby" class="icon-btn" title="返回游戏大厅" style="text-decoration:none; display:inline-flex; align-items:center; justify-content:center;">🏠</a>
-        <button id="btn-host-reset" class="icon-btn hidden" title="房主重置房间/重新开始" style="background: rgba(244,63,94,0.2); border-color: rgba(244,63,94,0.4); color: #fca5a5;">🔄</button>
-        <button id="btn-lan-share" class="icon-btn" title="扫码邀请好友加入">📱</button>
-        <button id="btn-help" class="icon-btn" title="游戏规则说明">❓</button>
-        <button id="btn-sound" class="icon-btn" title="音效开关">🔊</button>
-        <button id="btn-voice" class="icon-btn" title="语音播报开关(默认关闭)">🔇</button>
+        <button id="btn-lan-share" class="action-tag-btn" title="扫码邀请好友加入">
+          <span class="tag-icon">📱</span><span class="tag-text">邀请</span>
+        </button>
+        <button id="btn-help" class="action-tag-btn" title="游戏规则说明">
+          <span class="tag-icon">❓</span><span class="tag-text">规则</span>
+        </button>
+        <button id="btn-sound" class="action-tag-btn" title="音效开关">
+          <span class="tag-icon" id="sound-icon">🔊</span><span class="tag-text" id="sound-text">音效</span>
+        </button>
+        <button id="btn-voice" class="action-tag-btn" title="语音播报开关">
+          <span class="tag-icon" id="voice-icon">🔇</span><span class="tag-text" id="voice-text">语音</span>
+        </button>
+        <button id="btn-host-reset" class="action-tag-btn warn hidden" title="房主重置房间/重新开始">
+          <span class="tag-icon">🔄</span><span class="tag-text">重置</span>
+        </button>
+        <button id="btn-header-leave" class="action-tag-btn danger hidden" title="退出当前房间">
+          <span class="tag-icon">🚪</span><span class="tag-text">退出</span>
+        </button>
+        <a href="/" id="link-home-lobby" class="action-tag-btn neutral" title="返回游戏大厅" style="text-decoration:none;">
+          <span class="tag-icon">🏠</span><span class="tag-text">大厅</span>
+        </a>
       </div>
     </header>
 
@@ -78,8 +92,10 @@
     <section id="view-lobby" class="card hidden">
       <div class="room-header">
         <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 10px;">
-          <div class="room-code-badge" id="lobby-room-code" title="点击复制房间号" style="flex: 1; margin: 0;">
-            房间号: <span id="display-room-code">----</span> 📋
+          <div class="room-code-badge" id="lobby-room-code" title="点击复制房间号与邀请链接" style="flex: 1; margin: 0;">
+            <span style="font-size: 14px; opacity: 0.85;">房间号:</span>
+            <b id="display-room-code" style="color: #67e8f9; letter-spacing: 2px;">----</b>
+            <span class="copy-pill" id="lobby-copy-pill">📋 点击复制邀请</span>
           </div>
           <button id="btn-leave-lobby" class="btn btn-secondary" style="width: auto; padding: 8px 14px; font-size: 13px; white-space: nowrap; border-radius: var(--radius-md);">
             🚪 退出房间
@@ -160,15 +176,25 @@
     <!-- 3. 查看身份词语界面 -->
     <section id="view-card" class="card hidden">
       <h2 style="text-align: center; font-size: 20px; margin-bottom: 4px;">🎴 确认你的身份</h2>
-      <p class="subtitle" style="margin-bottom: 12px;">长按或点击卡片翻转，注意防窥！</p>
+      <p class="subtitle" style="margin-bottom: 8px;">千万不要被身边的人偷瞄到底牌！</p>
+
+      <!-- 看牌防窥模式切换 -->
+      <div class="peek-mode-bar" id="peek-mode-bar">
+        <button class="peek-mode-option active" id="btn-mode-hold" data-mode="hold" title="按住卡片查看，松手立即自动盖上">
+          🛡️ 按住防窥 (松手即盖上)
+        </button>
+        <button class="peek-mode-option" id="btn-mode-toggle" data-mode="toggle" title="点击一次翻开，再次点击盖上">
+          🔓 点击常开
+        </button>
+      </div>
 
       <div class="card-view-wrapper">
         <div class="secret-card" id="secret-card-element">
           <!-- 正面 (遮挡) -->
           <div class="card-face card-front">
-            <div style="font-size: 48px; margin-bottom: 12px;">🤫</div>
+            <div style="font-size: 48px; margin-bottom: 8px;">🤫</div>
             <div style="font-size: 18px; font-weight: 700; color: #d8b4fe;">你的秘密词语</div>
-            <div style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">点击 / 长按翻开</div>
+            <div class="card-flip-prompt" id="card-flip-prompt">👆 按住卡片查看底牌 (松手即盖上)</div>
           </div>
           <!-- 背面 (词语) -->
           <div class="card-face card-back">
@@ -177,6 +203,7 @@
             <div class="card-hint">
               千万不要直接说出词语！<br>根据词语特征用一句话进行描述。
             </div>
+            <div class="card-hide-prompt" id="card-hide-prompt">🙈 松开手指立即隐藏</div>
           </div>
         </div>
       </div>
@@ -189,9 +216,14 @@
         等待其他玩家查看... (<span id="viewed-count">0</span>/<span id="total-view-count">0</span>)
       </div>
 
-      <button id="btn-force-start-speaking" class="btn btn-secondary hidden" style="margin-top: 10px; padding: 8px; font-size: 13px;">
-        ⚡ 房主直接开始发言
-      </button>
+      <div id="host-card-controls" class="hidden" style="margin-top: 12px; display: flex; flex-direction: column; gap: 8px;">
+        <button id="btn-redeal-cards" class="btn btn-warning-outline" style="width: 100%; padding: 9px; font-size: 13px; font-weight: 700;">
+          🔄 不满意此词？重新发牌 (换一组新词)
+        </button>
+        <button id="btn-force-start-speaking" class="btn btn-secondary" style="width: 100%; padding: 8px; font-size: 13px;">
+          ⚡ 房主直接开始发言
+        </button>
+      </div>
     </section>
 
     <!-- 4. 发言阶段界面 -->
@@ -214,7 +246,7 @@
 
       <!-- 轮到自己发言时的文字输入框 (支持打字发言并语音播报) -->
       <div id="my-speech-input-container" class="hidden" style="margin-bottom: 14px; display: flex; gap: 8px;">
-        <input type="text" id="input-speech-clue" class="text-input" placeholder="输入一句描述词语（按回车或点击发送）..." maxlength="50" style="font-size: 13px;">
+        <input type="text" id="input-speech-clue" class="text-input" placeholder="输入一句话描述（按回车或点击发送直接进入下一位）..." maxlength="50" style="font-size: 13px;">
         <button id="btn-send-speech-clue" class="btn btn-secondary" style="width: 72px; padding: 0; font-size: 13px;">
           发送
         </button>
@@ -229,6 +261,12 @@
       <button id="btn-finish-speaking" class="btn btn-primary">
         🎤 发言完毕 / 下一位
       </button>
+
+      <div id="host-speaking-controls" class="hidden" style="margin-top: 10px;">
+        <button id="btn-force-start-voting" class="btn btn-warning-outline" style="width: 100%; padding: 10px; font-size: 13px; font-weight: 700;">
+          ⚡ 房主提前结束全员发言，直接进入投票
+        </button>
+      </div>
 
       <button class="btn btn-secondary btn-host-reset-action hidden" style="margin-top: 10px; padding: 8px; font-size: 12px; border-color: rgba(244,63,94,0.4); color: #fca5a5;">
         🔄 房主重置本局 / 回到大厅
@@ -277,15 +315,72 @@
       <div class="speaker-banner" id="pk-speaker-box">
         <div class="current-speaker-avatar" id="pk-speaker-avatar">🔥</div>
         <div class="speaker-name" id="pk-speaker-name">PK 发言中...</div>
+        <div id="pk-speaker-timer-container">
+          <div class="speaker-timer" id="pk-speaker-timer-text">45s</div>
+        </div>
+        <div id="pk-speaker-tip-text" style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+          请进行最后的辩解发言！
+        </div>
       </div>
 
-      <button id="btn-finish-pk-speaking" class="btn btn-primary" style="margin-top: 16px;">
+      <!-- 轮到自己辩解时的文字输入框 (打字辩解并公屏播报) -->
+      <div id="my-pk-speech-input-container" class="hidden" style="margin-top: 14px; margin-bottom: 14px; display: flex; gap: 8px;">
+        <input type="text" id="input-pk-speech-clue" class="text-input" placeholder="输入辩解发言（按回车或点击发送直接进入下一位）..." maxlength="50" style="font-size: 13px;">
+        <button id="btn-send-pk-speech-clue" class="btn btn-secondary" style="width: 72px; padding: 0; font-size: 13px;">
+          发送
+        </button>
+      </div>
+
+      <button id="btn-finish-pk-speaking" class="btn btn-primary">
         🎤 辩解完毕 / 下一位
       </button>
+
+      <div id="host-pk-controls" class="hidden" style="margin-top: 10px;">
+        <button id="btn-force-pk-voting" class="btn btn-warning-outline" style="width: 100%; padding: 10px; font-size: 13px; font-weight: 700;">
+          ⚡ 房主提前结束辩解，直接进入 PK 投票
+        </button>
+      </div>
 
       <button class="btn btn-secondary btn-host-reset-action hidden" style="margin-top: 10px; padding: 8px; font-size: 12px; border-color: rgba(244,63,94,0.4); color: #fca5a5;">
         🔄 房主重置本局 / 回到大厅
       </button>
+    </section>
+
+    <!-- 6.5 绝地猜词阶段界面 -->
+    <section id="view-guess" class="card hidden" style="border: 2px solid #f59e0b; box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <span style="font-size: 14px; color: #f59e0b; font-weight: 700;">🔥 绝地反杀机会</span>
+        <span id="guess-timer-text" style="font-size: 14px; color: #ef4444; font-weight: 800; background: rgba(239,68,68,0.15); padding: 2px 8px; border-radius: 6px;">30s</span>
+      </div>
+      <h2 style="text-align: center; font-size: 20px; margin-bottom: 6px;" id="guess-title">猜平民底牌词</h2>
+      <p class="subtitle" id="guess-subtitle" style="margin-bottom: 16px;">出局前可进行最后猜词，猜中即可逆风翻盘！</p>
+
+      <!-- 仅被淘汰本人可见的输入表单 -->
+      <div id="my-guess-container" class="hidden" style="display: flex; flex-direction: column; gap: 10px;">
+        <input type="text" id="input-guess-word" class="text-input" placeholder="输入平民底牌词（如: 苹果）..." maxlength="20" style="text-align: center; font-size: 16px; font-weight: 700;">
+        <div style="display: flex; gap: 10px;">
+          <button id="btn-submit-guess" class="btn btn-primary" style="flex: 2; background: linear-gradient(135deg, #f59e0b, #ef4444);">
+            🎯 确认猜词 (绝地翻盘)
+          </button>
+          <button id="btn-skip-guess" class="btn btn-secondary" style="flex: 1;">
+            放弃
+          </button>
+        </div>
+      </div>
+
+      <!-- 其他围观玩家等待提示 -->
+      <div id="other-guess-waiting" class="hidden" style="text-align: center; padding: 20px 0;">
+        <div style="font-size: 48px; margin-bottom: 8px;">⏳</div>
+        <div style="font-size: 16px; font-weight: 700; color: #fbbf24;" id="other-guess-text">被淘汰玩家正在进行绝地猜词...</div>
+        <div style="font-size: 13px; color: var(--text-muted); margin-top: 6px;">若TA猜中平民词，将直接反杀逆转获胜！</div>
+      </div>
+
+      <!-- 房主跳过猜词控制 -->
+      <div id="host-guess-controls" class="hidden" style="margin-top: 14px;">
+        <button id="btn-force-skip-guess" class="btn btn-secondary" style="width: 100%; padding: 8px; font-size: 12px; border-color: rgba(245, 158, 11, 0.5); color: #fbbf24;">
+          ⚡ 房主跳过猜词 (判为放弃并直接淘汰)
+        </button>
+      </div>
     </section>
 
     <!-- 7. 淘汰揭晓阶段界面 -->
@@ -313,6 +408,11 @@
 
     <!-- 8. 游戏结算与胜利界面 -->
     <section id="view-game-over" class="card hidden">
+      <!-- 绝地反杀翻盘大横幅提示 -->
+      <div id="reversal-banner" class="hidden" style="margin-bottom: 16px; padding: 12px; background: rgba(245, 158, 11, 0.2); border: 2px solid #f59e0b; border-radius: var(--radius-md); text-align: center; font-weight: 800; font-size: 15px; color: #fbbf24;">
+        🔥【绝地反杀】<span id="reversal-player-name">卧底</span> 绝境猜出平民词「<span id="reversal-word">--</span>」，逆风翻盘取得胜利！
+      </div>
+
       <div class="victory-box">
         <div class="victory-icon" id="victory-icon">🏆</div>
         <div class="victory-title" id="victory-title">平民获胜！</div>
@@ -342,32 +442,26 @@
         </button>
       </div>
 
-      <div id="game-over-host-actions" class="hidden" style="margin-top: 16px;">
+      <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 10px;">
         <button id="btn-restart-game" class="btn btn-primary">
-          🔄 再来一局 (保持房间)
+          🏠 回到房间大厅 (再来一局)
         </button>
-      </div>
-
-      <div style="margin-top: 10px;">
-        <button id="btn-gameover-leave" class="btn btn-secondary" style="width: 100%;">
+        <button id="btn-gameover-leave" class="btn btn-secondary">
           🚪 退出当前房间
         </button>
-      </div>
-
-      <div id="game-over-guest-msg" class="hidden" style="text-align: center; color: var(--text-muted); font-size: 13px; margin-top: 16px;">
-        ⏳ 等待房主点击「再来一局」开启新对局...
       </div>
     </section>
 
     <!-- 底部快捷表情互动栏 -->
     <div class="reaction-bar" id="reaction-bar">
-      <button class="reaction-btn" data-emoji="😂">😂</button>
-      <button class="reaction-btn" data-emoji="🧐">🧐</button>
-      <button class="reaction-btn" data-emoji="🤫">🤫</button>
-      <button class="reaction-btn" data-emoji="🔥">🔥</button>
-      <button class="reaction-btn" data-emoji="💣">💣</button>
-      <button class="reaction-btn" data-emoji="🍺">🍺</button>
-      <button class="reaction-btn" data-emoji="🏆">🏆</button>
+      <span class="reaction-label">💬 互动:</span>
+      <button class="reaction-btn" data-emoji="😂" title="笑哭">😂</button>
+      <button class="reaction-btn" data-emoji="🧐" title="吃瓜/怀疑">🧐</button>
+      <button class="reaction-btn" data-emoji="🤫" title="嘘/保密">🤫</button>
+      <button class="reaction-btn" data-emoji="🔥" title="热血/开打">🔥</button>
+      <button class="reaction-btn" data-emoji="💣" title="炸裂">💣</button>
+      <button class="reaction-btn" data-emoji="🍺" title="干杯">🍺</button>
+      <button class="reaction-btn" data-emoji="🏆" title="点赞/祝贺">🏆</button>
     </div>
 
     <!-- 弹窗：邀请好友与二维码 -->
@@ -422,12 +516,12 @@
 
         <div class="setting-row">
           <div class="setting-label">⏱️ 发言倒计时</div>
-          <select id="select-speech-timer" class="text-input" style="width: 120px; padding: 6px 10px; font-size: 13px;">
-            <option value="30">30 秒</option>
-            <option value="45" selected>45 秒</option>
+          <select id="select-speech-timer" class="text-input" style="width: 140px; padding: 6px 10px; font-size: 13px;">
             <option value="60">60 秒</option>
-            <option value="90">90 秒</option>
-            <option value="0">不限时</option>
+            <option value="90" selected>90 秒 (推荐)</option>
+            <option value="120">120 秒</option>
+            <option value="180">180 秒</option>
+            <option value="0">不限时 (手动)</option>
           </select>
         </div>
 
@@ -486,8 +580,10 @@
           </div>
           <div>
             <strong style="color: #a855f7;">4. 胜利条件：</strong><br>
-            • <strong>平民获胜</strong>：将所有卧底全部投票出局。<br>
-            • <strong>卧底获胜</strong>：卧底存活人数 ≥ 存活平民+白板人数。
+            • <strong>平民获胜</strong>：将所有卧底和白板全部投票出局。<br>
+            • <strong>卧底获胜</strong>：卧底存活人数 ≥ 存活非卧底人数。<br>
+            • <strong>白板独赢</strong>：卧底全灭后，白板成功苟活到最后（存活 ≤ 2人），白板独赢！<br>
+            • <strong>绝地猜词</strong>：卧底或白板出局时可限时猜平民词，猜中直接逆风翻盘获胜！
           </div>
         </div>
       </div>

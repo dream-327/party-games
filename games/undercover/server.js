@@ -1,4 +1,4 @@
-﻿// Undercover Game Server (谁是卧底服务端逻辑模块)
+// Undercover Game Server (谁是卧底服务端逻辑模块)
 
 const path = require('path');
 const { wordCategories, punishments, getRandomWordPair, getRandomPunishment } = require('./words');
@@ -27,6 +27,7 @@ const PHASES = {
   PK_SPEAKING: 'PK_SPEAKING',
   PK_VOTING: 'PK_VOTING',
   ELIMINATION: 'ELIMINATION',
+  GUESS_WORD: 'GUESS_WORD',
   GAME_OVER: 'GAME_OVER'
 };
 
@@ -52,17 +53,23 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
+const HOST_DISCONNECT_GRACE_PERIOD_MS = 60 * 1000; // 60秒房主断线保护缓冲期
+const PLAYER_OFFLINE_CLEANUP_MS = 75 * 1000; // 75秒大厅普通离线清理时间
+
 function ensureRoomHost(room) {
   if (!room) return;
-  const isLobby = !room.gameState || room.gameState.phase === PHASES.LOBBY;
   const currentHost = room.players.get(room.hostId);
 
-  // 在大厅阶段，房主必须是一个在线的真人玩家！
-  // 若当前房主不存在、当前房主已离线、或当前房主为AI电脑：
-  // 立即自动顺位移交给房间内第一个在线的真人玩家
-  const needsReassign = !currentHost 
-    || currentHost.isAi 
-    || (isLobby && !currentHost.isOnline);
+  // 判断当前房主是否完全不存在或为AI
+  const isHostMissingOrAi = !currentHost || currentHost.isAi;
+
+  // 判断当前房主是否已经离线且超过 60 秒缓冲期
+  const now = Date.now();
+  const isHostOfflineTimedOut = currentHost && !currentHost.isOnline && (
+    (now - (currentHost.lastOfflineTime || now)) >= HOST_DISCONNECT_GRACE_PERIOD_MS
+  );
+
+  const needsReassign = isHostMissingOrAi || isHostOfflineTimedOut;
 
   if (needsReassign) {
     const candidate = Array.from(room.players.values()).find(p => p.isOnline && !p.isAi)
@@ -71,6 +78,10 @@ function ensureRoomHost(room) {
       || Array.from(room.players.values())[0];
     if (candidate) {
       room.hostId = candidate.id;
+      if (room.hostMigrateTimer) {
+        clearTimeout(room.hostMigrateTimer);
+        room.hostMigrateTimer = null;
+      }
     }
   }
 
@@ -103,10 +114,17 @@ function getSafeRoomData(room, targetPlayerId) {
   });
 
   const myPlayer = room.players.get(targetPlayerId);
+  const currentHost = room.players.get(room.hostId);
+  let hostOfflineRemainingSeconds = 0;
+  if (currentHost && !currentHost.isOnline && currentHost.lastOfflineTime) {
+    const elapsed = Math.floor((Date.now() - currentHost.lastOfflineTime) / 1000);
+    hostOfflineRemainingSeconds = Math.max(0, 60 - elapsed);
+  }
 
   return {
     code: room.code,
     hostId: room.hostId,
+    hostOfflineRemainingSeconds,
     settings: room.settings,
     players: playersList,
     myPlayer: myPlayer ? {
@@ -141,7 +159,9 @@ function getSafeRoomData(room, targetPlayerId) {
       voteStartTime: room.gameState.voteStartTime,
       voteTimeLimit: room.gameState.voteTimeLimit || 60,
       voteTally: (room.gameState.phase === PHASES.ELIMINATION || room.gameState.phase === PHASES.GAME_OVER) ? room.gameState.votes : {},
-      clueLogs: room.gameState.clueLogs || []
+      clueLogs: room.gameState.clueLogs || [],
+      guessTarget: room.gameState.guessTarget || null,
+      guessResult: room.gameState.guessResult || null
     }
   };
 }
@@ -150,14 +170,28 @@ function broadcastRoom(undercoverIo, room) {
   if (!room) return;
   ensureRoomHost(room);
   room.lastActiveTime = Date.now();
+  
+  // 1. 定向推送最新状态：不再受限于 player.isOnline，只要有 socketId 立即推达
   room.players.forEach(player => {
-    if (player.socketId && player.isOnline) {
+    if (player.socketId) {
       undercoverIo.to(player.socketId).emit('room_update', getSafeRoomData(room, player.id));
     }
+  });
+
+  // 2. 房间频道全员广播阶段心跳，确保电脑端和手机端瞬间对齐阶段，绝不卡顿
+  undercoverIo.to(room.code).emit('room_phase_sync', {
+    code: room.code,
+    phase: room.gameState.phase,
+    round: room.gameState.round,
+    timestamp: Date.now()
   });
 }
 
 function clearRoomTimers(room) {
+  if (room.hostMigrateTimer) {
+    clearTimeout(room.hostMigrateTimer);
+    room.hostMigrateTimer = null;
+  }
   if (room.gameState.cardViewSafetyTimer) {
     clearTimeout(room.gameState.cardViewSafetyTimer);
     room.gameState.cardViewSafetyTimer = null;
@@ -173,6 +207,10 @@ function clearRoomTimers(room) {
   if (room.gameState.voteSafetyTimer) {
     clearTimeout(room.gameState.voteSafetyTimer);
     room.gameState.voteSafetyTimer = null;
+  }
+  if (room.gameState.guessTimer) {
+    clearTimeout(room.gameState.guessTimer);
+    room.gameState.guessTimer = null;
   }
   if (room.gameState.gameOverTimer) {
     clearTimeout(room.gameState.gameOverTimer);
@@ -258,7 +296,10 @@ function handleSpeakerDone(undercoverIo, room) {
 }
 
 function scheduleAiVotes(undercoverIo, room, isPk) {
-  const aiVoters = Array.from(room.players.values()).filter(p => p.isAlive && !p.isSpectator && p.isAi && !p.hasVoted);
+  let aiVoters = Array.from(room.players.values()).filter(p => p.isAlive && !p.isSpectator && p.isAi && !p.hasVoted);
+  if (isPk && room.gameState.pkCandidates) {
+    aiVoters = aiVoters.filter(ai => !room.gameState.pkCandidates.includes(ai.id));
+  }
   if (aiVoters.length === 0) return;
 
   setTimeout(() => {
@@ -347,7 +388,7 @@ function scheduleNextPkSpeaker(undercoverIo, room) {
     return;
   }
 
-  const pkTimeLimit = Math.min(room.settings.speechTimeLimit || 30, 30);
+  const pkTimeLimit = Math.min(room.settings.speechTimeLimit || 45, 60);
   if (pkTimeLimit > 0) {
     room.gameState.speechTimer = setTimeout(() => {
       handleSpeakerDone(undercoverIo, room);
@@ -362,6 +403,14 @@ function startPkVotingPhase(undercoverIo, room) {
   room.gameState.voteStartTime = Date.now();
   room.gameState.voteTimeLimit = 45;
   room.players.forEach(p => { p.hasVoted = false; });
+
+  // 检查是否有非 PK 的合法选民（若全员均处于 PK 席，直接平票跳过）
+  const eligibleVoters = Array.from(room.players.values()).filter(p => p.isAlive && !p.isSpectator && !room.gameState.pkCandidates.includes(p.id));
+  if (eligibleVoters.length === 0) {
+    eliminatePlayer(undercoverIo, room, null, '全员处于平票PK辩护席，本轮无人出局！', 0);
+    return;
+  }
+
   broadcastRoom(undercoverIo, room);
   scheduleAiVotes(undercoverIo, room, true);
 
@@ -379,6 +428,8 @@ function processVote(undercoverIo, room, voterId, targetId) {
   if (!voter || !voter.isAlive || voter.isSpectator || voter.hasVoted) return;
 
   if (room.gameState.phase === PHASES.PK_VOTING) {
+    // PK 候选人处于辩护席，不能参与投票
+    if (room.gameState.pkCandidates && room.gameState.pkCandidates.includes(voterId)) return;
     if (!room.gameState.pkCandidates.includes(targetId)) return;
   } else {
     const target = room.players.get(targetId);
@@ -389,11 +440,14 @@ function processVote(undercoverIo, room, voterId, targetId) {
   room.gameState.votes[voterId] = targetId;
   broadcastRoom(undercoverIo, room);
 
-  const alivePlayers = Array.from(room.players.values()).filter(p => p.isAlive && !p.isSpectator);
-  const onlineAlivePlayers = alivePlayers.filter(p => p.isOnline);
+  let eligibleVoters = Array.from(room.players.values()).filter(p => p.isAlive && !p.isSpectator);
+  if (room.gameState.phase === PHASES.PK_VOTING && room.gameState.pkCandidates) {
+    eligibleVoters = eligibleVoters.filter(p => !room.gameState.pkCandidates.includes(p.id));
+  }
+  const onlineEligible = eligibleVoters.filter(p => p.isOnline);
 
-  const allVoted = alivePlayers.every(p => p.hasVoted);
-  const onlineAllVoted = onlineAlivePlayers.length > 0 && onlineAlivePlayers.every(p => p.hasVoted);
+  const allVoted = eligibleVoters.length === 0 || eligibleVoters.every(p => p.hasVoted);
+  const onlineAllVoted = onlineEligible.length > 0 && onlineEligible.every(p => p.hasVoted);
 
   if (allVoted || onlineAllVoted) {
     if (!room.gameState.voteResolvingTimer) {
@@ -431,13 +485,105 @@ function resolveVotes(undercoverIo, room) {
   const topCandidates = Object.keys(tally).filter(id => tally[id] === maxVotes);
 
   if (topCandidates.length === 1) {
-    eliminatePlayer(undercoverIo, room, topCandidates[0], null, maxVotes);
+    handleEliminateWithGuess(undercoverIo, room, topCandidates[0], maxVotes);
   } else {
     if (room.gameState.phase === PHASES.PK_VOTING) {
       eliminatePlayer(undercoverIo, room, null, '平票且PK重投仍未决出，本轮无人出局！', maxVotes);
     } else {
       startPkSpeakingPhase(undercoverIo, room, topCandidates);
     }
+  }
+}
+
+function handleEliminateWithGuess(undercoverIo, room, playerId, votes = 0) {
+  clearRoomTimers(room);
+  const p = room.players.get(playerId);
+  if (!p) {
+    eliminatePlayer(undercoverIo, room, null, null, votes);
+    return;
+  }
+
+  // 卧底或白板被投票淘汰时触发绝地猜词翻盘机会 (延长至30秒，留足真人打字与思考时间)
+  if (p.role === ROLES.UNDERCOVER || p.role === ROLES.WHITEBOARD) {
+    room.gameState.phase = PHASES.GUESS_WORD;
+    room.gameState.guessTarget = {
+      id: p.id,
+      name: p.name,
+      avatar: p.avatar,
+      role: p.role,
+      votes: votes,
+      startTime: Date.now(),
+      timeLimit: 30
+    };
+    broadcastRoom(undercoverIo, room);
+
+    // 若淘汰的是电脑 AI，2秒后快速自动处理（20%概率命中平民词）
+    if (p.isAi) {
+      room.gameState.guessTimer = setTimeout(() => {
+        if (room.gameState.phase !== PHASES.GUESS_WORD) return;
+        const isLucky = Math.random() < 0.2;
+        if (isLucky && room.gameState.winningWord) {
+          submitGuessWord(undercoverIo, room, p.id, room.gameState.winningWord);
+        } else {
+          eliminatePlayer(undercoverIo, room, playerId, null, votes);
+        }
+      }, 2000);
+      return;
+    }
+
+    // 30秒倒计时兜底：超时自动放弃猜词，进入正常淘汰流程
+    room.gameState.guessTimer = setTimeout(() => {
+      if (room.gameState.phase === PHASES.GUESS_WORD) {
+        eliminatePlayer(undercoverIo, room, playerId, null, votes);
+      }
+    }, 31000);
+    return;
+  }
+
+  // 平民出局直接正常淘汰
+  eliminatePlayer(undercoverIo, room, playerId, null, votes);
+}
+
+function submitGuessWord(undercoverIo, room, playerId, guessedWord) {
+  if (room.gameState.phase !== PHASES.GUESS_WORD) return { success: false, message: '当前非猜词阶段' };
+  if (!room.gameState.guessTarget || room.gameState.guessTarget.id !== playerId) {
+    return { success: false, message: '非当前猜词玩家' };
+  }
+
+  clearRoomTimers(room);
+  const p = room.players.get(playerId);
+  const civilianWord = (room.gameState.winningWord || '').trim().toLowerCase();
+  const guess = String(guessedWord || '').trim().toLowerCase();
+
+  const isCorrect = guess && guess === civilianWord;
+
+  if (isCorrect) {
+    // 猜词成功！绝地反杀逆转翻盘！
+    room.gameState.phase = PHASES.GAME_OVER;
+    room.gameState.winner = p ? p.role : ROLES.UNDERCOVER;
+    room.gameState.guessResult = {
+      success: true,
+      playerId,
+      playerName: p ? p.name : '',
+      role: p ? p.role : ROLES.UNDERCOVER,
+      guessedWord: guess,
+      winningWord: room.gameState.winningWord
+    };
+    room.gameState.punishment = getRandomPunishment();
+    broadcastRoom(undercoverIo, room);
+    return { success: true, message: '猜词成功，逆转获胜！' };
+  } else {
+    // 猜词失败，继续正常淘汰流程
+    room.gameState.guessResult = {
+      success: false,
+      playerId,
+      playerName: p ? p.name : '',
+      role: p ? p.role : ROLES.UNDERCOVER,
+      guessedWord: guess
+    };
+    const votes = room.gameState.guessTarget.votes || 0;
+    eliminatePlayer(undercoverIo, room, playerId, null, votes);
+    return { success: false, message: '猜词错误' };
   }
 }
 
@@ -502,14 +648,28 @@ function eliminatePlayer(undercoverIo, room, playerId, tieMessage = null, votes 
 function checkGameStatus(room) {
   const alivePlayers = Array.from(room.players.values()).filter(p => p.isAlive && !p.isSpectator);
   const aliveUndercovers = alivePlayers.filter(p => p.role === ROLES.UNDERCOVER);
-  const nonUndercovers = alivePlayers.filter(p => p.role !== ROLES.UNDERCOVER);
+  const aliveWhiteboards = alivePlayers.filter(p => p.role === ROLES.WHITEBOARD);
+  const aliveCivilians = alivePlayers.filter(p => p.role === ROLES.CIVILIAN);
 
-  if (aliveUndercovers.length === 0) {
-    return { isOver: true, winner: 'CIVILIAN' };
+  // 1. 如果卧底全灭，但有白板存活
+  if (aliveUndercovers.length === 0 && aliveWhiteboards.length > 0) {
+    // 若场上平民全部出局，或存活总人数 <= 2（白板成功苟活到最后决赛圈），白板独赢！
+    if (aliveCivilians.length === 0 || alivePlayers.length <= 2) {
+      return { isOver: true, winner: ROLES.WHITEBOARD };
+    }
+    // 场上还有 2 名或更多平民，卧底虽灭但白板还在，游戏继续进行抓白板！
+    return { isOver: false, winner: null };
   }
 
+  // 2. 卧底全部出局且白板也全部出局 -> 平民获胜！
+  if (aliveUndercovers.length === 0 && aliveWhiteboards.length === 0) {
+    return { isOver: true, winner: ROLES.CIVILIAN };
+  }
+
+  // 3. 卧底存活人数 >= 非卧底存活人数 -> 卧底获胜！
+  const nonUndercovers = alivePlayers.filter(p => p.role !== ROLES.UNDERCOVER);
   if (aliveUndercovers.length >= nonUndercovers.length) {
-    return { isOver: true, winner: 'UNDERCOVER' };
+    return { isOver: true, winner: ROLES.UNDERCOVER };
   }
 
   return { isOver: false, winner: null };
@@ -544,6 +704,8 @@ function resetGameToLobby(undercoverIo, room) {
   room.gameState.winner = null;
   room.gameState.punishment = null;
   room.gameState.clueLogs = [];
+  room.gameState.guessTarget = null;
+  room.gameState.guessResult = null;
 
   room.players.forEach(p => {
     p.isAlive = true;
@@ -582,6 +744,71 @@ function handlePlayerViewCard(undercoverIo, roomCode, playerId) {
   } else {
     broadcastRoom(undercoverIo, room);
   }
+}
+
+function dealCardsToPlayers(undercoverIo, room) {
+  const playersList = Array.from(room.players.values()).filter(p => p.isOnline);
+  const totalPlayers = playersList.length;
+  const maxUndercover = Math.max(1, Math.floor((totalPlayers - 1) / 2));
+  let ucCount = Math.min(room.settings.undercoverCount || 1, maxUndercover);
+  const maxWhiteboard = Math.max(0, Math.floor((totalPlayers - ucCount - 1) / 2));
+  let wbCount = Math.min(room.settings.whiteboardCount || 0, maxWhiteboard);
+
+  room.settings.undercoverCount = ucCount;
+  room.settings.whiteboardCount = wbCount;
+
+  if (!room.usedWordKeys) room.usedWordKeys = new Set();
+  const wordPair = getRandomWordPair(room.settings.category, room.settings.customWords, room.usedWordKeys);
+  room.usedWordKeys.add([wordPair.civilian, wordPair.undercover].sort().join('###'));
+  room.gameState.winningWord = wordPair.civilian;
+
+  const rolesArray = [];
+  for (let i = 0; i < ucCount; i++) rolesArray.push(ROLES.UNDERCOVER);
+  for (let i = 0; i < wbCount; i++) rolesArray.push(ROLES.WHITEBOARD);
+  while (rolesArray.length < totalPlayers) {
+    rolesArray.push(ROLES.CIVILIAN);
+  }
+
+  for (let i = rolesArray.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [rolesArray[i], rolesArray[j]] = [rolesArray[j], rolesArray[i]];
+  }
+
+  playersList.forEach((player, idx) => {
+    player.isAlive = true;
+    player.hasVoted = false;
+    player.isSpectator = false;
+    player.hasViewedCard = player.isAi || false;
+    player.role = rolesArray[idx];
+
+    if (player.role === ROLES.CIVILIAN) {
+      player.word = wordPair.civilian;
+    } else if (player.role === ROLES.UNDERCOVER) {
+      player.word = wordPair.undercover;
+    } else if (player.role === ROLES.WHITEBOARD) {
+      player.word = '❓ 白板（无词）';
+    }
+  });
+
+  room.players.forEach(p => {
+    if (!p.isOnline) p.isSpectator = true;
+  });
+
+  room.gameState.phase = PHASES.CARD_VIEW;
+  room.gameState.round = 1;
+  room.gameState.lastEliminated = null;
+  room.gameState.winner = null;
+  room.gameState.punishment = null;
+  room.gameState.clueLogs = [];
+
+  // 40秒看牌安全兜底定时器：超时全员自动准备完毕并切入发言阶段
+  if (room.gameState.cardViewSafetyTimer) clearTimeout(room.gameState.cardViewSafetyTimer);
+  room.gameState.cardViewSafetyTimer = setTimeout(() => {
+    if (room.gameState.phase === PHASES.CARD_VIEW) {
+      room.players.forEach(p => { p.hasViewedCard = true; });
+      startSpeakingPhase(undercoverIo, room);
+    }
+  }, 40000);
 }
 
 function setupUndercover(io, app) {
@@ -638,10 +865,11 @@ function setupUndercover(io, app) {
           hostId: player.id,
           createdAt: Date.now(),
           lastActiveTime: Date.now(),
+          usedWordKeys: new Set(),
           settings: {
             undercoverCount: Math.max(1, Math.min(4, sData.undercoverCount || 1)),
             whiteboardCount: Math.max(0, Math.min(2, sData.whiteboardCount || 0)),
-            speechTimeLimit: typeof sData.speechTimeLimit === 'number' ? sData.speechTimeLimit : 45,
+            speechTimeLimit: typeof sData.speechTimeLimit === 'number' ? sData.speechTimeLimit : 90,
             revealRoleOnEliminate: sData.revealRoleOnEliminate !== false,
             category: sData.category || 'all',
             customWords: Array.isArray(sData.customWords) ? sData.customWords : []
@@ -721,22 +949,28 @@ function setupUndercover(io, app) {
         socket.join(roomCode);
 
         if (room.players.has(pid)) {
-          // 重连：清除离线清理定时器，更新 socketId 和在线状态，同步最新名字/头像
+          // 重连：清除离线清理定时器与房主移交保护定时器，更新 socketId 和在线状态，同步最新名字/头像
           const existing = room.players.get(pid);
           if (existing.offlineCleanupTimer) {
             clearTimeout(existing.offlineCleanupTimer);
             existing.offlineCleanupTimer = null;
           }
+          if (existing.id === room.hostId && room.hostMigrateTimer) {
+            clearTimeout(room.hostMigrateTimer);
+            room.hostMigrateTimer = null;
+          }
           existing.socketId = socket.id;
           existing.isOnline = true;
+          existing.lastOfflineTime = null;
           if (player.name) existing.name = escapeHtml(String(player.name).trim().substring(0, 10)) || existing.name;
           if (player.avatar) existing.avatar = escapeHtml(String(player.avatar).trim().substring(0, 4)) || existing.avatar;
         } else {
-          // 在大厅阶段，加入新玩家前先清理已离线的幽灵玩家
+          // 在大厅阶段，加入新玩家前先清理已超时的幽灵离线玩家（>75秒且非处于缓冲期的房主）
           if (room.gameState.phase === PHASES.LOBBY) {
             const now = Date.now();
             for (const [id, pl] of room.players.entries()) {
-              if (!pl.isAi && !pl.isOnline && pl.lastOfflineTime && (now - pl.lastOfflineTime > 3000)) {
+              if (!pl.isAi && !pl.isOnline && pl.lastOfflineTime && (now - pl.lastOfflineTime > PLAYER_OFFLINE_CLEANUP_MS)) {
+                if (id === room.hostId && (now - pl.lastOfflineTime < HOST_DISCONNECT_GRACE_PERIOD_MS)) continue;
                 room.players.delete(id);
               }
             }
@@ -796,8 +1030,13 @@ function setupUndercover(io, app) {
               clearTimeout(p.offlineCleanupTimer);
               p.offlineCleanupTimer = null;
             }
+            if (p.id === room.hostId && room.hostMigrateTimer) {
+              clearTimeout(room.hostMigrateTimer);
+              room.hostMigrateTimer = null;
+            }
             p.socketId = socket.id;
             p.isOnline = true;
+            p.lastOfflineTime = null;
             currentRoomCode = code;
             currentPlayerId = pid;
             socket.join(code);
@@ -880,7 +1119,7 @@ function setupUndercover(io, app) {
           sanitized.whiteboardCount = Math.max(0, Math.min(2, Math.floor(newSettings.whiteboardCount)));
         }
         if (typeof newSettings.speechTimeLimit === 'number') {
-          sanitized.speechTimeLimit = Math.max(0, Math.min(180, Math.floor(newSettings.speechTimeLimit)));
+          sanitized.speechTimeLimit = Math.max(0, Math.min(300, Math.floor(newSettings.speechTimeLimit)));
         }
         if (typeof newSettings.revealRoleOnEliminate === 'boolean') {
           sanitized.revealRoleOnEliminate = newSettings.revealRoleOnEliminate;
@@ -972,65 +1211,7 @@ function setupUndercover(io, app) {
           return;
         }
 
-        const totalPlayers = playersList.length;
-        const maxUndercover = Math.max(1, Math.floor((totalPlayers - 1) / 2));
-        let ucCount = Math.min(room.settings.undercoverCount || 1, maxUndercover);
-        const maxWhiteboard = Math.max(0, Math.floor((totalPlayers - ucCount - 1) / 2));
-        let wbCount = Math.min(room.settings.whiteboardCount || 0, maxWhiteboard);
-
-        room.settings.undercoverCount = ucCount;
-        room.settings.whiteboardCount = wbCount;
-
-        const wordPair = getRandomWordPair(room.settings.category, room.settings.customWords);
-        room.gameState.winningWord = wordPair.civilian;
-
-        const rolesArray = [];
-        for (let i = 0; i < ucCount; i++) rolesArray.push(ROLES.UNDERCOVER);
-        for (let i = 0; i < wbCount; i++) rolesArray.push(ROLES.WHITEBOARD);
-        while (rolesArray.length < totalPlayers) {
-          rolesArray.push(ROLES.CIVILIAN);
-        }
-
-        for (let i = rolesArray.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [rolesArray[i], rolesArray[j]] = [rolesArray[j], rolesArray[i]];
-        }
-
-        playersList.forEach((player, idx) => {
-          player.isAlive = true;
-          player.hasVoted = false;
-          player.isSpectator = false;
-          player.hasViewedCard = player.isAi || false;
-          player.role = rolesArray[idx];
-
-          if (player.role === ROLES.CIVILIAN) {
-            player.word = wordPair.civilian;
-          } else if (player.role === ROLES.UNDERCOVER) {
-            player.word = wordPair.undercover;
-          } else if (player.role === ROLES.WHITEBOARD) {
-            player.word = '❓ 白板（无词）';
-          }
-        });
-
-        room.players.forEach(p => {
-          if (!p.isOnline) p.isSpectator = true;
-        });
-
-        room.gameState.phase = PHASES.CARD_VIEW;
-        room.gameState.round = 1;
-        room.gameState.lastEliminated = null;
-        room.gameState.winner = null;
-        room.gameState.punishment = null;
-  room.gameState.clueLogs = [];
-
-        // 25秒看牌安全兜底定时器：超时全员自动准备完毕并切入发言阶段
-        if (room.gameState.cardViewSafetyTimer) clearTimeout(room.gameState.cardViewSafetyTimer);
-        room.gameState.cardViewSafetyTimer = setTimeout(() => {
-          if (room.gameState.phase === PHASES.CARD_VIEW) {
-            room.players.forEach(p => { p.hasViewedCard = true; });
-            startSpeakingPhase(undercoverIo, room);
-          }
-        }, 25000);
+        dealCardsToPlayers(undercoverIo, room);
 
         if (typeof callback === 'function') callback({ success: true });
         broadcastRoom(undercoverIo, room);
@@ -1077,6 +1258,36 @@ function setupUndercover(io, app) {
     };
     socket.on('force_start_speaking', handleForceStartSpeaking);
     socket.on('finish_card_view', handleForceStartSpeaking);
+
+    // 房主重新发牌 / 换一组词 (仅限 CARD_VIEW 阶段)
+    const handleRedealCards = (data, callback) => {
+      try {
+        const code = (data && data.roomCode) || currentRoomCode;
+        const pid = (data && data.playerId) || currentPlayerId;
+        if (!code) return;
+        const room = rooms.get(code);
+        if (!room) return;
+        ensureRoomHost(room);
+        if (room.hostId !== pid) {
+          if (typeof callback === 'function') callback({ success: false, message: '只有房主可以重新发牌' });
+          return;
+        }
+        if (room.gameState.phase !== PHASES.CARD_VIEW) {
+          if (typeof callback === 'function') callback({ success: false, message: '仅在看牌阶段支持重新发牌' });
+          return;
+        }
+
+        dealCardsToPlayers(undercoverIo, room);
+        undercoverIo.to(room.code).emit('cards_redealt', { message: '房主已重新发牌，已换新词语与身份！' });
+        broadcastRoom(undercoverIo, room);
+        if (typeof callback === 'function') callback({ success: true });
+      } catch (err) {
+        console.error('redeal_cards error:', err);
+        if (typeof callback === 'function') callback({ success: false, message: '重新发牌失败' });
+      }
+    };
+    socket.on('redeal_cards', handleRedealCards);
+    socket.on('reroll_words', handleRedealCards);
 
     // 结束当前玩家发言 (发言者本人或房主均可点击)
     const handleFinishSpeakingEvent = (data) => {
@@ -1157,6 +1368,54 @@ function setupUndercover(io, app) {
       }
     });
 
+    // 房主强制直接开始投票 (提前结束全员发言或PK辩解)
+    const handleForceStartVoting = (data) => {
+      try {
+        const code = (data && data.roomCode) || currentRoomCode;
+        const pid = (data && data.playerId) || currentPlayerId;
+        if (!code) return;
+        const room = rooms.get(code);
+        if (!room) return;
+        ensureRoomHost(room);
+        if (room.hostId !== pid) return;
+
+        if (room.gameState.phase === PHASES.SPEAKING) {
+          clearRoomTimers(room);
+          startVotingPhase(undercoverIo, room);
+        } else if (room.gameState.phase === PHASES.PK_SPEAKING) {
+          clearRoomTimers(room);
+          startPkVotingPhase(undercoverIo, room);
+        }
+      } catch (err) {
+        console.error('force_start_voting error:', err);
+      }
+    };
+    socket.on('force_start_voting', handleForceStartVoting);
+    socket.on('finish_all_speaking', handleForceStartVoting);
+
+    // 房主强制跳过猜词阶段 (被淘汰者挂机或放弃时，直接淘汰进入下一环节)
+    const handleForceSkipGuess = (data) => {
+      try {
+        const code = (data && data.roomCode) || currentRoomCode;
+        const pid = (data && data.playerId) || currentPlayerId;
+        if (!code) return;
+        const room = rooms.get(code);
+        if (!room) return;
+        ensureRoomHost(room);
+        if (room.hostId !== pid) return;
+
+        if (room.gameState.phase === PHASES.GUESS_WORD) {
+          clearRoomTimers(room);
+          const targetId = room.gameState.guessTarget ? room.gameState.guessTarget.id : null;
+          const votes = room.gameState.guessTarget ? room.gameState.guessTarget.votes : 0;
+          eliminatePlayer(undercoverIo, room, targetId, '房主跳过了猜词环节', votes);
+        }
+      } catch (err) {
+        console.error('force_skip_guess error:', err);
+      }
+    };
+    socket.on('force_skip_guess', handleForceSkipGuess);
+
     // 继续下一轮 (房主)
     socket.on('next_round', (data) => {
       try {
@@ -1171,15 +1430,18 @@ function setupUndercover(io, app) {
       }
     });
 
-    // 房主重置房间回到大厅
+    // 重置房间回到大厅 (随时可用)
     const handleResetToLobby = (data) => {
       try {
         const code = (data && data.roomCode) || currentRoomCode;
         const pid = (data && data.playerId) || currentPlayerId;
         if (!code) return;
         const room = rooms.get(code);
-        if (!room || room.hostId !== pid) return;
-        resetGameToLobby(undercoverIo, room);
+        if (!room) return;
+        // 房主或结算结束阶段(GAME_OVER)时均可直接发起回到大厅
+        if (room.hostId === pid || room.gameState.phase === PHASES.GAME_OVER) {
+          resetGameToLobby(undercoverIo, room);
+        }
       } catch (err) {
         console.error('reset_to_lobby error:', err);
       }
@@ -1187,21 +1449,39 @@ function setupUndercover(io, app) {
     socket.on('reset_to_lobby', handleResetToLobby);
     socket.on('reset_room_to_lobby', handleResetToLobby);
 
-    // 再来一局 (结算界面)
+    // 再来一局 / 回到大厅 (结算界面)
     const handleRestartGame = (data) => {
       try {
         const code = (data && data.roomCode) || currentRoomCode;
         const pid = (data && data.playerId) || currentPlayerId;
         if (!code) return;
         const room = rooms.get(code);
-        if (!room || room.hostId !== pid) return;
-        resetGameToLobby(undercoverIo, room);
+        if (!room) return;
+        if (room.hostId === pid || room.gameState.phase === PHASES.GAME_OVER) {
+          resetGameToLobby(undercoverIo, room);
+        }
       } catch (err) {
         console.error('restart_game error:', err);
       }
     };
     socket.on('restart_game', handleRestartGame);
     socket.on('play_again', handleRestartGame);
+
+    // 绝地猜词提交
+    socket.on('submit_guess_word', (data, callback) => {
+      try {
+        const code = (data && data.roomCode) || currentRoomCode;
+        const pid = (data && data.playerId) || currentPlayerId;
+        const word = (typeof data === 'object') ? data.word : data;
+        if (!code) return;
+        const room = rooms.get(code);
+        if (!room) return;
+        const result = submitGuessWord(undercoverIo, room, pid, word);
+        if (typeof callback === 'function') callback(result);
+      } catch (err) {
+        console.error('submit_guess_word error:', err);
+      }
+    });
 
     // 发送互动表情气泡
     socket.on('send_reaction', (emoji) => {
@@ -1324,11 +1604,26 @@ function setupUndercover(io, app) {
               p.isOnline = false;
               p.lastOfflineTime = Date.now();
 
-              // 大厅阶段如果玩家离线超过 4 秒（排除瞬时刷新卡顿），自动移出房间，防止幽灵离线玩家占用名额
+              // 如果离线的是当前房主，启动 60 秒移交保护定时器
+              if (room.hostId === p.id) {
+                if (room.hostMigrateTimer) clearTimeout(room.hostMigrateTimer);
+                room.hostMigrateTimer = setTimeout(() => {
+                  if (room.players.has(p.id) && !p.isOnline && room.hostId === p.id) {
+                    ensureRoomHost(room);
+                    broadcastRoom(undercoverIo, room);
+                  }
+                }, HOST_DISCONNECT_GRACE_PERIOD_MS);
+              }
+
+              // 大厅阶段如果玩家离线超过 75 秒（超过 60 秒房主缓冲期），自动移出房间，防止幽灵离线玩家占用名额
               if (room.gameState.phase === PHASES.LOBBY) {
                 if (p.offlineCleanupTimer) clearTimeout(p.offlineCleanupTimer);
                 p.offlineCleanupTimer = setTimeout(() => {
                   if (room.gameState.phase === PHASES.LOBBY && !p.isOnline) {
+                    // 若此人是房主且还在 60 秒缓冲保护期内，不提前清理
+                    if (room.hostId === p.id && (Date.now() - (p.lastOfflineTime || 0)) < HOST_DISCONNECT_GRACE_PERIOD_MS) {
+                      return;
+                    }
                     room.players.delete(p.id);
                     ensureRoomHost(room);
                     const remainingHumans = Array.from(room.players.values()).filter(x => !x.isAi && x.isOnline);
@@ -1339,7 +1634,7 @@ function setupUndercover(io, app) {
                       broadcastRoom(undercoverIo, room);
                     }
                   }
-                }, 4000);
+                }, PLAYER_OFFLINE_CLEANUP_MS);
               }
             }
 
@@ -1365,4 +1660,16 @@ function setupUndercover(io, app) {
   }, 10 * 60 * 1000).unref();
 }
 
-module.exports = { setupUndercover, wordCategories };
+module.exports = {
+  setupUndercover,
+  wordCategories,
+  checkGameStatus,
+  processVote,
+  handleEliminateWithGuess,
+  submitGuessWord,
+  dealCardsToPlayers,
+  startVotingPhase,
+  startPkVotingPhase,
+  ROLES,
+  PHASES
+};

@@ -73,27 +73,67 @@ body {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
-.icon-btn {
+.action-tag-btn {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid var(--border-color);
   color: var(--text-main);
-  border-radius: 50%;
-  width: 36px;
-  height: 36px;
-  display: flex;
+  border-radius: 16px;
+  padding: 4px 8px;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
+  gap: 4px;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 12px;
+  font-weight: 600;
   transition: all 0.2s ease;
+  line-height: 1;
 }
 
-.icon-btn:hover, .icon-btn:active {
-  background: rgba(255, 255, 255, 0.2);
-  transform: scale(1.05);
+.action-tag-btn .tag-icon {
+  font-size: 13px;
+}
+
+.action-tag-btn .tag-text {
+  font-size: 11px;
+}
+
+.action-tag-btn:hover, .action-tag-btn:active {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.action-tag-btn.warn {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.35);
+  color: #fbbf24;
+}
+
+.action-tag-btn.danger {
+  background: rgba(244, 63, 94, 0.15);
+  border-color: rgba(244, 63, 94, 0.35);
+  color: #fca5a5;
+}
+
+.action-tag-btn.neutral {
+  color: #cbd5e1;
+}
+
+.copy-pill {
+  font-size: 11px;
+  background: rgba(56, 189, 248, 0.2);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+  padding: 2px 8px;
+  border-radius: 12px;
+  margin-left: 6px;
+  font-weight: 600;
+  transition: all 0.2s ease;
 }
 
 /* 主卡片容器 */
@@ -309,6 +349,27 @@ body {
   font-size: 32px;
   margin-bottom: 6px;
   position: relative;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.status-dot {
+  position: absolute;
+  bottom: 0;
+  right: -2px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid #0f172a;
+}
+
+.status-dot.online {
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+}
+
+.status-dot.offline {
+  background: #ef4444;
 }
 
 .host-crown {
@@ -332,17 +393,23 @@ body {
   position: absolute;
   top: 4px;
   right: 4px;
-  background: rgba(244, 63, 94, 0.2);
-  border: 1px solid rgba(244, 63, 94, 0.4);
+  background: rgba(244, 63, 94, 0.25);
+  border: 1px solid rgba(244, 63, 94, 0.45);
   color: #fca5a5;
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
+  border-radius: 10px;
+  padding: 1px 6px;
   font-size: 11px;
+  font-weight: 700;
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 2px;
   cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.kick-btn:hover, .kick-btn:active {
+  background: rgba(244, 63, 94, 0.45);
+  color: #ffffff;
 }
 
 /* 抽卡/看词 3D 卡牌 */
@@ -356,13 +423,46 @@ body {
   align-items: center;
 }
 
+.peek-mode-bar {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 10px auto 16px;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 4px;
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+  width: fit-content;
+}
+
+.peek-mode-option {
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 16px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  background: transparent;
+}
+
+.peek-mode-option.active {
+  background: linear-gradient(135deg, #a855f7 0%, #6366f1 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(168, 85, 247, 0.4);
+}
+
 .secret-card {
   width: 240px;
   height: 280px;
   position: relative;
   transform-style: preserve-3d;
-  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .secret-card.flipped {
@@ -381,6 +481,9 @@ body {
   justify-content: center;
   padding: 20px;
   box-shadow: 0 12px 35px rgba(0, 0, 0, 0.6);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .card-front {
@@ -420,6 +523,33 @@ body {
   color: var(--text-muted);
   text-align: center;
   line-height: 1.4;
+}
+
+.card-flip-prompt {
+  font-size: 12px;
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 20px;
+  padding: 5px 12px;
+  margin-top: 14px;
+  animation: pulsePrompt 2s infinite ease-in-out;
+}
+
+.card-hide-prompt {
+  font-size: 12px;
+  color: #67e8f9;
+  background: rgba(6, 182, 212, 0.15);
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  border-radius: 20px;
+  padding: 4px 10px;
+  margin-top: 10px;
+  cursor: pointer;
+}
+
+@keyframes pulsePrompt {
+  0%, 100% { opacity: 0.85; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.04); }
 }
 
 /* 发言阶段 */
@@ -497,6 +627,25 @@ body {
   box-shadow: 0 0 15px rgba(244, 63, 94, 0.4);
 }
 
+.vote-select-pill {
+  font-size: 11px;
+  margin-top: 6px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+}
+
+.vote-card.selected .vote-select-pill {
+  background: rgba(244, 63, 94, 0.35);
+  border-color: #f43f5e;
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 0 10px rgba(244, 63, 94, 0.4);
+}
+
 .vote-count-badge {
   position: absolute;
   top: -8px;
@@ -558,6 +707,11 @@ body {
 .victory-title.undercovers {
   color: var(--accent-rose);
   text-shadow: 0 0 20px rgba(244, 63, 94, 0.6);
+}
+
+.victory-title.whiteboards {
+  color: #f1f5f9;
+  text-shadow: 0 0 20px rgba(241, 245, 249, 0.7);
 }
 
 .words-reveal-table {
@@ -901,4 +1055,22 @@ body {
   box-shadow: 0 6px 28px rgba(168, 85, 247, 0.75);
   transform: translateY(-2px);
   filter: brightness(1.1);
+}
+
+/* 房主专属推进控制按钮样式 */
+.btn-warning-outline {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1.5px solid rgba(245, 158, 11, 0.6);
+  color: #fbbf24;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-warning-outline:hover:not(:disabled) {
+  background: rgba(245, 158, 11, 0.25);
+  border-color: #f59e0b;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.25);
+  color: #fef08a;
 }

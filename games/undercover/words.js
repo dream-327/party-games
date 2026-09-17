@@ -145,7 +145,7 @@ const punishments = [
 module.exports = {
   wordCategories,
   punishments,
-  getRandomWordPair: function(category = 'all', customList = []) {
+  getRandomWordPair: function(category = 'all', customList = [], usedKeys = null) {
     let pool = [];
     if (customList && customList.length > 0) {
       pool = [...customList];
@@ -162,7 +162,28 @@ module.exports = {
     if (pool.length === 0) {
       return { civilian: '苹果', undercover: '鸭梨' };
     }
-    const selected = pool[Math.floor(Math.random() * pool.length)];
+
+    let availablePool = pool;
+    if (usedKeys) {
+      const isUsed = (key) => (usedKeys instanceof Set ? usedKeys.has(key) : usedKeys.includes(key));
+      const filtered = pool.filter(p => !isUsed([p.civilian, p.undercover].sort().join('###')));
+      if (filtered.length > 0) {
+        availablePool = filtered;
+      } else {
+        // 当前分类所有词全部用尽时，重置并清空已使用记录，重新循环
+        if (usedKeys instanceof Set) {
+          pool.forEach(p => usedKeys.delete([p.civilian, p.undercover].sort().join('###')));
+        } else if (Array.isArray(usedKeys)) {
+          pool.forEach(p => {
+            const idx = usedKeys.indexOf([p.civilian, p.undercover].sort().join('###'));
+            if (idx !== -1) usedKeys.splice(idx, 1);
+          });
+        }
+        availablePool = pool;
+      }
+    }
+
+    const selected = availablePool[Math.floor(Math.random() * availablePool.length)];
     // 50% 几率随机互换平民和卧底词，增加重复可玩性
     if (Math.random() > 0.5) {
       return { civilian: selected.undercover, undercover: selected.civilian };

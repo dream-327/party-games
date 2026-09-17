@@ -209,7 +209,30 @@ async function runUndercoverTest() {
     }
     console.log('✅ 玩家2成功作为普通玩家加入，当前房主为原房主');
 
-    // 测试原房主离开房间
+    // 测试房主短暂断线 (60秒保护缓冲期测试)：房主身份不应立即丢失
+    console.log('📶 测试房主断开连接 (60秒缓冲期测试)...');
+    hostSocket.disconnect();
+    await sleep(600);
+    // 此时玩家2视角中，房主应该仍然是 p_host_1（处于离线保护缓冲中）
+    if (!guestRoomData || guestRoomData.hostId !== 'p_host_1') {
+      throw new Error(`60秒断线保护失败！房主断开瞬间被过早移交: ${guestRoomData ? guestRoomData.hostId : 'null'}`);
+    }
+    console.log('✅ 60秒断线保护生效：房主断线后未被立即降级，依然保留房主身份！');
+
+    // 房主重连
+    console.log('🔄 房主重连恢复...');
+    hostSocket.connect();
+    await waitEvent(hostSocket, 'connect');
+    await new Promise((resolve) => {
+      hostSocket.emit('sync_room', { roomCode, playerId: 'p_host_1' });
+      setTimeout(resolve, 500);
+    });
+    if (!guestRoomData || guestRoomData.hostId !== 'p_host_1') {
+      throw new Error(`房主重连后身份丢失！当前房主: ${guestRoomData ? guestRoomData.hostId : 'null'}`);
+    }
+    console.log('✅ 房主重连成功，完美保持房主身份！');
+
+    // 测试原房主主动离开房间
     console.log('🚪 原房主主动离开房间，测试房主自动平滑移交给玩家2...');
     await new Promise((resolve) => {
       hostSocket.emit('leave_room', resolve);

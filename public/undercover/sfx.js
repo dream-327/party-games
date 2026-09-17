@@ -200,6 +200,30 @@ class SoundEffects {
       window.speechSynthesis.speak(utter);
     } catch (e) {}
   }
+
+  // 移动端触感反馈 (Haptic Vibration)
+  vibrate(type = 'light') {
+    if (typeof navigator === 'undefined' || !navigator.vibrate) return;
+    try {
+      if (type === 'light') {
+        navigator.vibrate(30);
+      } else if (type === 'turn') {
+        // 轮到自己发言双震提醒
+        navigator.vibrate([80, 50, 80]);
+      } else if (type === 'urgent') {
+        // 倒计时紧急提醒
+        navigator.vibrate(60);
+      } else if (type === 'eliminated') {
+        // 自己被淘汰重震
+        navigator.vibrate([200, 100, 300]);
+      } else if (type === 'win') {
+        // 胜利欢庆节奏震动
+        navigator.vibrate([100, 50, 100, 50, 200]);
+      } else if (Array.isArray(type) || typeof type === 'number') {
+        navigator.vibrate(type);
+      }
+    } catch (e) {}
+  }
 }
 
 window.sfx = new SoundEffects();
