@@ -1,0 +1,38 @@
+{
+  "name": "谁是卧底 - 聚会游戏盒子",
+  "short_name": "谁是卧底",
+  "description": "专为好友开黑聚会打造的多人实时联机对战桌游",
+  "start_url": "/undercover/?pwa=1",
+  "scope": "/undercover/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f172a",
+  "theme_color": "#4f46e5",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "/undercover/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/undercover/icons/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/undercover/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/undercover/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

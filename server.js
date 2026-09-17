@@ -23,7 +23,13 @@ app.use(express.json());
 const noCacheStaticOptions = {
   etag: false,
   maxAge: 0,
-  setHeaders: (res) => {
+  setHeaders: (res, filePath) => {
+    if (filePath && filePath.endsWith('service-worker.js')) {
+      res.setHeader('Service-Worker-Allowed', '/');
+      res.setHeader('Content-Type', 'application/javascript');
+    } else if (filePath && filePath.endsWith('manifest.json')) {
+      res.setHeader('Content-Type', 'application/manifest+json');
+    }
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');

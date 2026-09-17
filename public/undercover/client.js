@@ -103,6 +103,37 @@
     }
   }
 
+  // ----------------------------------------------------
+  // 移动端体验增强：Screen Wake Lock API (申请屏幕常亮防息屏休眠)
+  // ----------------------------------------------------
+  let wakeLockSentinel = null;
+
+  async function requestScreenWakeLock() {
+    if ('wakeLock' in navigator && navigator.wakeLock) {
+      try {
+        if (!wakeLockSentinel || wakeLockSentinel.released) {
+          wakeLockSentinel = await navigator.wakeLock.request('screen');
+          wakeLockSentinel.addEventListener('release', () => {
+            console.log('[WakeLock] 屏幕常亮已被释放');
+          });
+          console.log('[WakeLock] 屏幕常亮申请成功，已锁定屏幕防止休眠断开');
+        }
+      } catch (err) {
+        console.warn('[WakeLock] 屏幕常亮申请异常:', err.message);
+      }
+    }
+  }
+
+  function releaseScreenWakeLock() {
+    if (wakeLockSentinel && !wakeLockSentinel.released) {
+      try {
+        wakeLockSentinel.release();
+      } catch (e) {}
+      wakeLockSentinel = null;
+      console.log('[WakeLock] 已主动释放屏幕常亮');
+    }
+  }
+
   // DOM 元素引用
   const views = {
     home: document.getElementById('view-home'),
@@ -181,6 +212,7 @@
   function confirmLeaveRoom() {
     window.sfx.playClick();
     if (confirm('确定要退出当前房间吗？')) {
+      releaseScreenWakeLock();
       socket.emit('leave_room', () => {});
       currentRoom = null;
       localStorage.removeItem('undercover_room');
@@ -312,12 +344,14 @@
     currentRoom = roomData;
     if (roomData && roomData.code) {
       localStorage.setItem('undercover_room', roomData.code);
+      requestScreenWakeLock();
     }
     renderRoom(roomData);
   });
 
   socket.on('kicked_from_room', () => {
     alert('您已被房主移出房间');
+    releaseScreenWakeLock();
     currentRoom = null;
     localStorage.removeItem('undercover_room');
     switchView('home');
@@ -341,6 +375,7 @@
       }, (res) => {
         if (res && res.success && res.roomData) {
           currentRoom = res.roomData;
+          requestScreenWakeLock();
           renderRoom(res.roomData);
         } else if (res && !res.success) {
           localStorage.removeItem('undercover_room');
@@ -355,13 +390,16 @@
     autoSyncRoom();
   });
 
-  // 当手机解锁屏幕、切换回浏览器页面时立即触发同步
+  // 当手机解锁屏幕、切换回浏览器页面时立即触发同步并申请屏幕常亮
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       if (!socket.connected) {
         socket.connect();
       }
       autoSyncRoom();
+      if (currentRoom && currentRoom.code) {
+        requestScreenWakeLock();
+      }
     }
   });
 
@@ -1487,6 +1525,7 @@
           submitBtn.disabled = false;
           submitBtn.innerText = `🔥 确认投票给【${p.name}】`;
           window.sfx.playClick();
+          window.sfx.vibrate('light');
         });
       }
 
@@ -1564,6 +1603,7 @@
   document.getElementById('btn-submit-vote').addEventListener('click', () => {
     if (!selectedVoteTargetId) return;
     window.sfx.playVote();
+    window.sfx.vibrate('vote');
     socket.emit('cast_vote', {
       targetId: selectedVoteTargetId,
       roomCode: currentRoom ? currentRoom.code : null,

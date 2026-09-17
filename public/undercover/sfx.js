@@ -201,29 +201,30 @@ class SoundEffects {
     } catch (e) {}
   }
 
-  // 移动端触感反馈 (Haptic Vibration)
+  // 移动端触感反馈 (Haptic Vibration API)
   vibrate(type = 'light') {
-    if (typeof navigator === 'undefined' || !navigator.vibrate) return;
+    if (typeof navigator === 'undefined' || !navigator.vibrate) return false;
     try {
-      if (type === 'light') {
-        navigator.vibrate(30);
-      } else if (type === 'turn') {
-        // 轮到自己发言双震提醒
-        navigator.vibrate([80, 50, 80]);
-      } else if (type === 'urgent') {
-        // 倒计时紧急提醒
-        navigator.vibrate(60);
-      } else if (type === 'eliminated') {
-        // 自己被淘汰重震
-        navigator.vibrate([200, 100, 300]);
-      } else if (type === 'win') {
-        // 胜利欢庆节奏震动
-        navigator.vibrate([100, 50, 100, 50, 200]);
-      } else if (Array.isArray(type) || typeof type === 'number') {
-        navigator.vibrate(type);
-      }
-    } catch (e) {}
+      const patterns = {
+        light: 20,
+        click: 25,
+        vote: [40, 30, 40],
+        turn: [100, 50, 100],
+        urgent: [50, 50, 50, 50, 80],
+        eliminated: [250, 100, 250, 100, 400],
+        win: [120, 60, 120, 60, 200, 80, 300],
+        warn: [80, 40, 80],
+        error: [150, 80, 150]
+      };
+      const pattern = patterns[type] || type;
+      return navigator.vibrate(pattern);
+    } catch (e) {
+      return false;
+    }
   }
 }
 
 window.sfx = new SoundEffects();
+window.vibrate = (type) => window.sfx.vibrate(type);
+window.vibrateFeedback = (type) => window.sfx.vibrate(type);
+
