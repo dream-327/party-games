@@ -34,6 +34,7 @@ app.use('/undercover', express.static(path.join(__dirname, 'public/undercover'),
 app.use('/doudizhu', express.static(path.join(__dirname, 'public/doudizhu'), noCacheStaticOptions));
 app.use('/werewolf', express.static(path.join(__dirname, 'public/werewolf'), noCacheStaticOptions));
 app.use('/mahjong', express.static(path.join(__dirname, 'public/mahjong'), noCacheStaticOptions));
+app.use('/downloads', express.static(path.join(__dirname, 'public/downloads')));
 app.use('/', express.static(path.join(__dirname, 'public/hub'), noCacheStaticOptions));
 
 // 智能获取真实物理网卡 IP (优先 Wi-Fi / 手机热点 / 局域网)
