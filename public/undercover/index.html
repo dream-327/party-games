@@ -31,6 +31,9 @@
       </div>
       <!-- 桌面端完整操作栏 (>=900px) -->
       <div class="header-actions desktop-only">
+        <button id="btn-peek-word" class="action-tag-btn hidden" title="随时查看我的秘密词汇 (防窥)" style="background: rgba(168, 85, 247, 0.22); border-color: rgba(168, 85, 247, 0.5); color: #e9d5ff;">
+          <span class="tag-icon">🎴</span><span class="tag-text">底牌</span>
+        </button>
         <button id="btn-lan-share" class="action-tag-btn" title="扫码邀请好友加入">
           <span class="tag-icon">📱</span><span class="tag-text">邀请</span>
         </button>
@@ -55,6 +58,9 @@
       </div>
       <!-- 移动端精简防误触操作栏 (<900px) -->
       <div class="header-actions mobile-only">
+        <button id="btn-mobile-quick-peek" class="action-tag-btn hidden" title="随时查看我的底牌 (防窥)" style="background: rgba(168, 85, 247, 0.25); border-color: rgba(168, 85, 247, 0.5); color: #e9d5ff;">
+          <span class="tag-icon">🎴</span><span class="tag-text">底牌</span>
+        </button>
         <button id="btn-mobile-share" class="action-tag-btn" title="扫码邀请好友加入">
           <span class="tag-icon">📱</span><span class="tag-text">邀请</span>
         </button>
@@ -716,6 +722,13 @@
           <button class="close-btn" id="btn-close-mobile-menu">✕</button>
         </div>
         <div class="mobile-menu-grid">
+          <button id="btn-mobile-peek-word" class="mobile-menu-item hidden" style="border-color: rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.12);">
+            <span class="menu-icon">🎴</span>
+            <div class="menu-info">
+              <div class="menu-title" style="color: #d8b4fe;">查看底牌</div>
+              <div class="menu-desc">随时查看我的词汇与身份</div>
+            </div>
+          </button>
           <button id="btn-mobile-sound" class="mobile-menu-item">
             <span class="menu-icon" id="mobile-sound-icon">🔊</span>
             <div class="menu-info">
@@ -768,6 +781,63 @@
         </div>
       </div>
     </div>
+
+    <!-- 弹窗：随时查看底牌与词汇 (防窥保护) -->
+    <div class="modal-overlay hidden" id="modal-peek-word">
+      <div class="modal-content peek-modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title">🎴 我的底牌与身份</h3>
+          <button class="close-btn" id="btn-close-peek-word" title="关闭并遮挡">✕</button>
+        </div>
+
+        <div style="text-align: center; margin-bottom: 6px;">
+          <div style="font-size: 13px; color: var(--text-muted);">
+            小心身边的朋友偷瞄哦！
+          </div>
+        </div>
+
+        <!-- 防窥模式切换 -->
+        <div class="peek-mode-bar" id="peek-modal-mode-bar" style="margin-bottom: 12px;">
+          <button class="peek-mode-option active" id="btn-peek-modal-hold" data-mode="hold" title="按住卡片查看，松手立即自动盖上">
+            🛡️ 按住防窥
+          </button>
+          <button class="peek-mode-option" id="btn-peek-modal-toggle" data-mode="toggle" title="点击一次翻开，再次点击盖上">
+            🔓 点击常开
+          </button>
+        </div>
+
+        <!-- 防窥卡片 -->
+        <div class="card-view-wrapper" style="margin-bottom: 14px;">
+          <div class="secret-card" id="peek-secret-card">
+            <!-- 正面 (遮挡盖住) -->
+            <div class="card-face card-front">
+              <div style="font-size: 44px; margin-bottom: 6px;">🤫</div>
+              <div style="font-size: 16px; font-weight: 700; color: #d8b4fe;">底牌已隐藏</div>
+              <div class="card-flip-prompt" id="peek-card-flip-prompt">👆 按住卡片查看底牌 (松手即盖上)</div>
+            </div>
+            <!-- 背面 (展示词语) -->
+            <div class="card-face card-back">
+              <div class="card-word-title" id="peek-card-role-title">你的底牌词语</div>
+              <div class="card-word" id="my-peek-word-text">--</div>
+              <div class="card-hint" id="my-peek-role-desc">
+                不要直接说出词语，根据特征描述！
+              </div>
+              <div class="card-hide-prompt" id="peek-card-hide-prompt">🙈 松开手指立即隐藏</div>
+            </div>
+          </div>
+        </div>
+
+        <button id="btn-close-peek-word-bottom" class="btn btn-primary" style="width: 100%; padding: 10px; font-size: 14px; font-weight: 700;">
+          🙈 记住了，关闭遮挡
+        </button>
+      </div>
+    </div>
+
+    <!-- 浮动随时查底牌胶囊 (对局中随时查看，支持防窥) -->
+    <button id="floating-peek-btn" class="floating-peek-btn hidden" title="随时查看我的词汇 (防窥)">
+      <span class="floating-peek-icon">🎴</span>
+      <span class="floating-peek-text">查我的词</span>
+    </button>
 
   </div>
 

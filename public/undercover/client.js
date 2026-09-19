@@ -225,6 +225,7 @@
       const publicScreenBadge = document.getElementById('public-screen-badge');
       if (publicScreenBadge) publicScreenBadge.innerText = '0条';
       switchView('home');
+      updatePeekWordState(null, null);
       const hostResetBtn = document.getElementById('btn-host-reset');
       if (hostResetBtn) hostResetBtn.classList.add('hidden');
       const mobileHostResetBtn = document.getElementById('btn-mobile-host-reset');
@@ -354,6 +355,7 @@
     releaseScreenWakeLock();
     currentRoom = null;
     localStorage.removeItem('undercover_room');
+    updatePeekWordState(null, null);
     switchView('home');
   });
 
@@ -569,6 +571,9 @@
         }
       }
     }
+
+    // 6. 控制中途随时查词入口与防窥弹窗数据联动
+    updatePeekWordState(room, me);
   }
 
   // 渲染大厅
@@ -892,38 +897,51 @@
   const cardElement = document.getElementById('secret-card-element');
   let isHoldingCard = false;
 
+  // 随时查词弹窗防窥卡片元素
+  const btnPeekModalHold = document.getElementById('btn-peek-modal-hold');
+  const btnPeekModalToggle = document.getElementById('btn-peek-modal-toggle');
+  const peekCardFlipPrompt = document.getElementById('peek-card-flip-prompt');
+  const peekCardHidePrompt = document.getElementById('peek-card-hide-prompt');
+  const peekCardElement = document.getElementById('peek-secret-card');
+  let isHoldingPeekCard = false;
+
   function updatePeekModeUI() {
     if (peekMode === 'hold') {
       if (btnModeHold) btnModeHold.classList.add('active');
       if (btnModeToggle) btnModeToggle.classList.remove('active');
+      if (btnPeekModalHold) btnPeekModalHold.classList.add('active');
+      if (btnPeekModalToggle) btnPeekModalToggle.classList.remove('active');
       if (cardFlipPrompt) cardFlipPrompt.innerText = '👆 按住卡片查看底牌 (松手即盖上)';
+      if (peekCardFlipPrompt) peekCardFlipPrompt.innerText = '👆 按住卡片查看底牌 (松手即盖上)';
       if (cardHidePrompt) cardHidePrompt.innerText = '🙈 松开手指立即隐藏';
+      if (peekCardHidePrompt) peekCardHidePrompt.innerText = '🙈 松开手指立即隐藏';
     } else {
       if (btnModeToggle) btnModeToggle.classList.add('active');
       if (btnModeHold) btnModeHold.classList.remove('active');
+      if (btnPeekModalToggle) btnPeekModalToggle.classList.add('active');
+      if (btnPeekModalHold) btnPeekModalHold.classList.remove('active');
       if (cardFlipPrompt) cardFlipPrompt.innerText = '👉 点击卡片翻开底牌 👈';
+      if (peekCardFlipPrompt) peekCardFlipPrompt.innerText = '👉 点击卡片翻开底牌 👈';
       if (cardHidePrompt) cardHidePrompt.innerText = '🙈 点击卡片立即盖上';
+      if (peekCardHidePrompt) peekCardHidePrompt.innerText = '🙈 点击卡片立即盖上';
     }
   }
 
-  if (btnModeHold) {
-    btnModeHold.addEventListener('click', () => {
-      window.sfx.playClick();
-      peekMode = 'hold';
-      localStorage.setItem('undercover_peek_mode', 'hold');
-      updatePeekModeUI();
+  function setPeekMode(mode) {
+    window.sfx.playClick();
+    peekMode = mode;
+    localStorage.setItem('undercover_peek_mode', mode);
+    updatePeekModeUI();
+    if (mode === 'hold') {
       if (cardElement) cardElement.classList.remove('flipped');
-    });
+      if (peekCardElement) peekCardElement.classList.remove('flipped');
+    }
   }
 
-  if (btnModeToggle) {
-    btnModeToggle.addEventListener('click', () => {
-      window.sfx.playClick();
-      peekMode = 'toggle';
-      localStorage.setItem('undercover_peek_mode', 'toggle');
-      updatePeekModeUI();
-    });
-  }
+  if (btnModeHold) btnModeHold.addEventListener('click', () => setPeekMode('hold'));
+  if (btnModeToggle) btnModeToggle.addEventListener('click', () => setPeekMode('toggle'));
+  if (btnPeekModalHold) btnPeekModalHold.addEventListener('click', () => setPeekMode('hold'));
+  if (btnPeekModalToggle) btnPeekModalToggle.addEventListener('click', () => setPeekMode('toggle'));
 
   updatePeekModeUI();
 
@@ -994,6 +1012,167 @@
 
     // 禁用默认右键菜单防止长按弹出菜单
     cardElement.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+
+  // ----------------------------------------------------
+  // 中途随时查词防窥卡片交互与弹窗管理
+  // ----------------------------------------------------
+  function revealPeekCard() {
+    if (peekCardElement && !peekCardElement.classList.contains('flipped')) {
+      peekCardElement.classList.add('flipped');
+      window.sfx.playFlip();
+      window.sfx.vibrate('light');
+    }
+  }
+
+  function concealPeekCard() {
+    if (peekCardElement && peekCardElement.classList.contains('flipped')) {
+      peekCardElement.classList.remove('flipped');
+      window.sfx.playFlip();
+    }
+  }
+
+  if (peekCardElement) {
+    peekCardElement.addEventListener('touchstart', (e) => {
+      if (peekMode === 'hold') {
+        e.preventDefault();
+        isHoldingPeekCard = true;
+        revealPeekCard();
+      }
+    }, { passive: false });
+
+    const handlePeekTouchEnd = () => {
+      if (peekMode === 'hold' && isHoldingPeekCard) {
+        isHoldingPeekCard = false;
+        concealPeekCard();
+      }
+    };
+    peekCardElement.addEventListener('touchend', handlePeekTouchEnd);
+    peekCardElement.addEventListener('touchcancel', handlePeekTouchEnd);
+
+    peekCardElement.addEventListener('mousedown', (e) => {
+      if (e.button === 0 && peekMode === 'hold') {
+        isHoldingPeekCard = true;
+        revealPeekCard();
+      }
+    });
+
+    const handlePeekMouseUp = () => {
+      if (peekMode === 'hold' && isHoldingPeekCard) {
+        isHoldingPeekCard = false;
+        concealPeekCard();
+      }
+    };
+    window.addEventListener('mouseup', handlePeekMouseUp);
+    peekCardElement.addEventListener('mouseleave', () => {
+      if (peekMode === 'hold' && isHoldingPeekCard) {
+        isHoldingPeekCard = false;
+        concealPeekCard();
+      }
+    });
+
+    peekCardElement.addEventListener('click', () => {
+      if (peekMode === 'toggle') {
+        peekCardElement.classList.toggle('flipped');
+        window.sfx.playFlip();
+        window.sfx.vibrate('light');
+      }
+    });
+
+    peekCardElement.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+
+  const modalPeekWord = document.getElementById('modal-peek-word');
+  const btnClosePeekWord = document.getElementById('btn-close-peek-word');
+  const btnClosePeekWordBottom = document.getElementById('btn-close-peek-word-bottom');
+  const btnPeekDesktop = document.getElementById('btn-peek-word');
+  const btnPeekMobile = document.getElementById('btn-mobile-quick-peek');
+  const btnPeekMenu = document.getElementById('btn-mobile-peek-word');
+  const floatingPeekBtn = document.getElementById('floating-peek-btn');
+
+  function openPeekModal() {
+    window.sfx.playClick();
+    if (modalPeekWord) {
+      if (peekCardElement) {
+        peekCardElement.classList.remove('flipped');
+      }
+      modalPeekWord.classList.remove('hidden');
+    }
+  }
+
+  function closePeekModal() {
+    if (modalPeekWord && !modalPeekWord.classList.contains('hidden')) {
+      window.sfx.playClick();
+      modalPeekWord.classList.add('hidden');
+      if (peekCardElement) {
+        peekCardElement.classList.remove('flipped');
+      }
+    }
+  }
+
+  if (btnPeekDesktop) btnPeekDesktop.addEventListener('click', openPeekModal);
+  if (btnPeekMobile) btnPeekMobile.addEventListener('click', openPeekModal);
+  if (floatingPeekBtn) floatingPeekBtn.addEventListener('click', openPeekModal);
+  if (btnPeekMenu) {
+    btnPeekMenu.addEventListener('click', () => {
+      closeMobileMenu();
+      openPeekModal();
+    });
+  }
+
+  if (btnClosePeekWord) btnClosePeekWord.addEventListener('click', closePeekModal);
+  if (btnClosePeekWordBottom) btnClosePeekWordBottom.addEventListener('click', closePeekModal);
+  if (modalPeekWord) {
+    modalPeekWord.addEventListener('click', (e) => {
+      if (e.target === modalPeekWord) {
+        closePeekModal();
+      }
+    });
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modalPeekWord && !modalPeekWord.classList.contains('hidden')) {
+      closePeekModal();
+    }
+  });
+
+  function updatePeekWordState(room, me) {
+    const activeGamePhases = ['SPEAKING', 'VOTING', 'PK_SPEAKING', 'PK_VOTING', 'GUESS_WORD', 'ELIMINATION'];
+    const isPlaying = !!(room && room.gameState && activeGamePhases.includes(room.gameState.phase));
+    const hasWord = !!(me && me.word && !me.isSpectator);
+    const canPeek = isPlaying && hasWord;
+
+    if (btnPeekDesktop) btnPeekDesktop.classList.toggle('hidden', !canPeek);
+    if (btnPeekMobile) btnPeekMobile.classList.toggle('hidden', !canPeek);
+    if (btnPeekMenu) btnPeekMenu.classList.toggle('hidden', !canPeek);
+    if (floatingPeekBtn) floatingPeekBtn.classList.toggle('hidden', !canPeek);
+
+    if (canPeek) {
+      const wordTextEl = document.getElementById('my-peek-word-text');
+      const roleTitleEl = document.getElementById('peek-card-role-title');
+      const roleDescEl = document.getElementById('my-peek-role-desc');
+
+      if (wordTextEl) {
+        wordTextEl.innerText = me.word;
+      }
+
+      if (roleTitleEl && roleDescEl) {
+        if (me.role === 'UNDERCOVER') {
+          roleTitleEl.innerText = '🕵️ 卧底身份 · 底牌词语';
+          roleDescEl.innerText = '注意隐藏身份，根据大家的发言推测平民词并做好伪装！';
+        } else if (me.role === 'WHITEBOARD') {
+          roleTitleEl.innerText = '📄 白板身份 · 无底牌词';
+          roleDescEl.innerText = '你没有任何词语！全靠敏锐直觉听取大家发言进行伪装。';
+        } else {
+          roleTitleEl.innerText = '🧑‍🤝‍🧑 平民身份 · 底牌词语';
+          roleDescEl.innerText = '不要直接说出词语！用一句话描述词语特征，揪出潜伏的卧底。';
+        }
+      }
+    } else {
+      if (modalPeekWord && !modalPeekWord.classList.contains('hidden')) {
+        closePeekModal();
+      }
+    }
   }
 
   // 确认查看词语

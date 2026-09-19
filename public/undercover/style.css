@@ -1468,3 +1468,97 @@ body {
   box-shadow: 0 4px 15px rgba(245, 158, 11, 0.25);
   color: #fef08a;
 }
+
+/* 随时查底牌浮动胶囊与防窥弹窗 */
+.floating-peek-btn {
+  position: fixed;
+  right: 16px;
+  bottom: 74px;
+  z-index: 99;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.95), rgba(99, 102, 241, 0.95));
+  color: #ffffff;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  border-radius: 30px;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 4px 18px rgba(168, 85, 247, 0.45), 0 0 10px rgba(99, 102, 241, 0.35);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.floating-peek-btn:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 6px 24px rgba(168, 85, 247, 0.7), 0 0 15px rgba(99, 102, 241, 0.5);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.floating-peek-btn:active {
+  transform: translateY(0) scale(0.96);
+}
+
+.floating-peek-btn.hidden {
+  display: none !important;
+}
+
+@media (min-width: 900px) {
+  .floating-peek-btn {
+    right: 28px;
+    bottom: 84px;
+    padding: 10px 18px;
+    font-size: 14px;
+  }
+}
+
+.peek-modal-content {
+  max-width: 360px;
+  padding: 20px;
+  text-align: center;
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 25px rgba(168, 85, 247, 0.25);
+}
+
+.peek-modal-content .card-view-wrapper {
+  margin: 10px 0 16px 0;
+  display: flex;
+  justify-content: center;
+}
+
+.peek-modal-content .secret-card {
+  width: 220px;
+  height: 240px;
+}
+
+.peek-modal-content .card-face {
+  padding: 16px;
+  border-radius: var(--radius-md);
+}
+
+.peek-modal-content .card-word {
+  font-size: 26px;
+  font-weight: 800;
+  color: #38bdf8;
+  margin: 8px 0;
+  text-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+}
+
+.peek-modal-content .card-word-title {
+  font-size: 13px;
+  color: #c084fc;
+  font-weight: 700;
+}
+
+.peek-modal-content .card-hint {
+  font-size: 12px;
+  color: #cbd5e1;
+  line-height: 1.45;
+  margin-bottom: 8px;
+}
+
