@@ -171,7 +171,7 @@ async function runUndercoverTest() {
 
     const postVotePhase = currentRoomData.gameState.phase;
     console.log(`📊 投票结算后阶段: ${postVotePhase}`);
-    if (!['ELIMINATION', 'PK_SPEAKING', 'GAME_OVER'].includes(postVotePhase)) {
+    if (!['ELIMINATION', 'PK_SPEAKING', 'GAME_OVER', 'GUESS_WORD'].includes(postVotePhase)) {
       throw new Error(`投票后阶段不正确: ${postVotePhase}`);
     }
     console.log(`✅ 投票结算成功！结算结果:`, currentRoomData.gameState.lastEliminated || currentRoomData.gameState.winner);

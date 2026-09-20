@@ -192,13 +192,18 @@
         <div id="guest-waiting-text" style="color: #e2e8f0; margin-bottom: 8px; font-size: 13px;">
           ⏳ 等待房主开始游戏...
         </div>
-        <button id="btn-claim-host" class="btn btn-secondary" style="max-width: 220px; margin: 0 auto; padding: 6px 14px; font-size: 12px; border-color: rgba(245, 158, 11, 0.4); color: #fbbf24;">
-          👑 成为房主 / 调整配置
-        </button>
+        <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 6px;">
+          <button id="btn-apply-host" class="btn btn-secondary" style="max-width: 240px; padding: 6px 14px; font-size: 12px; border-color: rgba(96, 165, 250, 0.4); color: #60a5fa;">
+            🙋 申请成为房主
+          </button>
+          <button id="btn-claim-host" class="btn btn-secondary hidden" style="max-width: 260px; padding: 6px 14px; font-size: 12px; border-color: rgba(245, 158, 11, 0.4); color: #fbbf24;">
+            👑 接管房主
+          </button>
+        </div>
       </div>
 
-      <!-- 全局统一开始游戏区域 (房主与所有玩家均可看到并点击开局) -->
-      <div id="lobby-start-action" style="margin-top: 10px;">
+      <!-- 房主专属开始游戏区域 (仅房主可见) -->
+      <div id="lobby-start-action" class="hidden" style="margin-top: 10px;">
         <div id="lobby-start-tip" style="text-align: center; font-size: 13px; color: var(--text-muted); margin-bottom: 8px; font-weight: 500;">
           💡 至少需要 3 名玩家在线（不足可补齐电脑开局）
         </div>
@@ -522,6 +527,34 @@
     </aside>
   </div><!-- end #game-layout-wrapper -->
 
+    <!-- 弹窗：房主审批普通玩家申请成为房主 -->
+    <div class="modal-overlay hidden" id="modal-host-approval" style="z-index: 1050;">
+      <div class="modal-content" style="max-width: 380px; text-align: center; border-color: rgba(245, 158, 11, 0.45); box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+        <div class="modal-header" style="justify-content: center; position: relative;">
+          <h3 class="modal-title" style="color: #fbbf24; font-size: 16px;">👑 房主权限转让申请</h3>
+          <button class="close-btn" id="btn-close-host-approval" style="position: absolute; right: 0;">✕</button>
+        </div>
+        <div style="padding: 16px 0;">
+          <div id="host-approval-avatar" style="font-size: 44px; margin-bottom: 8px;">🙋</div>
+          <div style="font-size: 14px; color: #e2e8f0; line-height: 1.6;">
+            玩家 <b id="host-approval-applicant-name" style="color: #60a5fa; font-weight: 700;">某玩家</b> 申请成为房主。<br>
+            是否同意将房主管理权限移交给对方？
+          </div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 10px;" id="host-approval-timer-tip">
+            ⏳ 20 秒未处理将自动忽略
+          </div>
+        </div>
+        <div style="display: flex; gap: 10px; margin-top: 8px;">
+          <button id="btn-host-approve" class="btn btn-primary" style="flex: 1; padding: 10px; background: linear-gradient(135deg, #10b981, #059669); border-color: #34d399; font-weight: 700;">
+            ✅ 同意移交
+          </button>
+          <button id="btn-host-reject" class="btn btn-secondary" style="flex: 1; padding: 10px; border-color: rgba(244, 63, 94, 0.4); color: #fca5a5; font-weight: 700;">
+            ❌ 拒绝
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 弹窗：邀请好友与二维码 -->
     <div class="modal-overlay hidden" id="modal-lan">
       <div class="modal-content">
@@ -546,6 +579,55 @@
       </div>
     </div>
 
+    <!-- 弹窗：上帝模式出题与开局 -->
+    <div class="modal-overlay hidden" id="modal-god-words" style="z-index: 1050;">
+      <div class="modal-content" style="max-width: 440px; border-color: rgba(245, 158, 11, 0.45); box-shadow: 0 10px 35px rgba(0,0,0,0.6);">
+        <div class="modal-header">
+          <h3 class="modal-title" style="color: #fbbf24; font-size: 17px; display: flex; align-items: center; gap: 6px;">
+            <span>👑</span> 上帝模式 · 自定义出题
+          </h3>
+          <button class="close-btn" id="btn-close-god-words">✕</button>
+        </div>
+
+        <div style="padding: 10px 0 16px 0;">
+          <div style="background: rgba(245, 158, 11, 0.1); border: 1px dashed rgba(245, 158, 11, 0.35); border-radius: var(--radius-md); padding: 10px 12px; margin-bottom: 16px; font-size: 13px; color: #fef3c7; line-height: 1.5;">
+            👑 <b>法官主持说明</b>：您作为上帝不参与抽牌与发言，全场拥有全知视角。请为本局参战玩家指定平民词与卧底词（也可一键随机摇词）。
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            <div>
+              <label class="input-label" for="input-god-civilian-word" style="color: #67e8f9; font-weight: 700;">
+                👥 平民底牌词
+              </label>
+              <input type="text" id="input-god-civilian-word" class="text-input" placeholder="输入平民词 (如: 可口可乐)" maxlength="20" style="font-size: 15px; font-weight: 600;">
+            </div>
+
+            <div>
+              <label class="input-label" for="input-god-undercover-word" style="color: #f43f5e; font-weight: 700;">
+                🕵️ 卧底底牌词
+              </label>
+              <input type="text" id="input-god-undercover-word" class="text-input" placeholder="输入卧底词 (如: 百事可乐)" maxlength="20" style="font-size: 15px; font-weight: 600;">
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 8px; margin-top: 14px;">
+            <button id="btn-god-random-words" type="button" class="btn btn-secondary" style="flex: 1; padding: 9px; font-size: 13px; border-color: rgba(245, 158, 11, 0.4); color: #fbbf24;">
+              🎲 随机摇一组
+            </button>
+            <button id="btn-god-clear-words" type="button" class="btn btn-secondary" style="width: 72px; padding: 9px; font-size: 13px;">
+              清空
+            </button>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 4px;">
+          <button id="btn-god-confirm-start" class="btn btn-primary" style="flex: 1; padding: 12px; font-size: 15px; font-weight: 800; background: linear-gradient(135deg, #f59e0b, #d97706); border-color: #fbbf24;">
+            🚀 确认词语并开局
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 弹窗：游戏设置 (房主 / 预设) -->
     <div class="modal-overlay hidden" id="modal-settings">
       <div class="modal-content settings-modal-content">
@@ -555,6 +637,21 @@
         </div>
 
         <div class="settings-sections-scroll">
+          <!-- 0. 玩法模式 -->
+          <div class="setting-group-box" style="border: 1px solid rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.08);">
+            <div class="setting-group-title" style="color: #fbbf24;">👑 上帝模式 / 法官主持</div>
+            <div class="setting-row">
+              <div>
+                <div class="setting-label" style="font-weight: 700; color: #fbbf24;">启用上帝模式</div>
+                <div class="setting-subtext">房主作为法官/上帝主持对局（亲自出题，无底牌不参战，拥全知视角）</div>
+              </div>
+              <select id="select-god-mode" class="text-input setting-select" style="border-color: rgba(245, 158, 11, 0.5); color: #fbbf24; font-weight: 600;">
+                <option value="false" selected>👥 普通模式 (房主参战)</option>
+                <option value="true">👑 上帝模式 (法官主持)</option>
+              </select>
+            </div>
+          </div>
+
           <!-- 1. 角色人数分配 -->
           <div class="setting-group-box">
             <div class="setting-group-title">👥 角色人数配置</div>
@@ -657,6 +754,7 @@
                 <option value="fun">🤣 搞笑扎心</option>
                 <option value="pop">🎬 影视动漫</option>
                 <option value="food">🍔 吃货天下</option>
+                <option value="hardcore">🧠 烧脑进阶</option>
                 <option value="custom_only">✍️ 仅自定义词库</option>
               </select>
             </div>

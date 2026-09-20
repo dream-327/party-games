@@ -65,8 +65,10 @@
   let votingTimerInterval = null;
   let customWordPairs = [];
   let serverInfo = null;
+  let applyHostCooldownTimer = null;
 
   let pendingRoomSettings = {
+    isGodMode: false,
     undercoverCount: 1,
     whiteboardCount: 0,
     speechTimeLimit: 90,
@@ -83,7 +85,8 @@
     if (!settings) return '';
     const catMap = {
       all: '综合随机', classic: '经典对决', life: '生活日常',
-      fun: '搞笑扎心', pop: '影视动漫', food: '吃货天下', custom_only: '自定义'
+      fun: '搞笑扎心', pop: '影视动漫', food: '吃货天下',
+      hardcore: '烧脑进阶', custom_only: '自定义'
     };
     const catText = catMap[settings.category] || '综合随机';
     const isDarkCard = settings.revealRoleOnEliminate === false;
@@ -92,8 +95,9 @@
     const voteLimit = settings.voteTimeLimit > 0 ? `${settings.voteTimeLimit}s投票` : '手动投票';
     const orderText = settings.speechOrderMode === 'seat' ? '顺时针轮转' : '随机乱序';
     const punishText = settings.enablePunishment === false ? '无惩罚' : '大冒险';
+    const godText = (settings.isGodMode === true || settings.isGodMode === 'true') ? '👑上帝主持 · ' : '';
 
-    return `${settings.undercoverCount}卧底 · ${settings.whiteboardCount}白板 · ${isDarkCard ? '🎭暗牌' : '📢明牌'} · ${canGuess ? '🎯猜词' : '纯淘汰'} · ${speechLimit} · ${voteLimit} · ${orderText} · ${catText}`;
+    return `${godText}${settings.undercoverCount}卧底 · ${settings.whiteboardCount}白板 · ${isDarkCard ? '🎭暗牌' : '📢明牌'} · ${canGuess ? '🎯猜词' : '纯淘汰'} · ${speechLimit} · ${voteLimit} · ${orderText} · ${catText}`;
   }
 
   function updateHomeSettingsTag() {
@@ -438,6 +442,17 @@
     // 2. 观战提示控制
     const spectatorBanner = document.getElementById('spectator-banner');
     if (me && me.isSpectator && room.gameState.phase !== 'LOBBY' && room.gameState.phase !== 'GAME_OVER') {
+      if (me.role === 'GOD') {
+        spectatorBanner.innerHTML = '👑 <b>上帝法官主持中</b>：您拥有全知视角，不参与发言投票，掌控全局裁决！';
+        spectatorBanner.style.background = 'rgba(245, 158, 11, 0.18)';
+        spectatorBanner.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+        spectatorBanner.style.color = '#fbbf24';
+      } else {
+        spectatorBanner.innerHTML = '👀 您正在观战中，当前对局结束后下一局自动加入！';
+        spectatorBanner.style.background = 'rgba(168, 85, 247, 0.2)';
+        spectatorBanner.style.borderColor = 'rgba(168, 85, 247, 0.4)';
+        spectatorBanner.style.color = '#d8b4fe';
+      }
       spectatorBanner.classList.remove('hidden');
     } else {
       spectatorBanner.classList.add('hidden');
@@ -617,6 +632,7 @@
       const meBadge = isMe ? '<span class="me-badge">我</span>' : '';
       const offlineBadge = (!p.isOnline && !p.isAi) ? '<span class="offline-badge">离线</span>' : '';
       const canKick = (isHost && !isMe) || (!p.isOnline && !isMe);
+      const canTransfer = isHost && !isMe && !p.isAi && p.isOnline;
       const kickBtnTitle = !p.isOnline ? '移除离线玩家' : '移出玩家';
       box.innerHTML = `
         <div class="player-avatar">
@@ -628,8 +644,26 @@
         <div style="display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; margin-top: 4px;">
           ${hostBadge}${meBadge}${aiBadge}${offlineBadge}
         </div>
+        ${canTransfer ? `<button class="transfer-btn" data-id="${p.id}" title="将房主移交给【${escapeHtml(displayName)}】">👑 移交</button>` : ''}
         ${canKick ? `<button class="kick-btn" data-id="${p.id}" title="${kickBtnTitle}">✕ 移出</button>` : ''}
       `;
+
+        if (canTransfer) {
+          const transferBtn = box.querySelector('.transfer-btn');
+          if (transferBtn) {
+            transferBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              if (confirm(`确定要将房主权限移交给【${displayName}】吗？\n移交后对方将拥有开局与房间配置权限。`)) {
+                window.sfx.playClick();
+                socket.emit('transfer_host', { targetPlayerId: p.id }, (res) => {
+                  if (res && !res.success) {
+                    alert(res.message || '移交房主失败');
+                  }
+                });
+              }
+            });
+          }
+        }
 
         if (canKick) {
           box.querySelector('.kick-btn').addEventListener('click', (e) => {
@@ -670,67 +704,112 @@
     if (guestSettingsSummary) guestSettingsSummary.innerText = settingsSummary;
 
     const onlineCount = room.players.filter(p => p.isOnline).length;
+    const isGod = !!(room.settings && (room.settings.isGodMode === true || room.settings.isGodMode === 'true'));
+    const candidatePlayers = room.players.filter(p => p.isOnline && (isGod ? p.id !== room.hostId : true));
+    const candidateCount = candidatePlayers.length;
+    const lobbyStartAction = document.getElementById('lobby-start-action');
 
     if (isHost) {
       if (hostControls) hostControls.classList.remove('hidden');
       if (guestWaiting) guestWaiting.classList.add('hidden');
+      if (lobbyStartAction) lobbyStartAction.classList.remove('hidden');
+
+      if (lobbyStartTip) {
+        if (isGod) {
+          if (candidateCount >= 3) {
+            lobbyStartTip.innerHTML = `👑 <b>上帝主持就绪 (${candidateCount}名参战玩家在线)</b>，点击出题开局！`;
+          } else {
+            const diff = 3 - candidateCount;
+            lobbyStartTip.innerHTML = `💡 上帝模式下房主不参战。当前已有 <b>${candidateCount}</b> 名参战玩家（还需 ${diff} 人），点击可补齐电脑开局`;
+          }
+        } else {
+          if (onlineCount >= 3) {
+            lobbyStartTip.innerHTML = `🎉 <b>全员已就绪 (${onlineCount}人在线)</b>，点击下方按钮立即开启游戏！`;
+          } else {
+            const diff = 3 - onlineCount;
+            lobbyStartTip.innerHTML = `💡 当前已有 <b>${onlineCount}</b> 人（还需 ${diff} 人），点击下方可自动补齐电脑开局`;
+          }
+        }
+      }
+
+      if (btnStartGame) {
+        if (isGod) {
+          if (candidateCount >= 3) {
+            btnStartGame.innerHTML = `👑 房主出题并开局 (${candidateCount}人参战)`;
+          } else {
+            btnStartGame.innerHTML = `👑 出题并开局 (自动补齐电脑)`;
+          }
+        } else {
+          if (onlineCount >= 3) {
+            btnStartGame.innerHTML = `🚀 房主开始游戏 (${onlineCount}人就绪)`;
+          } else {
+            btnStartGame.innerHTML = `🚀 开始游戏 (自动补齐电脑)`;
+          }
+        }
+      }
     } else {
       if (hostControls) hostControls.classList.add('hidden');
       if (guestWaiting) guestWaiting.classList.remove('hidden');
+      if (lobbyStartAction) lobbyStartAction.classList.add('hidden'); // 非房主隐藏开始游戏按钮
 
       if (guestWaitingText) {
-        if (onlineCount >= 3) {
+        const readyCount = isGod ? candidateCount : onlineCount;
+        if (readyCount >= 3) {
           guestWaitingText.innerHTML = `
             <div style="font-size: 14px; color: #34d399; font-weight: 700; margin-bottom: 4px;">
-              ✅ 房间已满 ${onlineCount} 人在线，全员已就绪！
+              ${isGod ? `👑 上帝主持模式 (${readyCount}名玩家参战已就绪)` : `✅ 房间已满 ${onlineCount} 人在线，全员已就绪！`}
             </div>
             <div style="font-size: 12px; color: var(--text-muted);">
-              等待房主开局，你也可以点击下方「🚀 开始游戏」直接开启对局
+              等待房主【${escapeHtml(hostName)}】${isGod ? '出题并开启对局...' : '开启对局...'}
             </div>
           `;
         } else {
           guestWaitingText.innerHTML = `
             <div style="font-size: 14px; color: #e2e8f0; font-weight: 600; margin-bottom: 4px;">
-              ⏳ 等待更多玩家加入 (当前 ${onlineCount}/3 人)...
+              ⏳ 等待更多玩家加入 (当前参战 ${readyCount}/3 人)...
             </div>
             <div style="font-size: 12px; color: var(--text-muted);">
-              可邀请好友扫码加入，或直接点击下方「开始游戏」自动补齐电脑开局
+              可邀请好友扫码加入，或等待房主开启电脑补位
             </div>
           `;
         }
       }
-      if (btnClaimHost) {
-        btnClaimHost.classList.remove('hidden');
-        const isHostOnline = hostPlayer && hostPlayer.isOnline;
-        if (!isHostOnline) {
-          btnClaimHost.innerHTML = '👑 房主已离线，点击立即接管房主';
-          btnClaimHost.style.borderColor = '#f59e0b';
-          btnClaimHost.style.background = 'rgba(245, 158, 11, 0.25)';
-          btnClaimHost.style.color = '#fbbf24';
-        } else {
-          btnClaimHost.innerHTML = '👑 成为房主 / 调整配置';
-          btnClaimHost.style.borderColor = 'rgba(245, 158, 11, 0.4)';
-          btnClaimHost.style.background = 'transparent';
-          btnClaimHost.style.color = '#fbbf24';
+
+      const btnApplyHost = document.getElementById('btn-apply-host');
+      const isHostOnline = hostPlayer && hostPlayer.isOnline;
+      const remSec = (typeof room.hostOfflineRemainingSeconds === 'number') ? room.hostOfflineRemainingSeconds : 0;
+
+      if (isHostOnline) {
+        // 房主在线：显示申请成为房主按钮，隐藏强制接管按钮
+        if (btnApplyHost) {
+          btnApplyHost.classList.remove('hidden');
+          if (!applyHostCooldownTimer) {
+            btnApplyHost.disabled = false;
+            btnApplyHost.innerHTML = '🙋 申请成为房主';
+          }
         }
-      }
-    }
-
-    // 全局通用开始游戏按键与提示（房主及所有玩家均可见并可点击启动游戏）
-    if (lobbyStartTip) {
-      if (onlineCount >= 3) {
-        lobbyStartTip.innerHTML = `🎉 <b>全员已就绪 (${onlineCount}人在线)</b>，点击下方按钮立即开启游戏！`;
+        if (btnClaimHost) btnClaimHost.classList.add('hidden');
       } else {
-        const diff = 3 - onlineCount;
-        lobbyStartTip.innerHTML = `💡 当前已有 <b>${onlineCount}</b> 人（还需 ${diff} 人），点击下方可自动补齐电脑开局`;
-      }
-    }
-
-    if (btnStartGame) {
-      if (onlineCount >= 3) {
-        btnStartGame.innerHTML = isHost ? `🚀 房主开始游戏 (${onlineCount}人就绪)` : `🚀 立即开始游戏 (${onlineCount}人就绪)`;
-      } else {
-        btnStartGame.innerHTML = `🚀 开始游戏 (自动补齐电脑)`;
+        // 房主离线：隐藏申请成为房主按钮，显示掉线接管按钮
+        if (btnApplyHost) btnApplyHost.classList.add('hidden');
+        if (btnClaimHost) {
+          btnClaimHost.classList.remove('hidden');
+          if (remSec > 0) {
+            btnClaimHost.disabled = true;
+            btnClaimHost.innerHTML = `⏳ 房主掉线重连中 (${remSec}s后可接管)`;
+            btnClaimHost.style.borderColor = 'rgba(245, 158, 11, 0.3)';
+            btnClaimHost.style.background = 'rgba(245, 158, 11, 0.1)';
+            btnClaimHost.style.color = '#94a3b8';
+            btnClaimHost.style.cursor = 'not-allowed';
+          } else {
+            btnClaimHost.disabled = false;
+            btnClaimHost.innerHTML = '👑 房主掉线已超2分钟，点击立即接管房主';
+            btnClaimHost.style.borderColor = '#f59e0b';
+            btnClaimHost.style.background = 'rgba(245, 158, 11, 0.25)';
+            btnClaimHost.style.color = '#fbbf24';
+            btnClaimHost.style.cursor = 'pointer';
+          }
+        }
       }
     }
   }
@@ -779,6 +858,151 @@
     });
   }
 
+  // 普通玩家点击申请成为房主 (需房主在线同意)
+  const btnApplyHost = document.getElementById('btn-apply-host');
+  if (btnApplyHost) {
+    btnApplyHost.addEventListener('click', () => {
+      window.sfx.playClick();
+      if (!currentRoom) return;
+      btnApplyHost.disabled = true;
+      btnApplyHost.innerHTML = '⏳ 正在发送申请...';
+      socket.emit('apply_host', (res) => {
+        if (!res || !res.success) {
+          alert(res ? res.message : '申请失败');
+          btnApplyHost.disabled = false;
+          btnApplyHost.innerHTML = '🙋 申请成为房主';
+          return;
+        }
+        let countdown = 20;
+        btnApplyHost.innerHTML = `⏳ 申请已发送，等待房主同意 (${countdown}s)`;
+        if (applyHostCooldownTimer) clearInterval(applyHostCooldownTimer);
+        applyHostCooldownTimer = setInterval(() => {
+          countdown--;
+          if (countdown <= 0) {
+            clearInterval(applyHostCooldownTimer);
+            applyHostCooldownTimer = null;
+            if (btnApplyHost) {
+              btnApplyHost.disabled = false;
+              btnApplyHost.innerHTML = '🙋 申请成为房主';
+            }
+          } else {
+            if (btnApplyHost) {
+              btnApplyHost.innerHTML = `⏳ 申请已发送，等待房主同意 (${countdown}s)`;
+            }
+          }
+        }, 1000);
+      });
+    });
+  }
+
+  // 接收申请房主审批结果通知
+  socket.on('host_claim_result', (data) => {
+    if (applyHostCooldownTimer) {
+      clearInterval(applyHostCooldownTimer);
+      applyHostCooldownTimer = null;
+      if (btnApplyHost) {
+        btnApplyHost.disabled = false;
+        btnApplyHost.innerHTML = '🙋 申请成为房主';
+      }
+    }
+    if (data) {
+      if (data.approved) {
+        alert('🎉 ' + (data.message || '房主已同意你的申请，你已成为新房主！'));
+      } else {
+        alert('ℹ️ ' + (data.message || '房主拒绝了你的房主申请'));
+      }
+    }
+  });
+
+  // 房主专属：处理来自其他玩家的成为房主申请弹窗
+  const modalHostApproval = document.getElementById('modal-host-approval');
+  const hostApprovalApplicantName = document.getElementById('host-approval-applicant-name');
+  const hostApprovalAvatar = document.getElementById('host-approval-avatar');
+  const hostApprovalTimerTip = document.getElementById('host-approval-timer-tip');
+  const btnHostApprove = document.getElementById('btn-host-approve');
+  const btnHostReject = document.getElementById('btn-host-reject');
+  const btnCloseHostApproval = document.getElementById('btn-close-host-approval');
+
+  let currentClaimApplicantId = null;
+  let hostApprovalCountdownTimer = null;
+
+  function closeHostApprovalModal() {
+    if (modalHostApproval) modalHostApproval.classList.add('hidden');
+    if (hostApprovalCountdownTimer) {
+      clearInterval(hostApprovalCountdownTimer);
+      hostApprovalCountdownTimer = null;
+    }
+    currentClaimApplicantId = null;
+  }
+
+  socket.on('host_claim_requested', (data) => {
+    if (!data || !data.applicantId) return;
+    currentClaimApplicantId = data.applicantId;
+
+    if (hostApprovalApplicantName) {
+      hostApprovalApplicantName.innerText = data.applicantName || '某玩家';
+    }
+    if (hostApprovalAvatar) {
+      hostApprovalAvatar.innerText = data.applicantAvatar || '🙋';
+    }
+
+    if (window.sfx && typeof window.sfx.playNotice === 'function') {
+      window.sfx.playNotice();
+    } else if (window.sfx && typeof window.sfx.playClick === 'function') {
+      window.sfx.playClick();
+    }
+
+    let remaining = 20;
+    if (hostApprovalTimerTip) {
+      hostApprovalTimerTip.innerText = `⏳ ${remaining} 秒未处理将自动忽略`;
+    }
+    if (hostApprovalCountdownTimer) clearInterval(hostApprovalCountdownTimer);
+    hostApprovalCountdownTimer = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        closeHostApprovalModal();
+      } else {
+        if (hostApprovalTimerTip) {
+          hostApprovalTimerTip.innerText = `⏳ ${remaining} 秒未处理将自动忽略`;
+        }
+      }
+    }, 1000);
+
+    if (modalHostApproval) {
+      modalHostApproval.classList.remove('hidden');
+    }
+  });
+
+  if (btnHostApprove) {
+    btnHostApprove.addEventListener('click', () => {
+      window.sfx.playClick();
+      if (!currentClaimApplicantId) return;
+      socket.emit('respond_host_claim', { applicantId: currentClaimApplicantId, approved: true }, (res) => {
+        if (res && !res.success) {
+          alert(res.message || '操作失败');
+        }
+      });
+      closeHostApprovalModal();
+    });
+  }
+
+  if (btnHostReject) {
+    btnHostReject.addEventListener('click', () => {
+      window.sfx.playClick();
+      if (!currentClaimApplicantId) return;
+      socket.emit('respond_host_claim', { applicantId: currentClaimApplicantId, approved: false }, (res) => {
+        if (res && !res.success) {
+          alert(res.message || '操作失败');
+        }
+      });
+      closeHostApprovalModal();
+    });
+  }
+
+  if (btnCloseHostApproval) {
+    btnCloseHostApproval.addEventListener('click', closeHostApprovalModal);
+  }
+
   // 一键清理离线幽灵玩家
   const btnCleanOffline = document.getElementById('btn-clean-offline');
   if (btnCleanOffline) {
@@ -803,10 +1027,11 @@
     btnQuickFillAi.addEventListener('click', () => {
       window.sfx.playClick();
       if (!currentRoom) return;
-      const count = currentRoom.players.filter(p => p.isOnline).length;
-      const need = Math.max(0, 3 - count);
+      const isGod = !!(currentRoom.settings && (currentRoom.settings.isGodMode === true || currentRoom.settings.isGodMode === 'true'));
+      const candidateCount = currentRoom.players.filter(p => p.isOnline && (isGod ? p.id !== currentRoom.hostId : true)).length;
+      const need = Math.max(0, 3 - candidateCount);
       if (need === 0) {
-        alert('当前已满 3 人以上，可直接点击【🚀 开始游戏】！');
+        alert('当前参战玩家已满 3 人以上，可直接点击【开始游戏】！');
         return;
       }
       for (let i = 0; i < need; i++) {
@@ -823,10 +1048,147 @@
     });
   }
 
+  // 上帝模式预设随机词对列表（本地保底）
+  const DEFAULT_GOD_WORD_PAIRS = [
+    { civilian: '眉毛', undercover: '睫毛' },
+    { civilian: '保姆', undercover: '月嫂' },
+    { civilian: '充电宝', undercover: '蓄电池' },
+    { civilian: '机械键盘', undercover: '薄膜键盘' },
+    { civilian: '打呼噜', undercover: '磨牙' },
+    { civilian: '私房钱', undercover: '压岁钱' },
+    { civilian: '元宵', undercover: '汤圆' },
+    { civilian: '生煎包', undercover: '锅贴' },
+    { civilian: '盗墓笔记', undercover: '鬼吹灯' },
+    { civilian: '若即若离', undercover: '半推半就' },
+    { civilian: '暗恋', undercover: '单相思' },
+    { civilian: '同甘共苦', undercover: '患难与共' },
+    { civilian: '小笼包', undercover: '灌汤包' },
+    { civilian: '牛奶', undercover: '豆浆' },
+    { civilian: '牛肉干', undercover: '猪肉脯' },
+    { civilian: '近视镜', undercover: '老花镜' }
+  ];
+
+  let godPendingAutoFill = false;
+  const modalGodWords = document.getElementById('modal-god-words');
+  const inputGodCivWord = document.getElementById('input-god-civilian-word');
+  const inputGodSpyWord = document.getElementById('input-god-undercover-word');
+  const btnCloseGodWords = document.getElementById('btn-close-god-words');
+  const btnGodRandomWords = document.getElementById('btn-god-random-words');
+  const btnGodClearWords = document.getElementById('btn-god-clear-words');
+  const btnGodConfirmStart = document.getElementById('btn-god-confirm-start');
+
+  function fetchRandomWordsForGod(cb) {
+    socket.emit('get_random_words', {}, (res) => {
+      if (res && res.success && res.wordPair && res.wordPair.civilian && res.wordPair.undercover) {
+        if (cb) cb(res.wordPair.civilian, res.wordPair.undercover);
+      } else {
+        const pair = DEFAULT_GOD_WORD_PAIRS[Math.floor(Math.random() * DEFAULT_GOD_WORD_PAIRS.length)];
+        if (cb) cb(pair.civilian, pair.undercover);
+      }
+    });
+  }
+
+  function openGodWordsModal(autoFillNeeded) {
+    godPendingAutoFill = !!autoFillNeeded;
+    if (modalGodWords) {
+      if (inputGodCivWord && inputGodSpyWord && (!inputGodCivWord.value.trim() || !inputGodSpyWord.value.trim())) {
+        fetchRandomWordsForGod((civ, spy) => {
+          if (inputGodCivWord) inputGodCivWord.value = civ;
+          if (inputGodSpyWord) inputGodSpyWord.value = spy;
+        });
+      }
+      modalGodWords.classList.remove('hidden');
+    }
+  }
+
+  if (btnCloseGodWords) {
+    btnCloseGodWords.addEventListener('click', () => {
+      if (modalGodWords) modalGodWords.classList.add('hidden');
+    });
+  }
+
+  if (btnGodClearWords) {
+    btnGodClearWords.addEventListener('click', () => {
+      window.sfx.playClick();
+      if (inputGodCivWord) inputGodCivWord.value = '';
+      if (inputGodSpyWord) inputGodSpyWord.value = '';
+    });
+  }
+
+  if (btnGodRandomWords) {
+    btnGodRandomWords.addEventListener('click', () => {
+      window.sfx.playClick();
+      fetchRandomWordsForGod((civ, spy) => {
+        if (inputGodCivWord) inputGodCivWord.value = civ;
+        if (inputGodSpyWord) inputGodSpyWord.value = spy;
+      });
+    });
+  }
+
+  if (btnGodConfirmStart) {
+    btnGodConfirmStart.addEventListener('click', () => {
+      window.sfx.playClick();
+      const civ = inputGodCivWord ? inputGodCivWord.value.trim() : '';
+      const spy = inputGodSpyWord ? inputGodSpyWord.value.trim() : '';
+      if (!civ || !spy) {
+        alert('请输入完整的平民词和卧底词，或者点击【🎲 随机摇一组】！');
+        return;
+      }
+      if (civ === spy) {
+        alert('平民词和卧底词不能完全相同，请重新设置！');
+        return;
+      }
+
+      // 如果当前在看牌阶段重新发牌换词
+      if (currentRoom && currentRoom.gameState && currentRoom.gameState.phase === 'CARD_VIEW') {
+        socket.emit('redeal_cards', {
+          godCustomWords: { civilianWord: civ, undercoverWord: spy }
+        }, (res) => {
+          if (res && !res.success) alert(res.message || '重新发牌失败');
+          else if (modalGodWords) modalGodWords.classList.add('hidden');
+        });
+        return;
+      }
+
+      socket.emit('start_game', {
+        autoFill: godPendingAutoFill,
+        godCustomWords: {
+          civilianWord: civ,
+          undercoverWord: spy
+        }
+      }, (res) => {
+        if (res && !res.success) {
+          alert(res.message || '无法开始游戏');
+        } else {
+          if (modalGodWords) modalGodWords.classList.add('hidden');
+        }
+      });
+    });
+  }
+
   // 房主点击开始游戏 (支持智能检测并一键补齐电脑)
   document.getElementById('btn-start-game').addEventListener('click', () => {
     window.sfx.playClick();
     if (!currentRoom) return;
+    if (!currentRoom.myPlayer || !currentRoom.myPlayer.isHost) {
+      alert('只有房主可以开始游戏');
+      return;
+    }
+    const isGod = !!(currentRoom.settings && (currentRoom.settings.isGodMode === true || currentRoom.settings.isGodMode === 'true'));
+    const candidateCount = currentRoom.players.filter(p => p.isOnline && (isGod ? p.id !== currentRoom.hostId : true)).length;
+
+    if (isGod) {
+      let autoFillNeeded = false;
+      if (candidateCount < 3) {
+        if (!confirm(`上帝模式下房主作为法官不参战。当前仅有 ${candidateCount} 名参战玩家，至少需要 3 人才能开局。\n是否自动补齐电脑玩家并开始自定义出题？`)) {
+          return;
+        }
+        autoFillNeeded = true;
+      }
+      openGodWordsModal(autoFillNeeded);
+      return;
+    }
+
     const onlineCount = currentRoom.players.filter(p => p.isOnline).length;
     if (onlineCount < 3) {
       if (confirm(`当前仅有 ${onlineCount} 名玩家，至少需要 3 人才能开局。\n是否立即自动添加电脑玩家并开始游戏？`)) {
@@ -850,8 +1212,19 @@
   function renderCardView(room, me, isHost, isPhaseChanged) {
     const cardEl = document.getElementById('secret-card-element');
     const wordEl = document.getElementById('my-secret-word');
+    const isGod = isHost && room.settings && (room.settings.isGodMode === true || room.settings.isGodMode === 'true');
     
-    if (me && me.word) {
+    if (isGod) {
+      const civ = (room.wordsInfo && room.wordsInfo.civilianWord) || (room.godCustomWords && (room.godCustomWords.civilianWord || room.godCustomWords.civilian)) || '平民词';
+      const spy = (room.wordsInfo && room.wordsInfo.undercoverWord) || (room.godCustomWords && (room.godCustomWords.undercoverWord || room.godCustomWords.undercover)) || '卧底词';
+      wordEl.innerHTML = `
+        <div style="font-size: 17px; color: #fbbf24; font-weight: 800; margin-bottom: 6px;">👑 上帝法官视角</div>
+        <div style="font-size: 13px; color: #cbd5e1; line-height: 1.6;">
+          平民词: <b style="color: #67e8f9; font-size: 15px;">${escapeHtml(civ)}</b><br>
+          卧底词: <b style="color: #f43f5e; font-size: 15px;">${escapeHtml(spy)}</b>
+        </div>
+      `;
+    } else if (me && me.word) {
       wordEl.innerText = me.word;
     } else {
       wordEl.innerText = '请等待分发...';
@@ -862,13 +1235,17 @@
       cardEl.classList.remove('flipped');
     }
 
-    // 统计已查看人数
-    const viewedCount = room.players.filter(p => p.hasViewedCard).length;
+    // 统计已查看人数（排除裁判）
+    const candidatePlayers = room.players.filter(p => !p.isSpectator);
+    const viewedCount = candidatePlayers.filter(p => p.hasViewedCard).length;
     document.getElementById('viewed-count').innerText = viewedCount;
-    document.getElementById('total-view-count').innerText = room.players.length;
+    document.getElementById('total-view-count').innerText = candidatePlayers.length;
 
     const confirmBtn = document.getElementById('btn-card-confirm');
-    if (me && me.hasViewedCard) {
+    if (isGod) {
+      confirmBtn.disabled = false;
+      confirmBtn.innerText = '👑 法官已就绪 (可直接开启发言)';
+    } else if (me && me.hasViewedCard) {
       confirmBtn.disabled = true;
       confirmBtn.innerText = '✅ 已准备完毕，等待其他人...';
     } else {
@@ -1137,10 +1514,11 @@
   });
 
   function updatePeekWordState(room, me) {
-    const activeGamePhases = ['SPEAKING', 'VOTING', 'PK_SPEAKING', 'PK_VOTING', 'GUESS_WORD', 'ELIMINATION'];
+    const activeGamePhases = ['CARD_VIEW', 'SPEAKING', 'VOTING', 'PK_SPEAKING', 'PK_VOTING', 'GUESS_WORD', 'ELIMINATION'];
     const isPlaying = !!(room && room.gameState && activeGamePhases.includes(room.gameState.phase));
+    const isGod = !!(room && room.settings && (room.settings.isGodMode === true || room.settings.isGodMode === 'true') && me && me.isHost);
     const hasWord = !!(me && me.word && !me.isSpectator);
-    const canPeek = isPlaying && hasWord;
+    const canPeek = isPlaying && (hasWord || isGod);
 
     if (btnPeekDesktop) btnPeekDesktop.classList.toggle('hidden', !canPeek);
     if (btnPeekMobile) btnPeekMobile.classList.toggle('hidden', !canPeek);
@@ -1152,20 +1530,39 @@
       const roleTitleEl = document.getElementById('peek-card-role-title');
       const roleDescEl = document.getElementById('my-peek-role-desc');
 
-      if (wordTextEl) {
-        wordTextEl.innerText = me.word;
-      }
+      if (isGod) {
+        if (roleTitleEl) roleTitleEl.innerText = '👑 上帝法官全知情报';
+        const civWord = (room.wordsInfo && room.wordsInfo.civilianWord) || (room.godCustomWords && (room.godCustomWords.civilianWord || room.godCustomWords.civilian)) || '平民词';
+        const spyWord = (room.wordsInfo && room.wordsInfo.undercoverWord) || (room.godCustomWords && (room.godCustomWords.undercoverWord || room.godCustomWords.undercover)) || '卧底词';
+        if (wordTextEl) {
+          wordTextEl.innerHTML = `
+            <div style="font-size: 15px; color: #67e8f9; margin-bottom: 4px;">👥 平民: <b>${escapeHtml(civWord)}</b></div>
+            <div style="font-size: 15px; color: #f43f5e;">🕵️ 卧底: <b>${escapeHtml(spyWord)}</b></div>
+          `;
+        }
+        if (roleDescEl) {
+          const playersText = room.players.filter(p => !p.isSpectator).map(p => {
+            const rTag = p.role === 'UNDERCOVER' ? '卧底' : (p.role === 'WHITEBOARD' ? '白板' : '平民');
+            return `${p.name}(${rTag}: ${p.word || '无'})`;
+          }).join(' · ');
+          roleDescEl.innerHTML = `<b>全员身份情报</b>：<br>${escapeHtml(playersText)}`;
+        }
+      } else {
+        if (wordTextEl) {
+          wordTextEl.innerText = me.word;
+        }
 
-      if (roleTitleEl && roleDescEl) {
-        if (me.role === 'UNDERCOVER') {
-          roleTitleEl.innerText = '🕵️ 卧底身份 · 底牌词语';
-          roleDescEl.innerText = '注意隐藏身份，根据大家的发言推测平民词并做好伪装！';
-        } else if (me.role === 'WHITEBOARD') {
-          roleTitleEl.innerText = '📄 白板身份 · 无底牌词';
-          roleDescEl.innerText = '你没有任何词语！全靠敏锐直觉听取大家发言进行伪装。';
-        } else {
-          roleTitleEl.innerText = '🧑‍🤝‍🧑 平民身份 · 底牌词语';
-          roleDescEl.innerText = '不要直接说出词语！用一句话描述词语特征，揪出潜伏的卧底。';
+        if (roleTitleEl && roleDescEl) {
+          if (me.role === 'UNDERCOVER') {
+            roleTitleEl.innerText = '🕵️ 卧底身份 · 底牌词语';
+            roleDescEl.innerText = '注意隐藏身份，根据大家的发言推测平民词并做好伪装！';
+          } else if (me.role === 'WHITEBOARD') {
+            roleTitleEl.innerText = '📄 白板身份 · 无底牌词';
+            roleDescEl.innerText = '你没有任何词语！全靠敏锐直觉听取大家发言进行伪装。';
+          } else {
+            roleTitleEl.innerText = '🧑‍🤝‍🧑 平民身份 · 底牌词语';
+            roleDescEl.innerText = '不要直接说出词语！用一句话描述词语特征，揪出潜伏的卧底。';
+          }
         }
       }
     } else {
@@ -1178,6 +1575,14 @@
   // 确认查看词语
   document.getElementById('btn-card-confirm').addEventListener('click', () => {
     window.sfx.playClick();
+    if (currentRoom && currentRoom.settings && (currentRoom.settings.isGodMode === true || currentRoom.settings.isGodMode === 'true') && currentRoom.myPlayer && currentRoom.myPlayer.isHost) {
+      // 上帝房主直接开启发言
+      socket.emit('force_start_speaking', {
+        roomCode: currentRoom ? currentRoom.code : null,
+        playerId: myPlayerId
+      });
+      return;
+    }
     const confirmBtn = document.getElementById('btn-card-confirm');
     if (confirmBtn) {
       confirmBtn.disabled = true;
@@ -1202,6 +1607,10 @@
   const btnRedealCards = document.getElementById('btn-redeal-cards');
   if (btnRedealCards) {
     btnRedealCards.addEventListener('click', () => {
+      if (currentRoom && currentRoom.settings && (currentRoom.settings.isGodMode === true || currentRoom.settings.isGodMode === 'true')) {
+        openGodWordsModal(false);
+        return;
+      }
       if (confirm('确定要重新发牌吗？将换一组全新词语，并重新随机分配全员身份！')) {
         window.sfx.playClick();
         socket.emit('redeal_cards', {
@@ -1235,6 +1644,7 @@
     const currentSpeakerId = room.gameState.currentSpeakerId;
     const currentSpeaker = room.players.find(p => p.id === currentSpeakerId);
     const isMeSpeaking = currentSpeakerId === myPlayerId;
+    const isGodViewer = isHost && room.settings && (room.settings.isGodMode === true || room.settings.isGodMode === 'true');
 
     const speakerBox = document.getElementById('current-speaker-box');
     const speakerAvatar = document.getElementById('current-speaker-avatar');
@@ -1247,6 +1657,10 @@
       if (isMeSpeaking) {
         speakerBox.classList.add('is-me');
         tipText.innerText = '🎯 请用一句话描述你的词语，不能直接说出词汇哦！';
+      } else if (isGodViewer && currentSpeaker.role) {
+        speakerBox.classList.remove('is-me');
+        const roleName = currentSpeaker.role === 'UNDERCOVER' ? '🕵️ 卧底' : (currentSpeaker.role === 'WHITEBOARD' ? '📄 白板' : '👥 平民');
+        tipText.innerHTML = `👑 上帝视角: <b>${escapeHtml(currentSpeaker.name)}</b> 是【<span style="color:#fbbf24;">${roleName}</span>】· 底牌:「<span style="color:#67e8f9;">${escapeHtml(currentSpeaker.word || '无词')}</span>」`;
       } else {
         speakerBox.classList.remove('is-me');
         tipText.innerText = `正在认真听 ${currentSpeaker.name} 发言...`;
@@ -1290,11 +1704,37 @@
           #${idx + 1}
         </div>
         <div class="player-avatar">${p.avatar}</div>
-        <div class="player-name">${p.name}</div>
+        <div class="player-name">${escapeHtml(p.name)}</div>
         <div style="font-size: 11px; color: ${isCurrent ? '#38bdf8' : (isPast ? '#64748b' : '#94a3b8')}; margin-top: 2px;">
           ${isCurrent ? '🎙️ 正在发言' : (isPast ? '✅ 已描述' : '⏳ 等待中')}
         </div>
       `;
+
+      if (isGodViewer && p.role) {
+        const roleName = p.role === 'UNDERCOVER' ? '🕵️ 卧底' : (p.role === 'WHITEBOARD' ? '📄 白板' : '👥 平民');
+        const roleColor = p.role === 'UNDERCOVER' ? '#f43f5e' : (p.role === 'WHITEBOARD' ? '#cbd5e1' : '#67e8f9');
+        const badge = document.createElement('div');
+        badge.style.cssText = `margin-top: 4px; padding: 2px 4px; background: rgba(0,0,0,0.45); border: 1px solid ${roleColor}; border-radius: 4px; font-size: 11px; color: ${roleColor}; font-weight: 700; word-break: break-all;`;
+        badge.innerText = `${roleName} · 「${p.word || '无词'}」`;
+        box.appendChild(badge);
+
+        if (p.isAlive) {
+          const judgeBtn = document.createElement('button');
+          judgeBtn.className = 'btn btn-secondary';
+          judgeBtn.style.cssText = 'margin-top: 4px; padding: 2px 6px; font-size: 10px; color: #fca5a5; border-color: rgba(244,63,94,0.4); width: 100%; border-radius: 4px;';
+          judgeBtn.innerText = '⚖️ 裁决淘汰';
+          judgeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (confirm(`【法官裁决】确定要行使上帝特权，直接淘汰玩家【${p.name}】吗？`)) {
+              socket.emit('judge_eliminate_player', { targetPlayerId: p.id }, (res) => {
+                if (res && !res.success) alert(res.message || '裁决失败');
+              });
+            }
+          });
+          box.appendChild(judgeBtn);
+        }
+      }
+
       orderGrid.appendChild(box);
     });
 
@@ -1306,7 +1746,7 @@
     if (isMeSpeaking || isHost) {
       finishBtn.disabled = false;
       finishBtn.classList.remove('hidden');
-      finishBtn.innerText = isMeSpeaking ? '🎤 我已描述完毕 (交给下一位)' : '⏭️ 房主跳过此人发言';
+      finishBtn.innerText = isMeSpeaking ? '🎤 我已描述完毕 (交给下一位)' : (isGodViewer ? '⏭️ 法官跳过此人发言' : '⏭️ 房主跳过此人发言');
     } else {
       finishBtn.disabled = true;
       finishBtn.classList.add('hidden');
@@ -1646,10 +2086,12 @@
     grid.innerHTML = '';
 
     const submitBtn = document.getElementById('btn-submit-vote');
+    const isGodViewer = isHost && room.settings && (room.settings.isGodMode === true || room.settings.isGodMode === 'true');
+    const isGodMe = me && me.role === 'GOD';
 
     const stageTitle = document.getElementById('voting-stage-title');
     if (stageTitle) {
-      stageTitle.innerText = isPK ? '🔥 平票 PK 再次对决' : '🗳️ 全员投票环节';
+      stageTitle.innerText = isPK ? '🔥 平票 PK 再次对决' : (isGodMe ? '👑 法官主持 · 全员投票' : '🗳️ 全员投票环节');
     }
 
     startVotingCountdownTimer(room.gameState.voteTimeLimit || 60, room.gameState.voteStartTime);
@@ -1666,7 +2108,7 @@
     }
 
     // 统计已投票数
-    const alivePlayers = room.players.filter(p => p.isAlive);
+    const alivePlayers = room.players.filter(p => p.isAlive && !p.isSpectator);
     const votedCount = alivePlayers.filter(p => p.hasVoted).length;
     document.getElementById('voted-count').innerText = votedCount;
     document.getElementById('total-vote-count').innerText = alivePlayers.length;
@@ -1681,15 +2123,62 @@
       const isSelected = effectiveSelectedId === p.id;
       card.className = `vote-card ${isSelected ? 'selected' : ''}`;
       
+      const allLogs = (room.gameState && room.gameState.clueLogs) || [];
+      const playerLogs = allLogs.filter(l => (l.playerId && l.playerId === p.id) || l.playerName === p.name);
+
+      let cluesHtml = '';
+      if (playerLogs.length > 0) {
+        cluesHtml = `
+          <div class="vote-player-clues">
+            ${playerLogs.map(l => {
+              const badge = l.isPk ? '<span class="vote-clue-pk-tag">PK</span>' : `<span class="vote-clue-round-tag">R${l.round}</span>`;
+              return `<div class="vote-clue-item" title="${escapeHtml(l.clue)}">${badge} <span class="vote-clue-text">"${escapeHtml(l.clue)}"</span></div>`;
+            }).join('')}
+          </div>
+        `;
+      } else {
+        cluesHtml = `
+          <div class="vote-player-clues empty">
+            <div class="vote-clue-item empty">💬 <span class="vote-clue-text" style="color: var(--text-muted); font-style: italic;">语音发言/无文字记录</span></div>
+          </div>
+        `;
+      }
+
       card.innerHTML = `
         <div style="font-size: 36px; margin-bottom: 6px;">${p.avatar}</div>
         <div style="font-size: 15px; font-weight: 700; color: white;">${escapeHtml(p.name)}${p.id === myPlayerId ? ' (自己)' : ''}</div>
+        ${cluesHtml}
         <div class="vote-select-pill">
           ${isSelected ? '🎯 [已选定] 投TA出局' : '⚪ 点击怀疑TA'}
         </div>
       `;
 
-      if (me && me.isAlive && !me.hasVoted && !isPkCandidate) {
+      if (isGodViewer && p.role) {
+        const roleName = p.role === 'UNDERCOVER' ? '🕵️ 卧底' : (p.role === 'WHITEBOARD' ? '📄 白板' : '👥 平民');
+        const roleColor = p.role === 'UNDERCOVER' ? '#f43f5e' : (p.role === 'WHITEBOARD' ? '#cbd5e1' : '#67e8f9');
+        const badge = document.createElement('div');
+        badge.style.cssText = `margin-top: 6px; font-size: 11px; color: ${roleColor}; font-weight: 700; background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px; border: 1px solid ${roleColor};`;
+        badge.innerText = `${roleName} · 「${p.word || '无词'}」`;
+        card.appendChild(badge);
+
+        if (p.isAlive) {
+          const judgeBtn = document.createElement('button');
+          judgeBtn.className = 'btn btn-secondary';
+          judgeBtn.style.cssText = 'margin-top: 6px; padding: 4px 8px; font-size: 11px; color: #fca5a5; border-color: rgba(244,63,94,0.4); width: 100%; border-radius: 4px;';
+          judgeBtn.innerText = '⚖️ 裁决淘汰';
+          judgeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (confirm(`【法官裁决】确定要行使上帝特权，直接淘汰候选人【${p.name}】吗？`)) {
+              socket.emit('judge_eliminate_player', { targetPlayerId: p.id }, (res) => {
+                if (res && !res.success) alert(res.message || '裁决失败');
+              });
+            }
+          });
+          card.appendChild(judgeBtn);
+        }
+      }
+
+      if (me && me.isAlive && !me.hasVoted && !isPkCandidate && !isGodMe) {
         card.addEventListener('click', () => {
           document.querySelectorAll('.vote-card').forEach(el => {
             el.classList.remove('selected');
@@ -1713,15 +2202,23 @@
 
     const forceResolveBtn = document.getElementById('btn-force-resolve-votes');
     if (forceResolveBtn) {
-      if (isHost && votedCount > 0) {
+      if (isHost && (votedCount > 0 || isGodMe)) {
         forceResolveBtn.classList.remove('hidden');
+        if (isGodMe) {
+          forceResolveBtn.innerText = '⚡ 法官提前结算投票 (直接计票出局)';
+        } else {
+          forceResolveBtn.innerText = '⚡ 房主提前结算投票 (跳过未投/离线)';
+        }
       } else {
         forceResolveBtn.classList.add('hidden');
       }
     }
 
     const currentSelectedPlayer = room.players.find(p => p.id === selectedVoteTargetId);
-    if (isPkCandidate) {
+    if (isGodMe) {
+      submitBtn.disabled = true;
+      submitBtn.innerText = '👑 您是上帝法官，主持投票中 (不参与投票)';
+    } else if (isPkCandidate) {
       submitBtn.disabled = true;
       submitBtn.innerText = '⚖️ 您处于 PK 辩护席，由其他未平票玩家裁决';
     } else if (me && me.hasVoted) {
@@ -1836,7 +2333,13 @@
       if (guessSubtitle) guessSubtitle.innerText = '被淘汰玩家正在进行最后的绝地猜词...';
       if (myGuessContainer) myGuessContainer.classList.add('hidden');
       if (otherGuessWaiting) otherGuessWaiting.classList.remove('hidden');
-      if (otherGuessText) otherGuessText.innerText = `${target.name} 正在尝试猜平民底牌词...`;
+      const isGod = isHost && room.settings && (room.settings.isGodMode === true || room.settings.isGodMode === 'true');
+      if (isGod) {
+        const civWord = (room.wordsInfo && room.wordsInfo.civilianWord) || (room.godCustomWords && (room.godCustomWords.civilianWord || room.godCustomWords.civilian)) || '平民词';
+        otherGuessText.innerHTML = `${escapeHtml(target.name)} 正在尝试猜平民底牌词...<div style="margin-top: 8px; color: #fbbf24; font-size: 13px; font-weight: 700;">👑 上帝视角提示：本局平民词为【${escapeHtml(civWord)}】</div>`;
+      } else {
+        otherGuessText.innerText = `${target.name} 正在尝试猜平民底牌词...`;
+      }
     }
 
     // 房主跳过猜词控制按钮显隐
@@ -1957,6 +2460,8 @@
       const isSecretMode = (room.settings.revealRoleOnEliminate === false) || elim.isSecret;
 
       if (isSecretMode) {
+        const isGodViewer = isHost && room.settings && (room.settings.isGodMode === true || room.settings.isGodMode === 'true');
+        const roleCn = elim.role === 'UNDERCOVER' ? '卧底 🕵️' : (elim.role === 'WHITEBOARD' ? '白板 📄' : '平民 👥');
         container.innerHTML = `
           <div style="font-size: 56px; margin-bottom: 8px;">${elim.avatar}</div>
           <div style="font-size: 22px; font-weight: 800; margin-bottom: 8px;">${escapeHtml(elim.name)} 被投出局！</div>
@@ -1964,6 +2469,7 @@
           <div style="margin-top: 10px; display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: rgba(168,85,247,0.15); border: 1px dashed rgba(168,85,247,0.4); border-radius: 999px; font-size: 14px; color: #d8b4fe; font-weight: 700;">
             🎭 暗牌模式：真实身份保密
           </div>
+          ${isGodViewer ? `<div style="margin-top: 10px; color: #fbbf24; font-size: 13px; font-weight: 700;">👑 上帝法官视角：真实身份是【${roleCn}】· 底牌词【${escapeHtml(elim.word || '无词')}】</div>` : ''}
         `;
         window.sfx.speak(`${elim.name} 被投出局，暗牌模式下身份保密`);
       } else {
@@ -2063,12 +2569,14 @@
       const roleMap = {
         CIVILIAN: '<span class="role-tag CIVILIAN">平民</span>',
         UNDERCOVER: '<span class="role-tag UNDERCOVER">卧底</span>',
-        WHITEBOARD: '<span class="role-tag WHITEBOARD">白板</span>'
+        WHITEBOARD: '<span class="role-tag WHITEBOARD">白板</span>',
+        GOD: '<span class="role-tag" style="background: rgba(245,158,11,0.2); color: #fbbf24; border: 1px solid rgba(245,158,11,0.4);">👑 上帝法官</span>'
       };
+      const displayWord = p.role === 'GOD' ? '主持全场' : escapeHtml(p.word || '-');
       tr.innerHTML = `
         <td><span style="font-size: 18px; margin-right: 4px;">${p.avatar}</span>${escapeHtml(p.name)}</td>
         <td>${roleMap[p.role] || p.role}</td>
-        <td style="font-weight: 700; color: #67e8f9;">${escapeHtml(p.word || '-')}</td>
+        <td style="font-weight: 700; color: #67e8f9;">${displayWord}</td>
       `;
       tbody.appendChild(tr);
     });
@@ -2355,6 +2863,8 @@
   function populateSettingsModal(settings) {
     if (!settings) return;
     const s = Object.assign({}, pendingRoomSettings, settings);
+    const godEl = document.getElementById('select-god-mode');
+    if (godEl) godEl.value = (s.isGodMode === true || s.isGodMode === 'true') ? 'true' : 'false';
     const spyEl = document.getElementById('val-spy-count');
     if (spyEl) spyEl.innerText = s.undercoverCount ?? 1;
     const wbEl = document.getElementById('val-wb-count');
@@ -2441,7 +2951,9 @@
   // 保存设置
   document.getElementById('btn-save-settings').addEventListener('click', () => {
     window.sfx.playClick();
+    const selectGodEl = document.getElementById('select-god-mode');
     const newSettings = {
+      isGodMode: selectGodEl ? selectGodEl.value === 'true' : false,
       undercoverCount: parseInt(document.getElementById('val-spy-count').innerText) || 1,
       whiteboardCount: parseInt(document.getElementById('val-wb-count').innerText) || 0,
       speechTimeLimit: parseInt(document.getElementById('select-speech-timer').value) || 0,
