@@ -158,6 +158,18 @@ function broadcastRoom(trapIo, room) {
   });
 }
 
+function broadcastRoomExcept(trapIo, room, exceptPlayerId) {
+  if (!room) return;
+  room.lastActiveTime = Date.now();
+  ensureRoomHost(room);
+
+  room.players.forEach(p => {
+    if (p.socketId && p.id !== exceptPlayerId) {
+      trapIo.to(p.socketId).emit('room_update', getSafeRoomData(room, p.id));
+    }
+  });
+}
+
 function setupTrapwords(io, app) {
   const trapIo = io.of('/trapwords');
 
@@ -575,7 +587,7 @@ function setupTrapwords(io, app) {
             room.typingUsers.delete(targetId);
           }
         }
-        broadcastRoom(trapIo, room);
+        broadcastRoomExcept(trapIo, room, currentPlayerId);
       } catch (err) {
         console.error('typing_assign error:', err);
       }

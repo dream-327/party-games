@@ -433,6 +433,14 @@
     // 玩家数量
     lobbyElements.playerCount.textContent = data.players.length;
 
+    // 记录正在聚焦的输入框与光标位置（防止并发网络更新打断用户输入）
+    const activeEl = document.activeElement;
+    const isInputActive = activeEl && activeEl.classList && activeEl.classList.contains('assigned-input');
+    const activeTargetId = isInputActive ? activeEl.dataset.playerId : null;
+    const activeVal = isInputActive ? activeEl.value : null;
+    const activeSelStart = isInputActive ? activeEl.selectionStart : null;
+    const activeSelEnd = isInputActive ? activeEl.selectionEnd : null;
+
     // 渲染房间玩家列表 (方案一：先到先得锁定抢坑 + 失焦即存)
     lobbyElements.roomPlayersList.innerHTML = '';
     data.players.forEach(p => {
@@ -598,11 +606,28 @@
               input.blur();
             }
           });
+
+          // 阻止点击与鼠标事件冒泡导致误失焦
+          input.addEventListener('click', (e) => e.stopPropagation());
+          input.addEventListener('mousedown', (e) => e.stopPropagation());
+          input.addEventListener('pointerdown', (e) => e.stopPropagation());
         }
       }
 
       lobbyElements.roomPlayersList.appendChild(item);
     });
+
+    // 若之前有正在输入的专属词输入框，无缝恢复输入焦点与光标位置
+    if (isInputActive && activeTargetId) {
+      const restored = lobbyElements.roomPlayersList.querySelector(`.assigned-input[data-player-id="${activeTargetId}"]`);
+      if (restored) {
+        if (activeVal !== null) restored.value = activeVal;
+        restored.focus();
+        try {
+          restored.setSelectionRange(activeSelStart, activeSelEnd);
+        } catch (e) {}
+      }
+    }
 
     // 补充桌游卡座空位展示 (营造 2x3 或 3x3 真实席位感，引导邀请好友与添加电脑)
     const currentCount = data.players.length;
