@@ -1,6 +1,14 @@
 // Werewolf Game Server (聚会狼人杀服务端逻辑)
 
-const { TEAMS, ROLES, getOneNightPreset, getClassicPreset } = require('./roles');
+const {
+  TEAMS,
+  ROLES,
+  BOARD_PRESETS,
+  getOneNightPreset,
+  getClassicPreset,
+  validateBoardSettings,
+  getRolePoolFromSettings
+} = require('./roles');
 
 const rooms = new Map();
 
@@ -27,29 +35,44 @@ const AI_AVATARS = ['🕵️', '🧙‍♂️', '🧔', '🐺', '🧝', '🦉', 
 
 function createRoom(hostPlayer) {
   const code = generateRoomCode();
+  const s = hostPlayer.settings || {};
+  const isGod = !!(s.isGodMode === true || s.isGodMode === 'true');
+
   const room = {
     code,
     hostId: hostPlayer.id,
     createdAt: Date.now(),
     lastActiveTime: Date.now(),
     settings: {
-      mode: 'ONE_NIGHT', // 'ONE_NIGHT' (一夜终极模式) 或 'CLASSIC' (经典多轮模式)
-      discussionTime: 180, // 白天讨论时长 (秒)
-      customRoles: null
+      mode: s.mode || 'CLASSIC', // 'CLASSIC' (经典) 或 'ONE_NIGHT' (一夜)
+      isGodMode: isGod,
+      boardPreset: s.boardPreset || '9_STANDARD',
+      firstDaySheriffTiming: s.firstDaySheriffTiming || 'BEFORE_DEATH_ANNOUNCE',
+      witchSelfSave: s.witchSelfSave || 'FIRST_NIGHT_ONLY',
+      witchDoublePotion: !!s.witchDoublePotion,
+      guardWitchConflict: s.guardWitchConflict || 'DIE',
+      hasSheriff: s.hasSheriff !== undefined ? !!s.hasSheriff : true,
+      winCondition: s.winCondition || 'KILL_SIDE',
+      lastWordsRule: s.lastWordsRule || 'FIRST_NIGHT_AND_DAY',
+      discussionTime: s.discussionTime || 180,
+      customRoles: s.customRoles || null
     },
     players: new Map([[
       hostPlayer.id,
       {
         id: hostPlayer.id,
         socketId: hostPlayer.socketId,
-        name: escapeHtml(hostPlayer.name || '玩家1'),
+        name: escapeHtml(hostPlayer.name || '房主'),
         avatar: escapeHtml(hostPlayer.avatar || '😎'),
         isHost: true,
+        isGod: isGod,
+        isSpectator: isGod,
+        seatNumber: isGod ? 0 : 1,
         isOnline: true,
         isAi: false,
         isAlive: true,
-        initialRole: null,
-        currentRole: null,
+        initialRole: isGod ? 'GOD' : null,
+        currentRole: isGod ? 'GOD' : null,
         hasVoted: false,
         nightDone: false
       }
@@ -57,11 +80,33 @@ function createRoom(hostPlayer) {
     gameState: {
       phase: 'LOBBY', // LOBBY, NIGHT, DAY_DISCUSSION, VOTING, GAME_OVER
       round: 1,
+      sheriffPlayerId: null,
+      currentSpeakerId: null,
+      currentSpeechScript: '',
+      isDeadFakeCall: false,
+      stepHistory: [], // 用于 ⏪ 上一步撤回
       centerCards: [], // 一夜模式桌中 3 张底牌: [{ id, roleId }]
       activeNightStep: null, // 当前夜晚行动角色 ID
       nightLogs: [], // 夜晚发生的动作日志
       votes: {}, // { voterId: targetPlayerId }
       nightActions: {}, // 暂存玩家夜晚操作
+      nightRecord: {
+        guardTarget: null,
+        lastGuardedTarget: null,
+        wolfTarget: null,
+        witchSaveUsed: false,
+        witchPoisonUsed: false,
+        witchSaveTarget: null,
+        witchPoisonTarget: null,
+        seerTarget: null,
+        seerResult: null
+      },
+      dayRecord: {
+        deadTonight: [],
+        executedToday: null,
+        pkCandidates: [],
+        isPkRound: false
+      },
       timerDeadline: null,
       winnerTeam: null,
       winnerRole: null,
@@ -76,28 +121,38 @@ function createRoom(hostPlayer) {
 function getSafeRoomData(room, targetPlayerId) {
   const myPlayer = room.players.get(targetPlayerId);
   const isGameOver = room.gameState.phase === 'GAME_OVER';
+  const isTargetGod = !!(targetPlayerId === room.hostId && room.settings && room.settings.isGodMode);
 
   const playersList = Array.from(room.players.values()).map(p => {
     const isMe = p.id === targetPlayerId;
+    const canSeeRole = isMe || isGameOver || isTargetGod;
     return {
       id: p.id,
       name: p.name,
       avatar: p.avatar,
+      seatNumber: p.seatNumber,
       isHost: p.isHost,
+      isGod: p.isGod || false,
+      isSpectator: p.isSpectator || false,
       isOnline: p.isOnline,
       isAi: p.isAi,
       isAlive: p.isAlive,
       hasVoted: p.hasVoted,
       nightDone: p.nightDone,
-      // 只有在游戏结算复盘时，或者对自己才显示身份
-      initialRole: (isMe || isGameOver) ? p.initialRole : null,
-      currentRole: isGameOver ? p.currentRole : null
+      isSheriff: room.gameState.sheriffPlayerId === p.id,
+      // 只有在游戏结算复盘时，或者对自己，或者对上帝房主，才显示身份
+      initialRole: canSeeRole ? p.initialRole : null,
+      currentRole: (isGameOver || isTargetGod) ? p.currentRole : null
     };
   });
 
+  const playingCount = (room.settings && room.settings.isGodMode)
+    ? Array.from(room.players.values()).filter(p => p.id !== room.hostId).length
+    : room.players.size;
+
   const deckPool = (room.settings.mode === 'ONE_NIGHT')
-    ? getOneNightPreset(room.players.size)
-    : getClassicPreset(room.players.size);
+    ? getOneNightPreset(playingCount)
+    : getRolePoolFromSettings(room.settings, playingCount);
 
   return {
     code: room.code,
@@ -108,27 +163,38 @@ function getSafeRoomData(room, targetPlayerId) {
       id: myPlayer.id,
       name: myPlayer.name,
       avatar: myPlayer.avatar,
+      seatNumber: myPlayer.seatNumber,
       isHost: myPlayer.isHost,
+      isGod: myPlayer.isGod || false,
+      isSpectator: myPlayer.isSpectator || false,
       isAlive: myPlayer.isAlive,
       hasVoted: myPlayer.hasVoted,
       nightDone: myPlayer.nightDone,
+      isSheriff: room.gameState.sheriffPlayerId === myPlayer.id,
       initialRole: myPlayer.initialRole,
-      currentRole: isGameOver ? myPlayer.currentRole : null
+      currentRole: (isGameOver || isTargetGod) ? myPlayer.currentRole : null
     } : null,
     players: playersList,
     deckPool,
     gameState: {
       phase: room.gameState.phase,
+      round: room.gameState.round,
       mode: room.settings.mode,
+      sheriffPlayerId: room.gameState.sheriffPlayerId,
+      currentSpeakerId: room.gameState.currentSpeakerId,
+      currentSpeechScript: room.gameState.currentSpeechScript || '',
+      isDeadFakeCall: !!room.gameState.isDeadFakeCall,
+      nightRecord: isTargetGod ? room.gameState.nightRecord : null,
+      dayRecord: room.gameState.dayRecord,
       activeNightStep: room.gameState.activeNightStep,
       timerDeadline: room.gameState.timerDeadline,
       discussionTime: room.settings.discussionTime,
-      votes: (room.gameState.phase === 'VOTING' || isGameOver) ? room.gameState.votes : {},
+      votes: (room.gameState.phase === 'VOTING' || isGameOver || isTargetGod) ? room.gameState.votes : {},
       executedPlayers: room.gameState.executedPlayers,
       winnerTeam: room.gameState.winnerTeam,
       winnerRole: room.gameState.winnerRole,
-      nightLogs: isGameOver ? room.gameState.nightLogs : [],
-      centerCards: isGameOver ? room.gameState.centerCards : (room.gameState.centerCards.length > 0 ? [{}, {}, {}] : [])
+      nightLogs: (isGameOver || isTargetGod) ? room.gameState.nightLogs : [],
+      centerCards: (isGameOver || isTargetGod) ? room.gameState.centerCards : (room.gameState.centerCards.length > 0 ? [{}, {}, {}] : [])
     },
     availableRoles: ROLES
   };
@@ -157,15 +223,31 @@ function clearRoomTimer(room) {
 function startGame(werewolfIo, room) {
   clearRoomTimer(room);
 
-  const playersList = Array.from(room.players.values());
-  const count = playersList.length;
+  const isGodMode = !!(room.settings && room.settings.isGodMode);
+  const allPlayers = Array.from(room.players.values());
+  const playingPlayers = isGodMode ? allPlayers.filter(p => p.id !== room.hostId) : allPlayers;
+  const count = playingPlayers.length;
 
-  let rolePool = [];
-  if (room.settings.mode === 'ONE_NIGHT') {
-    rolePool = getOneNightPreset(count);
-  } else {
-    rolePool = getClassicPreset(count);
+  if (isGodMode) {
+    const host = room.players.get(room.hostId);
+    if (host) {
+      host.isGod = true;
+      host.isSpectator = true;
+      host.initialRole = 'GOD';
+      host.currentRole = 'GOD';
+      host.seatNumber = 0;
+    }
   }
+
+  // 给普通参战玩家分配座位号 1..N
+  playingPlayers.forEach((p, idx) => {
+    p.seatNumber = idx + 1;
+    p.isAlive = true;
+    p.hasVoted = false;
+    p.nightDone = false;
+  });
+
+  const rolePool = getRolePoolFromSettings(room.settings, count);
 
   // 洗牌
   for (let i = rolePool.length - 1; i > 0; i--) {
@@ -174,10 +256,7 @@ function startGame(werewolfIo, room) {
   }
 
   // 给玩家发牌
-  playersList.forEach((p, idx) => {
-    p.isAlive = true;
-    p.hasVoted = false;
-    p.nightDone = false;
+  playingPlayers.forEach((p, idx) => {
     p.initialRole = rolePool[idx];
     p.currentRole = rolePool[idx];
   });
@@ -194,11 +273,38 @@ function startGame(werewolfIo, room) {
   }
 
   room.gameState.phase = 'NIGHT';
+  room.gameState.round = 1;
   room.gameState.nightLogs = [];
   room.gameState.votes = {};
   room.gameState.executedPlayers = [];
   room.gameState.winnerTeam = null;
   room.gameState.winnerRole = null;
+  room.gameState.stepHistory = [];
+  room.gameState.nightRecord = {
+    guardTarget: null,
+    lastGuardedTarget: null,
+    wolfTarget: null,
+    witchSaveUsed: false,
+    witchPoisonUsed: false,
+    witchSaveTarget: null,
+    witchPoisonTarget: null,
+    seerTarget: null,
+    seerResult: null
+  };
+  room.gameState.dayRecord = {
+    deadTonight: [],
+    executedToday: null,
+    pkCandidates: [],
+    isPkRound: false
+  };
+
+  if (isGodMode) {
+    room.gameState.activeNightStep = 'NIGHT_FALL';
+    room.gameState.currentSpeechScript = '天黑请闭眼。请所有玩家低下头，闭上双眼，不要发出任何声音。';
+    broadcastRoom(werewolfIo, room);
+    werewolfIo.to(room.code).emit('night_fallen');
+    return;
+  }
 
   broadcastRoom(werewolfIo, room);
   werewolfIo.to(room.code).emit('night_fallen');
@@ -550,7 +656,8 @@ function setupWerewolf(io, app) {
           id: playerData.id || `p_${Date.now()}`,
           socketId: socket.id,
           name: playerData.name || '房主',
-          avatar: playerData.avatar || '😎'
+          avatar: playerData.avatar || '😎',
+          settings: playerData.settings
         };
         const room = createRoom(player);
         currentRoomCode = room.code;
@@ -586,12 +693,18 @@ function setupWerewolf(io, app) {
           if (player.name) existing.name = escapeHtml(player.name);
           if (player.avatar) existing.avatar = escapeHtml(player.avatar);
         } else {
+          const isHostGod = !!(room.settings && room.settings.isGodMode);
+          const currentHumans = Array.from(room.players.values()).filter(p => !p.isGod);
+          const seatNum = isHostGod ? currentHumans.length + 1 : room.players.size + 1;
           room.players.set(pid, {
             id: pid,
             socketId: socket.id,
-            name: escapeHtml(player.name || `玩家${room.players.size + 1}`),
+            name: escapeHtml(player.name || `玩家${seatNum}`),
             avatar: escapeHtml(player.avatar || '🤠'),
+            seatNumber: seatNum,
             isHost: false,
+            isGod: false,
+            isSpectator: false,
             isOnline: true,
             isAi: false,
             isAlive: true,
@@ -608,6 +721,79 @@ function setupWerewolf(io, app) {
         console.error('join_room error:', err);
         if (typeof callback === 'function') callback({ success: false, message: '加入失败' });
       }
+    });
+
+    // 重新连接恢复房间状态
+    socket.on('reconnect_room', ({ roomCode, playerId }, callback) => {
+      try {
+        const room = rooms.get(roomCode);
+        if (!room) {
+          if (typeof callback === 'function') callback({ success: false, error: '房间不存在' });
+          return;
+        }
+        const player = room.players.get(playerId);
+        if (!player) {
+          if (typeof callback === 'function') callback({ success: false, error: '玩家不存在' });
+          return;
+        }
+
+        player.socketId = socket.id;
+        player.isOnline = true;
+        currentRoomCode = room.code;
+        currentPlayerId = player.id;
+        socket.join(room.code);
+
+        broadcastRoom(werewolfIo, room);
+        const safeData = getSafeRoomData(room, player.id);
+        if (typeof callback === 'function') callback({ success: true, roomData: safeData });
+      } catch (err) {
+        console.error('werewolf reconnect_room error:', err);
+        if (typeof callback === 'function') callback({ success: false, error: '重连异常' });
+      }
+    });
+
+    // 更新房间设置
+    socket.on('update_settings', (newSettings, callback) => {
+      const room = rooms.get(currentRoomCode);
+      if (!room || room.hostId !== currentPlayerId) {
+        if (typeof callback === 'function') callback({ success: false, message: '无权限修改设置' });
+        return;
+      }
+      if (room.gameState.phase !== 'LOBBY') {
+        if (typeof callback === 'function') callback({ success: false, message: '游戏中无法修改设置' });
+        return;
+      }
+
+      if (newSettings && typeof newSettings === 'object') {
+        Object.assign(room.settings, newSettings);
+        if (newSettings.isGodMode !== undefined) {
+          const host = room.players.get(room.hostId);
+          if (host) {
+            host.isGod = !!newSettings.isGodMode;
+            host.isSpectator = !!newSettings.isGodMode;
+          }
+        }
+      }
+
+      broadcastRoom(werewolfIo, room);
+      if (typeof callback === 'function') callback({ success: true, settings: room.settings });
+    });
+
+    socket.on('god_update_rules', (data, callback) => {
+      const room = rooms.get(currentRoomCode);
+      if (!room || room.hostId !== currentPlayerId) return;
+      if (data && data.settings) {
+        Object.assign(room.settings, data.settings);
+        if (data.settings.isGodMode !== undefined) {
+          const host = room.players.get(room.hostId);
+          if (host) {
+            host.isGod = !!data.settings.isGodMode;
+            host.isSpectator = !!data.settings.isGodMode;
+          }
+        }
+      }
+      broadcastRoom(werewolfIo, room);
+      if (typeof callback === 'function') callback({ success: true, settings: room.settings });
     });
 
     // 切换游戏模式 (一夜终极 / 经典)
@@ -671,18 +857,23 @@ function setupWerewolf(io, app) {
     });
 
     // 开始游戏
-    socket.on('start_game', (callback) => {
+    socket.on('start_game', (data, callback) => {
+      const cb = (typeof data === 'function') ? data : callback;
       const room = rooms.get(currentRoomCode);
       if (!room || room.hostId !== currentPlayerId) return;
       if (room.gameState.phase !== 'LOBBY') return;
 
-      if (room.players.size < 3) {
-        if (typeof callback === 'function') callback({ success: false, message: '至少需要 3 名玩家才能开局！' });
+      const playingCount = (room.settings && room.settings.isGodMode)
+        ? Array.from(room.players.values()).filter(p => p.id !== room.hostId).length
+        : room.players.size;
+
+      if (playingCount < 3) {
+        if (typeof cb === 'function') cb({ success: false, message: '至少需要 3 名参战玩家才能开局！' });
         return;
       }
 
       startGame(werewolfIo, room);
-      if (typeof callback === 'function') callback({ success: true });
+      if (typeof cb === 'function') cb({ success: true });
     });
 
     // 提前结束发言讨论，进入投票
