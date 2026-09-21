@@ -384,7 +384,7 @@
     // 玩家数量
     lobbyElements.playerCount.textContent = data.players.length;
 
-    // 渲染房间玩家列表
+    // 渲染房间玩家列表 (支持给特定好友指定专属词)
     lobbyElements.roomPlayersList.innerHTML = '';
     data.players.forEach(p => {
       const item = document.createElement('div');
@@ -393,11 +393,64 @@
       if (p.isHost) badges += '<span class="badge-host">👑 房主</span>';
       if (p.isAi) badges += '<span class="badge-ai">🤖 电脑</span>';
 
+      const isMe = (p.id === myPlayerId);
+      let assignedHtml = '';
+
+      if (isMe) {
+        // 当事人自己：对当事人严格保密，防止提前偷看剧透！
+        assignedHtml = `
+          <div class="assigned-section">
+            <div class="assigned-box-self">
+              🔒 专属词由好友密谋中<br><span style="font-size: 0.7rem; opacity: 0.85;">（留空则系统随机发牌）</span>
+            </div>
+          </div>
+        `;
+      } else {
+        // 其他人：可公开指定专属词，下套整蛊！
+        const hasAssigned = p.assignedWord && p.assignedWord.text;
+        assignedHtml = `
+          <div class="assigned-section">
+            <div class="assigned-box-other">
+              <div class="assigned-label">
+                <span>🎯 指定专属禁忌:</span>
+                ${hasAssigned ? '<span class="assigned-status-badge">✅ 已指定</span>' : '<span style="font-size: 0.7rem; color: var(--text-muted);">留空随机</span>'}
+              </div>
+              <div class="assigned-input-wrap">
+                <input type="text" class="assigned-input" placeholder="输入为ta指定的词" value="${hasAssigned ? escapeHtml(p.assignedWord.text) : ''}" maxlength="30" data-player-id="${p.id}">
+                <button class="btn-save-assign" data-player-id="${p.id}" title="保存专属词">💾</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
       item.innerHTML = `
         ${badges}
         <div class="item-avatar">${p.avatar}</div>
         <div class="item-name">${escapeHtml(p.name)}</div>
+        ${assignedHtml}
       `;
+
+      // 绑定给他人指定词事件
+      if (!isMe) {
+        const input = item.querySelector('.assigned-input');
+        const saveBtn = item.querySelector('.btn-save-assign');
+
+        const doAssign = () => {
+          const val = input.value.trim();
+          sfx.playClick();
+          socket.emit('assign_player_word', { targetId: p.id, word: val });
+        };
+
+        saveBtn.addEventListener('click', doAssign);
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            doAssign();
+          }
+        });
+      }
+
       lobbyElements.roomPlayersList.appendChild(item);
     });
 

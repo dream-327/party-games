@@ -243,6 +243,67 @@ async function runTrapwordsTest() {
     }
     console.log('✅ 清空自定义词库测试通过！');
 
+    // 13. 测试指定特定人给特定的词 (Targeted Word Assignment)
+    console.log('\n🎯 开始测试“指定特定的人给特定的词”功能...');
+    // 房主给玩家2指定词
+    await new Promise((resolve) => hostSocket.emit('assign_player_word', {
+      targetId: 'p_player2',
+      word: '说“我请客喝奶茶”'
+    }, resolve));
+    // 玩家2给房主指定词
+    await new Promise((resolve) => player2Socket.emit('assign_player_word', {
+      targetId: 'p_host',
+      word: '双手抱头做投降状'
+    }, resolve));
+    // 房主给电脑玩家也指定词
+    const aiPlayer = hostRoomData.players.find(p => p.isAi);
+    if (aiPlayer) {
+      await new Promise((resolve) => hostSocket.emit('assign_player_word', {
+        targetId: aiPlayer.id,
+        word: '模仿大猩猩叫'
+      }, resolve));
+    }
+    await sleep(200);
+
+    // 验证保密隔离：
+    // 房主看玩家2被指定的词：必须是明文【说“我请客喝奶茶”】
+    const hostSeeP2Assigned = hostRoomData.players.find(p => p.id === 'p_player2').assignedWord;
+    if (!hostSeeP2Assigned || hostSeeP2Assigned.text !== '说“我请客喝奶茶”') {
+      throw new Error(`房主未看到玩家2被指定的词: ${JSON.stringify(hostSeeP2Assigned)}`);
+    }
+    // 房主看自己被指定的词：必须严格脱敏 masked=true！
+    const hostSeeSelfAssigned = hostRoomData.players.find(p => p.id === 'p_host').assignedWord;
+    if (!hostSeeSelfAssigned || !hostSeeSelfAssigned.masked) {
+      throw new Error(`安全漏洞：房主竟然看到了别人指定给自己的专属词！${JSON.stringify(hostSeeSelfAssigned)}`);
+    }
+    console.log('✅ 房主视角验证通过：成功看到为玩家2指定的专属词，且自己被指定的词严格加密保密');
+
+    // 玩家2看自己被指定的词：必须严格脱敏 masked=true！
+    const p2SeeSelfAssigned = p2RoomData.players.find(p => p.id === 'p_player2').assignedWord;
+    if (!p2SeeSelfAssigned || !p2SeeSelfAssigned.masked) {
+      throw new Error(`安全漏洞：玩家2竟然看到了别人指定给自己的专属词！${JSON.stringify(p2SeeSelfAssigned)}`);
+    }
+    console.log('✅ 玩家2视角验证通过：自己被指定的专属词严格加密保密');
+
+    // 开始游戏，验证特定的人100%精准分到了特定的词！
+    const startTargetedRes = await new Promise((resolve) => hostSocket.emit('start_game', {}, resolve));
+    if (!startTargetedRes || !startTargetedRes.success) {
+      throw new Error(`指定词开局失败: ${JSON.stringify(startTargetedRes)}`);
+    }
+    await sleep(300);
+
+    // 房主看玩家2在对局中的词：
+    const p2ActiveWord = hostRoomData.players.find(p => p.id === 'p_player2').word;
+    if (p2ActiveWord.text !== '说“我请客喝奶茶”') {
+      throw new Error(`玩家2未获得指定的专属词: ${JSON.stringify(p2ActiveWord)}`);
+    }
+    // 玩家2看房主在对局中的词：
+    const hostActiveWord = p2RoomData.players.find(p => p.id === 'p_host').word;
+    if (hostActiveWord.text !== '双手抱头做投降状') {
+      throw new Error(`房主未获得指定的专属词: ${JSON.stringify(hostActiveWord)}`);
+    }
+    console.log(`✅ 定点发牌精准生效！玩家2分到指定词:【${p2ActiveWord.text}】，房主分到指定词:【${hostActiveWord.text}】`);
+
     // 清理连接
     hostSocket.disconnect();
     player2Socket.disconnect();

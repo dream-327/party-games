@@ -91,6 +91,17 @@ function getSafeRoomData(room, targetPlayerId) {
       }
     }
 
+    let safeAssigned = null;
+    if (p.assignedWord) {
+      if (isMe) {
+        // 对当事人自己保密好友为其指定的词，防止提前偷看剧透
+        safeAssigned = { masked: true };
+      } else {
+        // 对其他所有人公开展示与编辑
+        safeAssigned = { text: p.assignedWord };
+      }
+    }
+
     return {
       id: p.id,
       name: p.name,
@@ -99,6 +110,7 @@ function getSafeRoomData(room, targetPlayerId) {
       isOnline: p.isOnline,
       isAi: p.isAi,
       word: safeWord,
+      assignedWord: safeAssigned,
       caughtCount: p.caughtCount || 0
     };
   });
@@ -171,6 +183,7 @@ function setupTrapwords(io, app) {
           isHost: true,
           isOnline: true,
           isAi: false,
+          assignedWord: null,
           currentWord: null,
           caughtCount: 0
         };
@@ -277,6 +290,7 @@ function setupTrapwords(io, app) {
             isHost: false,
             isOnline: true,
             isAi: false,
+            assignedWord: null,
             currentWord: initialWord,
             caughtCount: 0
           });
@@ -326,6 +340,7 @@ function setupTrapwords(io, app) {
           isHost: false,
           isOnline: true,
           isAi: true,
+          assignedWord: null,
           currentWord: aiWord,
           caughtCount: 0
         });
@@ -449,6 +464,36 @@ function setupTrapwords(io, app) {
       }
     });
 
+    // 为特定某位玩家指定专属禁忌词
+    socket.on('assign_player_word', ({ targetId, word }, callback) => {
+      try {
+        if (!currentRoomCode || !targetId) return;
+        const room = rooms.get(currentRoomCode);
+        if (!room) return;
+
+        // 不允许给自己指定词（防剧透、作弊）
+        if (targetId === currentPlayerId) {
+          if (typeof callback === 'function') callback({ success: false, message: '不能给自己指定词哦，让朋友为你密谋吧！' });
+          return;
+        }
+
+        const targetPlayer = room.players.get(targetId);
+        if (!targetPlayer) {
+          if (typeof callback === 'function') callback({ success: false, message: '目标玩家不存在' });
+          return;
+        }
+
+        const trimmed = word ? String(word).trim().substring(0, 30) : '';
+        targetPlayer.assignedWord = trimmed ? escapeHtml(trimmed) : null;
+
+        broadcastRoom(trapIo, room);
+        if (typeof callback === 'function') callback({ success: true, assignedWord: targetPlayer.assignedWord });
+      } catch (err) {
+        console.error('assign_player_word error:', err);
+        if (typeof callback === 'function') callback({ success: false, message: '指定词失败' });
+      }
+    });
+
     // 开始游戏
     socket.on('start_game', (data, callback) => {
       try {
@@ -467,14 +512,15 @@ function setupTrapwords(io, app) {
           return;
         }
 
-        // 纯自定义模式校验：自定义词数量必须能支持发牌
+        // 纯自定义模式校验：未指定专属词的玩家需要从自定义池抽词，校验总词量
         if (room.settings.category === 'custom') {
-          const customCount = (room.settings.customWords || []).length;
-          if (customCount < activePlayers.length) {
+          const unassignedCount = activePlayers.filter(p => !p.assignedWord).length;
+          const customPoolCount = (room.settings.customWords || []).length;
+          if (customPoolCount < unassignedCount) {
             if (typeof callback === 'function') {
               callback({
                 success: false,
-                message: `纯自定义模式下词汇不足！当前有 ${activePlayers.length} 名玩家，但仅有 ${customCount} 个自定义词，请继续添加至少 ${activePlayers.length - customCount} 个专属词！`
+                message: `纯自定义模式下词汇不足！尚有 ${unassignedCount} 名玩家未指定专属词，但自定义公共池仅有 ${customPoolCount} 个词，请继续添加！`
               });
             }
             return;
@@ -484,7 +530,13 @@ function setupTrapwords(io, app) {
         // 清空此前已抽取的词池，重新发牌
         room.usedTexts.clear();
         room.players.forEach(p => {
-          const word = getRandomWord(room.settings.category, room.settings.customWords, room.usedTexts);
+          let word = null;
+          // 核心机制：只要该玩家被指定了专属词，100% 优先下发指定词！
+          if (p.assignedWord) {
+            word = { text: p.assignedWord, type: '好友指定' };
+          } else {
+            word = getRandomWord(room.settings.category, room.settings.customWords, room.usedTexts);
+          }
           room.usedTexts.add(word.text);
           p.currentWord = word;
           p.caughtCount = 0;

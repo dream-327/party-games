@@ -483,22 +483,110 @@ body {
 /* 房间玩家展示列表 (大厅中) */
 .room-players-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   gap: 12px;
   margin-top: 8px;
 }
 
 .room-player-item {
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  padding: 12px 8px;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 14px 12px;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   position: relative;
+  transition: all 0.2s ease;
+}
+
+.room-player-item:hover {
+  border-color: rgba(139, 92, 246, 0.45);
+  background: rgba(26, 32, 53, 0.9);
+}
+
+.assigned-section {
+  width: 100%;
+  margin-top: 2px;
+}
+
+.assigned-box-self {
+  font-size: 0.76rem;
+  color: #f472b6;
+  background: rgba(236, 72, 153, 0.12);
+  border: 1px dashed rgba(236, 72, 153, 0.4);
+  border-radius: 8px;
+  padding: 6px 4px;
+  width: 100%;
+  text-align: center;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.assigned-box-other {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.assigned-label {
+  font-size: 0.75rem;
+  color: var(--accent-amber);
+  font-weight: 700;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.assigned-status-badge {
+  font-size: 0.7rem;
+  color: #10b981;
+  font-weight: 700;
+}
+
+.assigned-input-wrap {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+}
+
+.assigned-input {
+  flex: 1;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 6px 8px;
+  color: #fef08a;
+  font-size: 0.82rem;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.assigned-input:focus {
+  border-color: var(--accent-amber);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.3);
+}
+
+.btn-save-assign {
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #fef08a;
+  border-radius: 8px;
+  padding: 0 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-save-assign:hover {
+  background: var(--accent-amber);
+  color: #000;
 }
 
 .room-player-item .item-avatar {
