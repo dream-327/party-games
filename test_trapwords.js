@@ -304,7 +304,82 @@ async function runTrapwordsTest() {
     }
     console.log(`✅ 定点发牌精准生效！玩家2分到指定词:【${p2ActiveWord.text}】，房主分到指定词:【${hostActiveWord.text}】`);
 
+    // 14. 深度验证方案一：锁定抢占机制、他人防篡改、释放后重新抢占与输入指示器
+    console.log('\n🔒 开始验证方案一（先到先得锁定抢坑与防篡改机制）...');
+    await new Promise((resolve) => hostSocket.emit('back_to_lobby', {}, resolve));
+    await sleep(100);
+
+    // 创建第 3 名玩家连接
+    const player3Socket = Client(serverUrl, { reconnection: false, forceNew: true });
+    await waitEvent(player3Socket, 'connect');
+    let p3RoomData = null;
+    player3Socket.on('room_update', (data) => { p3RoomData = data; });
+    await new Promise((resolve) => {
+      player3Socket.emit('join_room', {
+        roomCode,
+        player: { id: 'p_player3', name: '吃瓜群众小李', avatar: '🐱' }
+      }, resolve);
+    });
+    await sleep(200);
+
+    // 玩家2给电脑抢先指定词
+    const aiTarget = hostRoomData.players.find(p => p.isAi);
+    const assignRes1 = await new Promise((resolve) => player2Socket.emit('assign_player_word', {
+      targetId: aiTarget.id,
+      word: '单脚站立5秒'
+    }, resolve));
+    if (!assignRes1 || !assignRes1.success) {
+      throw new Error(`玩家2指定电脑失败: ${JSON.stringify(assignRes1)}`);
+    }
+    await sleep(100);
+    console.log('✅ 玩家2成功抢占电脑名额，锁定专属词:【单脚站立5秒】');
+
+    // 玩家3尝试篡改/重复指定已被玩家2锁定的电脑名额 -> 必须被服务端果断拒绝！
+    const assignRes2 = await new Promise((resolve) => player3Socket.emit('assign_player_word', {
+      targetId: aiTarget.id,
+      word: '偷偷说脏话'
+    }, resolve));
+    if (assignRes2 && assignRes2.success) {
+      throw new Error('安全漏洞：已被玩家2锁定的名额竟然被玩家3篡改成功！');
+    }
+    console.log(`✅ 防篡改拦截生效！拦截提示:【${assignRes2.message}】`);
+
+    // 玩家2主动释放/清空该名额
+    const releaseRes = await new Promise((resolve) => player2Socket.emit('assign_player_word', {
+      targetId: aiTarget.id,
+      word: ''
+    }, resolve));
+    if (!releaseRes || !releaseRes.success) {
+      throw new Error(`玩家2释放名额失败: ${JSON.stringify(releaseRes)}`);
+    }
+    await sleep(100);
+    console.log('✅ 玩家2成功撤销并释放电脑专属词坑位');
+
+    // 名额释放后，玩家3现在重新抢占 -> 成功！
+    const assignRes3 = await new Promise((resolve) => player3Socket.emit('assign_player_word', {
+      targetId: aiTarget.id,
+      word: '学小狗汪汪叫'
+    }, resolve));
+    if (!assignRes3 || !assignRes3.success) {
+      throw new Error(`玩家3重新抢占失败: ${JSON.stringify(assignRes3)}`);
+    }
+    await sleep(100);
+    console.log('✅ 坑位释放后，玩家3成功重新抢占并指定专属词:【学小狗汪汪叫】');
+
+    // 验证输入指示器 (typing_assign)
+    player3Socket.emit('typing_assign', { targetId: 'p_player2', isTyping: true });
+    await sleep(100);
+    const hostSeeTyper = hostRoomData.players.find(p => p.id === 'p_player2').activeTyper;
+    if (hostSeeTyper !== '吃瓜群众小李') {
+      throw new Error(`正在输入指示器未同步，实际: ${hostSeeTyper}`);
+    }
+    console.log(`✅ 协同输入指示器验证通过：全场成功感知到【${hostSeeTyper}】正在为玩家2输入定制词`);
+
+    player3Socket.emit('typing_assign', { targetId: 'p_player2', isTyping: false });
+    await sleep(100);
+
     // 清理连接
+    player3Socket.disconnect();
     hostSocket.disconnect();
     player2Socket.disconnect();
     server.close();

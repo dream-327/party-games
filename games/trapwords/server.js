@@ -95,10 +95,23 @@ function getSafeRoomData(room, targetPlayerId) {
     if (p.assignedWord) {
       if (isMe) {
         // 对当事人自己保密好友为其指定的词，防止提前偷看剧透
-        safeAssigned = { masked: true };
+        safeAssigned = { masked: true, assignedByName: p.assignedByName };
       } else {
-        // 对其他所有人公开展示与编辑
-        safeAssigned = { text: p.assignedWord };
+        // 对其他所有人公开展示内容和指定人
+        safeAssigned = {
+          text: p.assignedWord,
+          assignedBy: p.assignedBy,
+          assignedByName: p.assignedByName
+        };
+      }
+    }
+
+    // 正在输入指示（防重复抢坑）
+    let activeTyper = null;
+    if (room.typingUsers && room.typingUsers.has(p.id)) {
+      const t = room.typingUsers.get(p.id);
+      if (Date.now() - t.time < 8000) {
+        activeTyper = (t.typerId === targetPlayerId) ? null : t.typerName;
       }
     }
 
@@ -111,6 +124,7 @@ function getSafeRoomData(room, targetPlayerId) {
       isAi: p.isAi,
       word: safeWord,
       assignedWord: safeAssigned,
+      activeTyper,
       caughtCount: p.caughtCount || 0
     };
   });
@@ -184,6 +198,8 @@ function setupTrapwords(io, app) {
           isOnline: true,
           isAi: false,
           assignedWord: null,
+          assignedBy: null,
+          assignedByName: null,
           currentWord: null,
           caughtCount: 0
         };
@@ -194,6 +210,7 @@ function setupTrapwords(io, app) {
           createdAt: Date.now(),
           lastActiveTime: Date.now(),
           usedTexts: new Set(),
+          typingUsers: new Map(),
           settings: {
             category: sData.category || 'all',
             customWords: Array.isArray(sData.customWords) ? sData.customWords.slice(0, 50) : []
@@ -291,6 +308,8 @@ function setupTrapwords(io, app) {
             isOnline: true,
             isAi: false,
             assignedWord: null,
+            assignedBy: null,
+            assignedByName: null,
             currentWord: initialWord,
             caughtCount: 0
           });
@@ -341,6 +360,8 @@ function setupTrapwords(io, app) {
           isOnline: true,
           isAi: true,
           assignedWord: null,
+          assignedBy: null,
+          assignedByName: null,
           currentWord: aiWord,
           caughtCount: 0
         });
@@ -464,7 +485,7 @@ function setupTrapwords(io, app) {
       }
     });
 
-    // 为特定某位玩家指定专属禁忌词
+    // 为特定某位玩家指定专属禁忌词 (方案一：先到先得锁定抢坑制)
     socket.on('assign_player_word', ({ targetId, word }, callback) => {
       try {
         if (!currentRoomCode || !targetId) return;
@@ -483,14 +504,80 @@ function setupTrapwords(io, app) {
           return;
         }
 
+        const caller = room.players.get(currentPlayerId);
+        const isHost = (room.hostId === currentPlayerId);
+
+        // 防重复指定：如果已被其他朋友抢先指定，非作者且非房主不可修改
+        if (targetPlayer.assignedBy && targetPlayer.assignedBy !== currentPlayerId && !isHost) {
+          if (typeof callback === 'function') {
+            callback({
+              success: false,
+              message: `该玩家已被【${targetPlayer.assignedByName || '其他朋友'}】抢先指定啦，快去整蛊其他人吧！`
+            });
+          }
+          return;
+        }
+
         const trimmed = word ? String(word).trim().substring(0, 30) : '';
-        targetPlayer.assignedWord = trimmed ? escapeHtml(trimmed) : null;
+
+        // 如果传入空字符，表示清空/释放该玩家名额
+        if (!trimmed) {
+          targetPlayer.assignedWord = null;
+          targetPlayer.assignedBy = null;
+          targetPlayer.assignedByName = null;
+        } else {
+          // 字数防呆保护（至少2个字）
+          if (trimmed.length < 2) {
+            if (typeof callback === 'function') callback({ success: false, message: '专属禁忌词至少需要 2 个字哦！' });
+            return;
+          }
+          targetPlayer.assignedWord = escapeHtml(trimmed);
+          targetPlayer.assignedBy = currentPlayerId;
+          targetPlayer.assignedByName = caller ? caller.name : '神秘损友';
+        }
+
+        // 清理 typingUsers 状态
+        if (!room.typingUsers) room.typingUsers = new Map();
+        room.typingUsers.delete(targetId);
 
         broadcastRoom(trapIo, room);
-        if (typeof callback === 'function') callback({ success: true, assignedWord: targetPlayer.assignedWord });
+        if (typeof callback === 'function') callback({
+          success: true,
+          assignedWord: targetPlayer.assignedWord,
+          assignedByName: targetPlayer.assignedByName
+        });
       } catch (err) {
         console.error('assign_player_word error:', err);
         if (typeof callback === 'function') callback({ success: false, message: '指定词失败' });
+      }
+    });
+
+    // 正在输入指示广播 (协同输入防撞车)
+    socket.on('typing_assign', ({ targetId, isTyping }) => {
+      try {
+        if (!currentRoomCode || !targetId) return;
+        const room = rooms.get(currentRoomCode);
+        if (!room) return;
+        if (!room.typingUsers) room.typingUsers = new Map();
+
+        if (isTyping) {
+          const caller = room.players.get(currentPlayerId);
+          if (caller) {
+            room.typingUsers.set(targetId, {
+              typerId: currentPlayerId,
+              typerName: caller.name,
+              time: Date.now()
+            });
+          }
+        } else {
+          const cur = room.typingUsers.get(targetId);
+          if (cur && cur.typerId === currentPlayerId) {
+            room.typingUsers.delete(targetId);
+          }
+        }
+        broadcastRoom(trapIo, room);
+      } catch (err) {
+        console.error('typing_assign error:', err);
       }
     });
 
@@ -658,8 +745,12 @@ function setupTrapwords(io, app) {
         room.gameState.caughtEvent = null;
         room.players.forEach(p => {
           p.currentWord = null;
+          p.assignedWord = null;
+          p.assignedBy = null;
+          p.assignedByName = null;
           p.caughtCount = 0;
         });
+        if (room.typingUsers) room.typingUsers.clear();
 
         broadcastRoom(trapIo, room);
         if (typeof callback === 'function') callback({ success: true });

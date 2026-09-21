@@ -384,7 +384,7 @@
     // 玩家数量
     lobbyElements.playerCount.textContent = data.players.length;
 
-    // 渲染房间玩家列表 (支持给特定好友指定专属词)
+    // 渲染房间玩家列表 (方案一：先到先得锁定抢坑 + 失焦即存)
     lobbyElements.roomPlayersList.innerHTML = '';
     data.players.forEach(p => {
       const item = document.createElement('div');
@@ -394,34 +394,87 @@
       if (p.isAi) badges += '<span class="badge-ai">🤖 电脑</span>';
 
       const isMe = (p.id === myPlayerId);
+      const isHost = (data.hostId === myPlayerId);
       let assignedHtml = '';
 
       if (isMe) {
         // 当事人自己：对当事人严格保密，防止提前偷看剧透！
+        const isTargeted = p.assignedWord && p.assignedWord.masked;
         assignedHtml = `
           <div class="assigned-section">
             <div class="assigned-box-self">
-              🔒 专属词由好友密谋中<br><span style="font-size: 0.7rem; opacity: 0.85;">（留空则系统随机发牌）</span>
+              ${isTargeted ? '🔒 你的专属词已被好友抢先锁定！<br><span style="font-size: 0.7rem; opacity: 0.9;">（对你绝对保密，小心被套话）</span>' : '🔒 你的专属词由好友密谋中<br><span style="font-size: 0.7rem; opacity: 0.85;">（留空则系统随机发牌）</span>'}
             </div>
           </div>
         `;
       } else {
-        // 其他人：可公开指定专属词，下套整蛊！
+        // 其他人视角：判定是他人锁定、自己已锁定，还是未指定抢坑中
         const hasAssigned = p.assignedWord && p.assignedWord.text;
-        assignedHtml = `
-          <div class="assigned-section">
-            <div class="assigned-box-other">
-              <div class="assigned-label">
-                <span>🎯 指定专属禁忌:</span>
-                ${hasAssigned ? '<span class="assigned-status-badge">✅ 已指定</span>' : '<span style="font-size: 0.7rem; color: var(--text-muted);">留空随机</span>'}
-              </div>
-              <div class="assigned-input-wrap">
-                <input type="text" class="assigned-input" placeholder="输入为ta指定的词" value="${hasAssigned ? escapeHtml(p.assignedWord.text) : ''}" maxlength="30" data-player-id="${p.id}">
-                <button class="btn-save-assign" data-player-id="${p.id}" title="保存专属词">💾</button>
+        const isAssignedByOther = hasAssigned && (p.assignedWord.assignedBy !== myPlayerId);
+        const isAssignedByMe = hasAssigned && (p.assignedWord.assignedBy === myPlayerId);
+
+        if (isAssignedByOther && !isHost) {
+          // 他人抢先锁定：其他人只读显示，禁止修改
+          assignedHtml = `
+            <div class="assigned-section">
+              <div class="assigned-locked-card">
+                <div class="locked-card-header">
+                  <span>🔒 由【${escapeHtml(p.assignedWord.assignedByName || '好友')}】抢先锁定</span>
+                </div>
+                <div class="locked-word-val">【${escapeHtml(p.assignedWord.text)}】</div>
+                <span style="font-size: 0.68rem; color: var(--text-muted);">已被抢坑，快去整蛊其他人！</span>
               </div>
             </div>
-          </div>
-        `;
+          `;
+        } else if (isAssignedByOther && isHost) {
+          // 他人锁定但当前用户是房主：房主可以代为重置释放
+          assignedHtml = `
+            <div class="assigned-section">
+              <div class="assigned-locked-card">
+                <div class="locked-card-header">
+                  <span>🔒 由【${escapeHtml(p.assignedWord.assignedByName || '好友')}】锁定</span>
+                  <button class="btn-release-assign" data-target-id="${p.id}" title="房主强制释放此名额">✕ 释放</button>
+                </div>
+                <div class="locked-word-val">【${escapeHtml(p.assignedWord.text)}】</div>
+              </div>
+            </div>
+          `;
+        } else if (isAssignedByMe) {
+          // 我已锁定指定：显示输入框（可随时改）和撤销释放按钮
+          assignedHtml = `
+            <div class="assigned-section">
+              <div class="assigned-box-other">
+                <div class="assigned-label">
+                  <span>🎯 专属禁忌词:</span>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span class="assigned-status-badge badge-mine">✅ 我已锁定</span>
+                    <button class="btn-release-assign" data-target-id="${p.id}" title="撤销并释放此坑位">✕ 释放</button>
+                  </div>
+                </div>
+                <div class="assigned-input-wrap">
+                  <input type="text" class="assigned-input" placeholder="输入专属词 (失焦自动存)" value="${escapeHtml(p.assignedWord.text)}" maxlength="30" data-player-id="${p.id}">
+                  <div class="assigned-auto-hint">光标离开/回车自动保存</div>
+                </div>
+              </div>
+            </div>
+          `;
+        } else {
+          // 尚无人指定：抢坑输入中
+          assignedHtml = `
+            <div class="assigned-section">
+              <div class="assigned-box-other">
+                <div class="assigned-label">
+                  <span>🎯 专属禁忌词:</span>
+                  ${p.activeTyper ? `<span class="typing-tag">✍️【${escapeHtml(p.activeTyper)}】正在输入...</span>` : '<span class="assigned-status-badge badge-free">💡 抢坑中</span>'}
+                </div>
+                <div class="assigned-input-wrap">
+                  <input type="text" class="assigned-input" placeholder="输入为ta定制的词 (失焦自动存)" value="" maxlength="30" data-player-id="${p.id}">
+                  <div class="assigned-auto-hint">光标离开/回车自动保存</div>
+                </div>
+              </div>
+            </div>
+          `;
+        }
       }
 
       item.innerHTML = `
@@ -431,24 +484,72 @@
         ${assignedHtml}
       `;
 
-      // 绑定给他人指定词事件
+      // 绑定输入与自动保存事件
       if (!isMe) {
         const input = item.querySelector('.assigned-input');
-        const saveBtn = item.querySelector('.btn-save-assign');
+        const autoHint = item.querySelector('.assigned-auto-hint');
+        const releaseBtn = item.querySelector('.btn-release-assign');
 
-        const doAssign = () => {
-          const val = input.value.trim();
-          sfx.playClick();
-          socket.emit('assign_player_word', { targetId: p.id, word: val });
-        };
+        // 释放按钮
+        if (releaseBtn) {
+          releaseBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            sfx.playClick();
+            socket.emit('assign_player_word', { targetId: p.id, word: '' });
+          });
+        }
 
-        saveBtn.addEventListener('click', doAssign);
-        input.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            doAssign();
-          }
-        });
+        // 输入框智能自动保存
+        if (input && autoHint) {
+          let isComposing = false;
+          input.addEventListener('compositionstart', () => { isComposing = true; });
+          input.addEventListener('compositionend', () => { isComposing = false; });
+
+          // 聚焦时通知正在输入
+          input.addEventListener('focus', () => {
+            socket.emit('typing_assign', { targetId: p.id, isTyping: true });
+          });
+
+          // 失焦时自动保存
+          input.addEventListener('blur', () => {
+            socket.emit('typing_assign', { targetId: p.id, isTyping: false });
+            if (isComposing) return;
+
+            const val = input.value.trim();
+            const originalVal = (p.assignedWord && p.assignedWord.text) ? p.assignedWord.text : '';
+            if (val === originalVal) return;
+
+            if (val.length === 1) {
+              autoHint.textContent = '⚠️ 专属词至少需要 2 个字哦';
+              autoHint.style.color = '#f87171';
+              return;
+            }
+
+            autoHint.textContent = '⏳ 正在保存...';
+            autoHint.classList.remove('saved');
+
+            socket.emit('assign_player_word', { targetId: p.id, word: val }, (res) => {
+              if (res && res.success) {
+                sfx.playClick();
+                autoHint.textContent = '✅ 已自动保存';
+                autoHint.classList.add('saved');
+              } else if (res && !res.success) {
+                alert(res.message);
+                input.value = originalVal;
+                autoHint.textContent = '光标离开/回车自动保存';
+                autoHint.style.color = '';
+              }
+            });
+          });
+
+          // 敲回车主动失焦触发保存
+          input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              input.blur();
+            }
+          });
+        }
       }
 
       lobbyElements.roomPlayersList.appendChild(item);
