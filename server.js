@@ -8,6 +8,7 @@ const { setupUndercover, wordCategories } = require('./games/undercover/server')
 const { setupDoudizhu } = require('./games/doudizhu/server');
 const { setupWerewolf } = require('./games/werewolf/server');
 const { setupMahjong } = require('./games/mahjong/server');
+const { setupTrapwords } = require('./games/trapwords/server');
 
 const app = express();
 const server = http.createServer(app);
@@ -40,6 +41,7 @@ app.use('/undercover', express.static(path.join(__dirname, 'public/undercover'),
 app.use('/doudizhu', express.static(path.join(__dirname, 'public/doudizhu'), noCacheStaticOptions));
 app.use('/werewolf', express.static(path.join(__dirname, 'public/werewolf'), noCacheStaticOptions));
 app.use('/mahjong', express.static(path.join(__dirname, 'public/mahjong'), noCacheStaticOptions));
+app.use('/trapwords', express.static(path.join(__dirname, 'public/trapwords'), noCacheStaticOptions));
 app.use('/downloads', express.static(path.join(__dirname, 'public/downloads')));
 app.use('/', express.static(path.join(__dirname, 'public/hub'), noCacheStaticOptions));
 
@@ -88,7 +90,8 @@ app.get('/api/server-info', (req, res) => {
       { id: 'undercover', name: '谁是卧底', path: '/undercover/' },
       { id: 'doudizhu', name: '欢乐斗地主', path: '/doudizhu/' },
       { id: 'werewolf', name: '聚会狼人杀', path: '/werewolf/' },
-      { id: 'mahjong', name: '四川麻将 (血战到底)', path: '/mahjong/' }
+      { id: 'mahjong', name: '四川麻将 (血战到底)', path: '/mahjong/' },
+      { id: 'trapwords', name: '害你在心口难开', path: '/trapwords/' }
     ]
   });
 });
@@ -98,6 +101,7 @@ setupUndercover(io, app);
 setupDoudizhu(io, app);
 setupWerewolf(io, app);
 setupMahjong(io, app);
+setupTrapwords(io, app);
 
 // 启动统一服务器
 server.listen(PORT, '0.0.0.0', () => {
@@ -109,6 +113,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`🃏 《欢乐斗地主》直达: http://localhost:${PORT}/doudizhu/`);
   console.log(`🐺 《聚会狼人杀》直达: http://localhost:${PORT}/werewolf/`);
   console.log(`🀄 《四川麻将》直达: http://localhost:${PORT}/mahjong/`);
+  console.log(`🤐 《害你在心口难开》直达: http://localhost:${PORT}/trapwords/`);
   console.log('📱 手机/局域网/热点访问推荐:');
   ipObjs.forEach(item => {
     console.log(`   👉 http://${item.address}:${PORT} (${item.name}${item.isPrimary ? ' - 推荐' : ''})`);

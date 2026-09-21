@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test:undercover": "node test_undercover.js"
+    "test:undercover": "node test_undercover.js",
+    "test:trapwords": "node test_trapwords.js"
   },
   "dependencies": {
     "express": "^4.19.2",

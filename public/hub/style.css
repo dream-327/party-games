@@ -190,6 +190,11 @@ body {
   box-shadow: 0 20px 40px rgba(16, 185, 129, 0.18);
 }
 
+.card-trapwords:hover {
+  border-color: rgba(236, 72, 153, 0.5);
+  box-shadow: 0 20px 40px rgba(236, 72, 153, 0.22);
+}
+
 .card-badge {
   position: absolute;
   top: 16px;

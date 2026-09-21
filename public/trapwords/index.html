@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>害你在心口难开 - 线下聚会爆笑整蛊桌游</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0b0f19">
+</head>
+<body>
+  <!-- 顶部状态与导航条 -->
+  <header class="top-nav">
+    <div class="brand">
+      <span class="brand-icon">🤐</span>
+      <span class="brand-title">害你在心口难开</span>
+    </div>
+    <div class="nav-actions">
+      <div id="nav-room-badge" class="room-badge" style="display: none;">房间: ----</div>
+      <button id="btn-sound-toggle" class="btn-icon" title="音效开关">🔊</button>
+      <button id="btn-rules" class="btn-icon" title="游戏玩法指南">📖</button>
+      <button id="btn-share" class="btn-icon" title="邀请好友扫码" style="display: none;">📱</button>
+      <a href="/" class="btn-icon" title="返回游戏大厅" style="text-decoration: none;">🏠</a>
+    </div>
+  </header>
+
+  <main class="app-container">
+
+    <!-- 1. 入口与大厅视图 (Lobby View) -->
+    <section id="view-lobby" class="lobby-card">
+      <div class="lobby-hero">
+        <h1>🤐 害你在心口难开</h1>
+        <p>线下聚会笑点最密集的神作！知晓全场禁忌，唯独不知自己，互相下套，一键抓包与爆笑随机整蛊！</p>
+      </div>
+
+      <!-- 个人信息设定 -->
+      <div class="form-group">
+        <label class="form-label">
+          <span>你的聚会昵称</span>
+          <span style="color: var(--accent-pink); cursor: pointer;" id="btn-random-name">🎲 随机名字</span>
+        </label>
+        <input type="text" id="input-player-name" class="form-input" placeholder="输入你在聚会中的昵称" maxlength="10">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">选择你的聚会头像</label>
+        <div class="avatar-selector" id="avatar-selector">
+          <div class="avatar-opt active" data-avatar="😎">😎</div>
+          <div class="avatar-opt" data-avatar="🤠">🤠</div>
+          <div class="avatar-opt" data-avatar="🦊">🦊</div>
+          <div class="avatar-opt" data-avatar="🐱">🐱</div>
+          <div class="avatar-opt" data-avatar="🥳">🥳</div>
+          <div class="avatar-opt" data-avatar="🤡">🤡</div>
+          <div class="avatar-opt" data-avatar="👻">👻</div>
+          <div class="avatar-opt" data-avatar="🧙‍♂️">🧙‍♂️</div>
+        </div>
+      </div>
+
+      <!-- 未进入房间时的操作：创建或加入 -->
+      <div id="section-pre-room" style="display: flex; flex-direction: column; gap: 14px;">
+        <button id="btn-create-room" class="btn btn-primary btn-block">🚀 我来建房 (当房主)</button>
+        
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
+          <span style="font-size: 0.85rem; color: var(--text-muted);">或输入房间号加入</span>
+          <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
+        </div>
+
+        <div style="display: flex; gap: 8px;">
+          <input type="tel" id="input-room-code" class="form-input" placeholder="4位房间码" maxlength="4" style="flex: 1; text-align: center; font-size: 1.3rem; letter-spacing: 2px;">
+          <button id="btn-join-room" class="btn btn-secondary" style="white-space: nowrap;">进入房间 ➜</button>
+        </div>
+      </div>
+
+      <!-- 已进入房间的大厅阶段 -->
+      <div id="section-in-room" style="display: none; flex-direction: column; gap: 16px;">
+        
+        <!-- 电脑端/房主测试工具条 -->
+        <div class="pc-test-bar">
+          <div class="tip">💻 电脑端测试专享：单人即可添加电脑体验完整抓包与整蛊</div>
+          <div class="actions">
+            <button id="btn-add-ai" class="btn btn-secondary btn-sm">➕ 加电脑</button>
+            <button id="btn-remove-ai" class="btn btn-secondary btn-sm">➖ 减电脑</button>
+          </div>
+        </div>
+
+        <!-- 词库类型选择 (房主可改) -->
+        <div class="form-group">
+          <label class="form-label">禁忌陷阱词库类型</label>
+          <div class="category-chips" id="category-chips">
+            <div class="category-chip active" data-cat="all">
+              <div class="category-chip-name">🔥 全部混合</div>
+            </div>
+            <div class="category-chip" data-cat="phrases">
+              <div class="category-chip-name">💬 致命口头禅</div>
+            </div>
+            <div class="category-chip" data-cat="actions">
+              <div class="category-chip-name">🕺 肢体小动作</div>
+            </div>
+            <div class="category-chip" data-cat="interaction">
+              <div class="category-chip-name">🎭 互动套路</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 房间玩家列表 -->
+        <div class="form-group">
+          <div class="form-label">
+            <span>房间玩家 (<span id="player-count">0</span> 人)</span>
+            <span style="color: var(--accent-cyan); font-size: 0.8rem;">房主可开始游戏</span>
+          </div>
+          <div class="room-players-grid" id="room-players-list">
+            <!-- 动态渲染 -->
+          </div>
+        </div>
+
+        <!-- 房主开始游戏大按钮 -->
+        <div id="host-controls" style="display: flex; flex-direction: column; gap: 10px;">
+          <button id="btn-start-game" class="btn btn-primary btn-block" style="font-size: 1.15rem; padding: 14px;">
+            🎬 秘密发牌，开始对决！
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. 游戏中视图 (Playing View) -->
+    <section id="view-playing" style="display: none; flex-direction: column; gap: 16px;">
+      
+      <!-- 游戏头部栏 -->
+      <div class="game-header-bar">
+        <div class="header-info-group">
+          <span style="font-size: 1.2rem;">👀</span>
+          <div>
+            <div style="font-size: 0.95rem; font-weight: 800;">全场监控看板</div>
+            <div style="font-size: 0.75rem; color: var(--accent-pink);">手机平放桌上，疯狂引诱他们！</div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 6px;">
+          <button id="btn-host-reset" class="btn btn-secondary btn-sm" style="display: none;">返回大厅</button>
+        </div>
+      </div>
+
+      <!-- 其他所有人监控卡片列表 -->
+      <div class="players-cards-grid" id="playing-cards-grid">
+        <!-- 动态生成其他所有人的专属禁忌大字卡片 -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 3. 底部固定栏：我的神秘卡片 (对自己绝对隐藏) -->
+  <div id="my-mystery-dock" class="my-mystery-dock" style="display: none;">
+    <div class="my-mystery-inner">
+      <div class="my-info">
+        <div class="my-avatar" id="my-dock-avatar">🤠</div>
+        <div class="my-texts">
+          <div class="my-name" id="my-dock-name">我自己</div>
+          <div class="my-taboo-status">
+            <span>❓ 你的禁忌词全场已知 (防偷看已加密)</span>
+          </div>
+        </div>
+      </div>
+      <div class="my-dock-actions">
+        <span style="font-size: 0.75rem; color: var(--text-muted); text-align: right;">留心朋友套话<br>千万别中招</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 弹窗系统 ================= -->
+
+  <!-- A. 爆笑抓包揭晓 & 随机惩罚弹窗 -->
+  <div id="modal-caught" class="modal-overlay">
+    <div class="modal-card">
+      <div class="caught-modal-header">
+        <div class="caught-badge">💥 现场抓包中招！</div>
+        <div class="caught-avatar" id="modal-caught-avatar">🤡</div>
+        <h2 class="caught-title" id="modal-caught-title">【玩家名】中招啦！</h2>
+        <p class="caught-subtitle" id="modal-caught-subtitle">被全场抓现行，恭喜光荣受罚！</p>
+      </div>
+
+      <!-- 揭晓的神秘禁忌词卡 -->
+      <div class="revealed-word-card">
+        <div class="revealed-word-label">🎯 该玩家刚才触发的禁忌是：</div>
+        <div class="revealed-word-val" id="modal-caught-word">【摸头发】</div>
+      </div>
+
+      <!-- 现场随机整蛊惩罚 -->
+      <div class="random-punishment-card">
+        <div class="punishment-card-head">
+          <span class="punishment-tag">🎲 现场随机整蛊惩罚</span>
+          <span style="font-size: 0.8rem; color: var(--text-muted);">现场立即执行</span>
+        </div>
+        <div class="punishment-text" id="modal-caught-punishment">
+          【深情戏精】对右手边的朋友深情对视 5 秒，并认真地说：“其实...你身上好香啊”！
+        </div>
+      </div>
+
+      <!-- 弹窗控制操作 -->
+      <div class="modal-actions">
+        <button id="btn-modal-reroll" class="btn btn-secondary">
+          🎲 换个惩罚 (再抽一次)
+        </button>
+        <button id="btn-modal-next" class="btn btn-primary" style="font-size: 1.1rem; padding: 14px;">
+          换新词，继续互坑 ➜
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- B. 扫码邀请弹窗 -->
+  <div id="modal-share" class="modal-overlay">
+    <div class="modal-card">
+      <h2 style="font-size: 1.3rem;">📱 微信/手机浏览器扫码加入</h2>
+      <div class="qr-modal-body">
+        <div id="qrcode-canvas"></div>
+        <div style="font-size: 0.9rem; color: var(--text-sub);">
+          同一个 Wi-Fi 或热点下，扫码秒进本房间！
+        </div>
+        <div class="share-link-box">
+          <input type="text" id="input-share-url" class="form-input" readonly style="font-size: 0.85rem;">
+          <button id="btn-copy-url" class="btn btn-primary btn-sm">复制链接</button>
+        </div>
+      </div>
+      <button id="btn-close-share" class="btn btn-secondary">关闭</button>
+    </div>
+  </div>
+
+  <!-- C. 玩法指南弹窗 -->
+  <div id="modal-rules" class="modal-overlay">
+    <div class="modal-card" style="text-align: left;">
+      <h2 style="font-size: 1.3rem; text-align: center; margin-bottom: 8px;">📖 游戏规则</h2>
+      <div style="font-size: 0.9rem; line-height: 1.6; color: var(--text-sub); display: flex; flex-direction: column; gap: 10px;">
+        <p><strong style="color: #fff;">1. 信息不对称：</strong>开局后，每个人手机屏幕上清楚显示<strong>全场其他所有人的禁忌词</strong>，但绝对看不到自己的词！</p>
+        <p><strong style="color: #fff;">2. 疯狂套话挖坑：</strong>大家线下围坐自由聊天，想尽办法引诱、套路其他人说出禁词或做出小动作（例如摸下巴、说“真的假的”）。</p>
+        <p><strong style="color: #fff;">3. 抓包中招：</strong>谁中招了，大家现实中大喊指着他，并在手机上点击其卡片的<strong>【💥 抓包中招】</strong>！</p>
+        <p><strong style="color: #fff;">4. 随机整蛊受罚：</strong>全场同步揭晓他的禁忌词，并当场随机抽取大冒险或搞怪惩罚！执行完毕后一键换新词继续无缝互坑，<strong>全程不淘汰任何人！</strong></p>
+      </div>
+      <button id="btn-close-rules" class="btn btn-primary" style="margin-top: 10px;">明白啦，马上开整！</button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="qrcode.min.js"></script>
+  <script src="sfx.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>
