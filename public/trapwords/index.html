@@ -27,66 +27,135 @@
   <main class="app-container">
 
     <!-- 1. 入口与大厅视图 (Lobby View) -->
-    <section id="view-lobby" class="lobby-card">
-      <div class="lobby-hero">
-        <h1>🤐 害你在心口难开</h1>
-        <p>看懂别人的词，诱导对方踩雷，违规即刻抓包领随机惩罚！</p>
-      </div>
+    <section id="view-lobby" class="lobby-card-container">
 
-      <!-- 个人信息设定 -->
-      <div class="form-group">
-        <label class="form-label">
-          <span>你的聚会昵称</span>
-          <span style="color: var(--accent-pink); cursor: pointer;" id="btn-random-name">🎲 随机名字</span>
-        </label>
-        <input type="text" id="input-player-name" class="form-input" placeholder="输入你在聚会中的昵称" maxlength="10">
-      </div>
+      <!-- ================= 阶段A: 未进房时的开局面板 ================= -->
+      <div id="section-pre-room" class="pre-room-card">
+        <!-- 潮酷大厅 Hero 头部 -->
+        <div class="lobby-hero">
+          <div class="hero-tag-pill">🔥 线下聚会高能互动神作</div>
+          <h1 class="hero-title">🤐 害你在心口难开</h1>
+          <p class="hero-subtitle">看懂别人的词，诱导对方踩雷，违规即刻抓包领随机惩罚！</p>
+        </div>
 
-      <div class="form-group">
-        <label class="form-label">选择你的聚会头像</label>
-        <div class="avatar-selector" id="avatar-selector">
-          <div class="avatar-opt active" data-avatar="😎">😎</div>
-          <div class="avatar-opt" data-avatar="🤠">🤠</div>
-          <div class="avatar-opt" data-avatar="🦊">🦊</div>
-          <div class="avatar-opt" data-avatar="🐱">🐱</div>
-          <div class="avatar-opt" data-avatar="🥳">🥳</div>
-          <div class="avatar-opt" data-avatar="🤡">🤡</div>
-          <div class="avatar-opt" data-avatar="👻">👻</div>
-          <div class="avatar-opt" data-avatar="🧙‍♂️">🧙‍♂️</div>
+        <!-- 降级个人设置：紧凑名片条与可折叠头像托盘 (释放首屏黄金区域) -->
+        <div class="profile-compact-strip">
+          <div class="profile-strip-head">
+            <span class="strip-label">👤 聚会登入资料</span>
+            <span class="strip-sub">点击头像可更换</span>
+          </div>
+
+          <div class="profile-strip-body">
+            <!-- 头像触发器 -->
+            <div class="profile-avatar-trigger" id="btn-toggle-avatar" title="点击展开/收起头像选择">
+              <span class="current-avatar-preview" id="current-avatar-preview">😎</span>
+              <span class="avatar-edit-icon">✏️</span>
+            </div>
+
+            <!-- 昵称与随机骰子输入框 -->
+            <div class="profile-name-input-wrap">
+              <input type="text" id="input-player-name" class="form-input profile-name-input" placeholder="输入你在聚会中的昵称" maxlength="10">
+              <button id="btn-random-name" class="btn-dice-random" title="随机一个爆笑聚会名字">🎲 随机</button>
+            </div>
+          </div>
+
+          <!-- 头像选择托盘 (保持原生 avatar-selector 与 avatar-opt 100% 兼容) -->
+          <div class="avatar-drawer" id="avatar-drawer">
+            <div class="avatar-selector" id="avatar-selector">
+              <div class="avatar-opt active" data-avatar="😎">😎</div>
+              <div class="avatar-opt" data-avatar="🤠">🤠</div>
+              <div class="avatar-opt" data-avatar="🦊">🦊</div>
+              <div class="avatar-opt" data-avatar="🐱">🐱</div>
+              <div class="avatar-opt" data-avatar="🥳">🥳</div>
+              <div class="avatar-opt" data-avatar="🤡">🤡</div>
+              <div class="avatar-opt" data-avatar="👻">👻</div>
+              <div class="avatar-opt" data-avatar="🧙‍♂️">🧙‍♂️</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 建房与加房主操作卡片 -->
+        <div class="pre-room-actions">
+          <button id="btn-create-room" class="btn btn-primary btn-party-hero btn-block">
+            <span class="party-btn-icon">🚀</span>
+            <span class="party-btn-text">创建聚会房间 (我是房主)</span>
+          </button>
+          
+          <div class="party-divider">
+            <div class="divider-line"></div>
+            <span class="divider-text">或输入房间号码快速入座</span>
+            <div class="divider-line"></div>
+          </div>
+
+          <div class="party-join-row">
+            <input type="tel" id="input-room-code" class="form-input room-pin-input" placeholder="4位房间码" maxlength="4">
+            <button id="btn-join-room" class="btn btn-secondary btn-join-action">进入房间 ➜</button>
+          </div>
         </div>
       </div>
 
-      <!-- 未进入房间时的操作：创建或加入 -->
-      <div id="section-pre-room" style="display: flex; flex-direction: column; gap: 14px;">
-        <button id="btn-create-room" class="btn btn-primary btn-block">🚀 我来建房 (当房主)</button>
+      <!-- ================= 阶段B: 已进房的高能量大厅 ================= -->
+      <div id="section-in-room" class="in-room-card" style="display: none;">
         
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
-          <span style="font-size: 0.85rem; color: var(--text-muted);">或输入房间号加入</span>
-          <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
+        <!-- 1. 强化房间与分享顶栏 (Room Header & Share Bar) -->
+        <div class="room-top-banner">
+          <div class="room-code-group">
+            <div class="room-code-box" id="banner-room-code" title="点击一键复制房间号">
+              <span class="room-code-label">ROOM</span>
+              <span class="room-code-num" id="banner-room-code-num">----</span>
+              <span class="room-code-copy-tip">📋 点击复制</span>
+            </div>
+            <div class="room-count-pill">
+              <span class="count-pulse-dot"></span>
+              <span><b id="player-count">0</b> 人已入座</span>
+            </div>
+          </div>
+
+          <div class="room-share-actions">
+            <!-- 显眼的扫码/复制口令高能按钮 -->
+            <button id="btn-banner-share" class="btn btn-neon-share">
+              <span class="share-btn-icon">📱</span>
+              <span class="share-btn-text">面对面扫码 / 复制口令</span>
+            </button>
+          </div>
         </div>
 
-        <div style="display: flex; gap: 8px;">
-          <input type="tel" id="input-room-code" class="form-input" placeholder="4位房间码" maxlength="4" style="flex: 1; text-align: center; font-size: 1.3rem; letter-spacing: 2px;">
-          <button id="btn-join-room" class="btn btn-secondary" style="white-space: nowrap;">进入房间 ➜</button>
-        </div>
-      </div>
-
-      <!-- 已进入房间的大厅阶段 -->
-      <div id="section-in-room" style="display: none; flex-direction: column; gap: 16px;">
-        
-        <!-- 电脑端/房主测试工具条 -->
+        <!-- 电脑端/快速开黑辅助工具条 -->
         <div class="pc-test-bar">
-          <div class="tip">💻 电脑端测试专享：单人即可添加电脑体验完整抓包与整蛊</div>
+          <div class="tip">
+            <span class="tip-icon">🤖</span>
+            <span>单人测试或缺少玩伴：可快捷添加电脑补位</span>
+          </div>
           <div class="actions">
             <button id="btn-add-ai" class="btn btn-secondary btn-sm">➕ 加电脑</button>
             <button id="btn-remove-ai" class="btn btn-secondary btn-sm">➖ 减电脑</button>
           </div>
         </div>
 
-        <!-- 词库类型选择 (房主可改) -->
-        <div class="form-group">
-          <label class="form-label">禁忌陷阱词库类型</label>
+        <!-- 2. 凸显玩家座席区 (Lobby Seats 2x3/3x3 桌游卡座网格，视觉核心) -->
+        <div class="lobby-seats-section">
+          <div class="seats-header-bar">
+            <div class="seats-header-left">
+              <span class="seats-title">🪑 玩家座席看板</span>
+              <span class="seats-subtitle">全员围坐，可提前给好友定制秘密陷阱</span>
+            </div>
+            <div class="seats-header-right">
+              <span class="seats-rule-tag">👑 房主发牌</span>
+            </div>
+          </div>
+
+          <!-- 玩家座席网格容器 (由 client.js 动态渲染玩家卡片与虚位空座) -->
+          <div class="room-players-grid" id="room-players-list">
+            <!-- 动态渲染 -->
+          </div>
+        </div>
+
+        <!-- 3. 词库类型胶囊 Tab (主界面高频直观保留) -->
+        <div class="category-capsule-section">
+          <div class="section-title-strip">
+            <span class="section-title-text">🎯 禁忌词库模式</span>
+            <span class="section-title-sub">房主可随时切换模式</span>
+          </div>
           <div class="category-chips" id="category-chips">
             <div class="category-chip active" data-cat="all">
               <div class="category-chip-name">🔥 全部混合</div>
@@ -106,60 +175,68 @@
           </div>
         </div>
 
-        <!-- 损友专属自定义词库模块 -->
-        <div class="custom-words-card">
-          <div class="custom-words-header">
-            <div style="display: flex; align-items: center; gap: 6px;">
-              <span style="font-size: 1.1rem;">📝</span>
-              <span style="font-weight: 800; font-size: 0.95rem;">损友专属自定义禁忌词</span>
+        <!-- 4. 快捷热词推荐 (主界面保留常用标签，极速点选加入) -->
+        <div class="quick-presets-box">
+          <div class="quick-presets-header">
+            <span class="quick-preset-label">💡 快捷点击添加热词 (任何模式皆可混入):</span>
+          </div>
+          <div class="quick-preset-tags">
+            <span class="preset-tag" data-word="提到“前任”">+ 提到“前任”</span>
+            <span class="preset-tag" data-word="凡尔赛炫耀">+ 凡尔赛炫耀</span>
+            <span class="preset-tag" data-word="说“我真的会谢”">+ 说“我真的会谢”</span>
+            <span class="preset-tag" data-word="摸后脑勺 / 挠头">+ 摸后脑勺</span>
+            <span class="preset-tag" data-word="看手表或手环">+ 看手表</span>
+            <span class="preset-tag" data-word="说“绝了”">+ 说“绝了”</span>
+            <span class="preset-tag" data-word="偷看手机通知">+ 看手机通知</span>
+            <span class="preset-tag" data-word="双手合十求饶">+ 双手合十</span>
+          </div>
+        </div>
+
+        <!-- 5. 收纳自定义词库折叠面板 (轻量折叠收纳，释放主视觉) -->
+        <details class="custom-words-accordion" id="custom-words-accordion">
+          <summary class="custom-accordion-summary">
+            <div class="summary-title-group">
+              <span class="summary-icon">📝</span>
+              <span class="summary-name">损友专属自定义词库</span>
               <span id="custom-words-badge" class="badge-count">0</span>
             </div>
-            <button id="btn-clear-custom-words" class="btn-text-danger" style="display: none;">清空全部</button>
-          </div>
+            <div class="summary-actions-group">
+              <button id="btn-clear-custom-words" class="btn-text-danger" style="display: none;">清空全部</button>
+              <span class="accordion-arrow-indicator">▾</span>
+            </div>
+          </summary>
 
-          <div class="custom-input-row">
-            <input type="text" id="input-custom-word" class="form-input" placeholder="输入专属词 (支持逗号批量输入，如：前任, 凡尔赛, 摸耳朵)" maxlength="80">
-            <button id="btn-add-custom-word" class="btn btn-primary btn-sm" style="white-space: nowrap; padding: 0 16px;">➕ 添加</button>
-          </div>
+          <div class="custom-accordion-body">
+            <div class="custom-input-row">
+              <input type="text" id="input-custom-word" class="form-input custom-input-field" placeholder="输入专属词 (支持逗号批量输入，如：前任, 凡尔赛, 摸耳朵)" maxlength="80">
+              <button id="btn-add-custom-word" class="btn btn-primary btn-sm" style="white-space: nowrap; padding: 0 16px;">➕ 添加</button>
+            </div>
 
-          <!-- 热门聚会爆笑词快捷添加 -->
-          <div class="quick-presets-box">
-            <span class="quick-preset-label">💡 快捷点击添加:</span>
-            <div class="quick-preset-tags">
-              <span class="preset-tag" data-word="提到“前任”">+ 提到“前任”</span>
-              <span class="preset-tag" data-word="凡尔赛炫耀">+ 凡尔赛炫耀</span>
-              <span class="preset-tag" data-word="说“我真的会谢”">+ 说“我真的会谢”</span>
-              <span class="preset-tag" data-word="摸后脑勺 / 挠头">+ 摸后脑勺</span>
-              <span class="preset-tag" data-word="看手表或手环">+ 看手表</span>
-              <span class="preset-tag" data-word="说“绝了”">+ 说“绝了”</span>
-              <span class="preset-tag" data-word="偷看手机通知">+ 看手机通知</span>
-              <span class="preset-tag" data-word="双手合十求饶">+ 双手合十</span>
+            <!-- 已添加的自定义词标签池 -->
+            <div id="custom-tags-container" class="custom-tags-container">
+              <div class="custom-tags-empty">暂未添加专属词。输入后任何模式都会混入，选“✨ 纯自定义”则仅用这些词！</div>
             </div>
           </div>
+        </details>
 
-          <!-- 已添加的自定义词标签池 -->
-          <div id="custom-tags-container" class="custom-tags-container">
-            <div class="custom-tags-empty">暂未添加专属词。输入后任何模式都会混入，选“✨ 纯自定义”则仅用这些词！</div>
+        <!-- 6. 底部常驻开局 CTA 工具栏 (Sticky Bottom) -->
+        <div class="lobby-sticky-bar" id="lobby-sticky-bar">
+          <div class="sticky-bar-inner">
+            <!-- 房主发牌按钮 -->
+            <div id="host-controls" class="host-controls-wrap">
+              <button id="btn-start-game" class="btn btn-start-cta">
+                <span class="cta-icon">🎬</span>
+                <span class="cta-text">秘密发牌，开始对决！</span>
+              </button>
+            </div>
+            <!-- 非房主等待提示栏 -->
+            <div id="non-host-waiting" class="non-host-waiting-wrap" style="display: none;">
+              <div class="waiting-pulse-dot"></div>
+              <span class="waiting-text">房主正在准备，等待秘密发牌开始...</span>
+            </div>
           </div>
         </div>
 
-        <!-- 房间玩家列表 -->
-        <div class="form-group">
-          <div class="form-label">
-            <span>房间玩家 (<span id="player-count">0</span> 人)</span>
-            <span style="color: var(--accent-cyan); font-size: 0.8rem;">房主可开始游戏</span>
-          </div>
-          <div class="room-players-grid" id="room-players-list">
-            <!-- 动态渲染 -->
-          </div>
-        </div>
-
-        <!-- 房主开始游戏大按钮 -->
-        <div id="host-controls" style="display: flex; flex-direction: column; gap: 10px;">
-          <button id="btn-start-game" class="btn btn-primary btn-block" style="font-size: 1.15rem; padding: 14px;">
-            🎬 秘密发牌，开始对决！
-          </button>
-        </div>
       </div>
     </section>
 

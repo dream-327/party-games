@@ -94,7 +94,20 @@
   }
   lobbyElements.inputName.value = myPlayerName;
 
-  // 头像选择回填
+  // 紧凑头像与抽屉控制
+  const currentAvatarPreview = document.getElementById('current-avatar-preview');
+  const btnToggleAvatar = document.getElementById('btn-toggle-avatar');
+  const avatarDrawer = document.getElementById('avatar-drawer');
+  if (currentAvatarPreview) currentAvatarPreview.textContent = myPlayerAvatar;
+
+  if (btnToggleAvatar && avatarDrawer) {
+    btnToggleAvatar.addEventListener('click', () => {
+      sfx.playClick();
+      avatarDrawer.classList.toggle('open');
+    });
+  }
+
+  // 头像选择回填与切换
   const avatarOpts = lobbyElements.avatarSelector.querySelectorAll('.avatar-opt');
   avatarOpts.forEach(opt => {
     if (opt.dataset.avatar === myPlayerAvatar) {
@@ -106,6 +119,8 @@
       avatarOpts.forEach(o => o.classList.remove('active'));
       opt.classList.add('active');
       myPlayerAvatar = opt.dataset.avatar;
+      if (currentAvatarPreview) currentAvatarPreview.textContent = myPlayerAvatar;
+      if (avatarDrawer) avatarDrawer.classList.remove('open');
       localStorage.setItem('trapwords_player_avatar', myPlayerAvatar);
     });
   });
@@ -165,6 +180,37 @@
     sfx.playClick();
     showShareModal();
   });
+
+  const btnBannerShare = document.getElementById('btn-banner-share');
+  if (btnBannerShare) {
+    btnBannerShare.addEventListener('click', () => {
+      sfx.playClick();
+      showShareModal();
+    });
+  }
+
+  const bannerRoomCode = document.getElementById('banner-room-code');
+  if (bannerRoomCode) {
+    bannerRoomCode.addEventListener('click', () => {
+      sfx.playClick();
+      if (currentRoomCode) {
+        navigator.clipboard.writeText(currentRoomCode).then(() => {
+          const tip = bannerRoomCode.querySelector('.room-code-copy-tip');
+          if (tip) {
+            const oldText = tip.textContent;
+            tip.textContent = '✅ 已复制!';
+            tip.style.color = '#10b981';
+            setTimeout(() => {
+              tip.textContent = oldText;
+              tip.style.color = '';
+            }, 1800);
+          }
+        }).catch(() => {
+          alert(`房间号: ${currentRoomCode}`);
+        });
+      }
+    });
+  }
   modalShare.btnClose.addEventListener('click', () => {
     sfx.playClick();
     modalShare.el.classList.remove('active');
@@ -356,10 +402,13 @@
     currentRoomData = data;
     currentRoomCode = data.code;
 
-    // 更新顶部栏
+    // 更新顶部栏与大厅横幅
     navElements.roomBadge.style.display = 'block';
     navElements.roomBadge.textContent = `房间: ${data.code}`;
     navElements.btnShare.style.display = 'inline-flex';
+
+    const bannerRoomCodeNum = document.getElementById('banner-room-code-num');
+    if (bannerRoomCodeNum) bannerRoomCodeNum.textContent = data.code;
 
     // 状态机分流：LOBBY vs PLAYING
     if (data.gameState.phase === 'LOBBY') {
@@ -555,16 +604,81 @@
       lobbyElements.roomPlayersList.appendChild(item);
     });
 
-    // 房主按钮与权限控制
+    // 补充桌游卡座空位展示 (营造 2x3 或 3x3 真实席位感，引导邀请好友与添加电脑)
+    const currentCount = data.players.length;
+    const targetSeats = Math.max(6, Math.min(12, Math.ceil((currentCount + 1) / 3) * 3));
+    if (currentCount < targetSeats) {
+      // 1. 扫码邀请空座
+      const inviteSlot = document.createElement('div');
+      inviteSlot.className = 'room-player-item seat-empty-card seat-invite';
+      inviteSlot.innerHTML = `
+        <div class="empty-seat-badge">空位</div>
+        <div class="empty-avatar-ring">📱</div>
+        <div class="item-name empty-title">+ 邀请好友</div>
+        <div class="empty-seat-hint">扫码或发口令秒进房</div>
+      `;
+      inviteSlot.addEventListener('click', () => {
+        sfx.playClick();
+        showShareModal();
+      });
+      lobbyElements.roomPlayersList.appendChild(inviteSlot);
+
+      // 2. 加电脑测试空座 (如果未满)
+      if (currentCount + 1 < targetSeats) {
+        const aiSlot = document.createElement('div');
+        aiSlot.className = 'room-player-item seat-empty-card seat-ai';
+        aiSlot.innerHTML = `
+          <div class="empty-seat-badge">空位</div>
+          <div class="empty-avatar-ring">🤖</div>
+          <div class="item-name empty-title">+ 添加电脑</div>
+          <div class="empty-seat-hint">单人体验/凑数开黑</div>
+        `;
+        aiSlot.addEventListener('click', () => {
+          sfx.playClick();
+          socket.emit('add_ai');
+        });
+        lobbyElements.roomPlayersList.appendChild(aiSlot);
+      }
+
+      // 3. 其余待入席位
+      for (let i = currentCount + 2; i < targetSeats; i++) {
+        const waitSlot = document.createElement('div');
+        waitSlot.className = 'room-player-item seat-empty-card seat-waiting';
+        waitSlot.innerHTML = `
+          <div class="empty-seat-badge">空位</div>
+          <div class="empty-avatar-ring" style="opacity: 0.4;">🪑</div>
+          <div class="item-name empty-title" style="color: var(--text-muted);">虚位以待</div>
+          <div class="empty-seat-hint">等待玩家入座</div>
+        `;
+        waitSlot.addEventListener('click', () => {
+          sfx.playClick();
+          showShareModal();
+        });
+        lobbyElements.roomPlayersList.appendChild(waitSlot);
+      }
+    }
+
+    // 房主按钮与权限控制 (底部常驻 Sticky CTA 机制)
     const isHost = (data.hostId === myPlayerId);
     lobbyElements.hostControls.style.display = isHost ? 'flex' : 'none';
+    const nonHostWaiting = document.getElementById('non-host-waiting');
+    if (nonHostWaiting) {
+      nonHostWaiting.style.display = isHost ? 'none' : 'flex';
+    }
+
     lobbyElements.btnStartGame.disabled = (data.players.length < 2);
     if (data.players.length < 2) {
-      lobbyElements.btnStartGame.textContent = '等待至少 2 人加入 (可点右上角添加电脑测试)';
-      lobbyElements.btnStartGame.style.opacity = '0.6';
+      lobbyElements.btnStartGame.classList.remove('can-start');
+      lobbyElements.btnStartGame.innerHTML = `
+        <span class="cta-icon">⏳</span>
+        <span class="cta-text">等待至少 2 人入座 (可添加电脑测试)</span>
+      `;
     } else {
-      lobbyElements.btnStartGame.textContent = '🎬 秘密发牌，开始对决！';
-      lobbyElements.btnStartGame.style.opacity = '1';
+      lobbyElements.btnStartGame.classList.add('can-start');
+      lobbyElements.btnStartGame.innerHTML = `
+        <span class="cta-icon">🎬</span>
+        <span class="cta-text">秘密发牌，开始对决！</span>
+      `;
     }
 
     // 词库选中同步
