@@ -100,6 +100,46 @@
             <div class="category-chip" data-cat="interaction">
               <div class="category-chip-name">🎭 互动套路</div>
             </div>
+            <div class="category-chip" data-cat="custom">
+              <div class="category-chip-name">✨ 纯自定义</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 损友专属自定义词库模块 -->
+        <div class="custom-words-card">
+          <div class="custom-words-header">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 1.1rem;">📝</span>
+              <span style="font-weight: 800; font-size: 0.95rem;">损友专属自定义禁忌词</span>
+              <span id="custom-words-badge" class="badge-count">0</span>
+            </div>
+            <button id="btn-clear-custom-words" class="btn-text-danger" style="display: none;">清空全部</button>
+          </div>
+
+          <div class="custom-input-row">
+            <input type="text" id="input-custom-word" class="form-input" placeholder="输入专属词 (支持逗号批量输入，如：前任, 凡尔赛, 摸耳朵)" maxlength="80">
+            <button id="btn-add-custom-word" class="btn btn-primary btn-sm" style="white-space: nowrap; padding: 0 16px;">➕ 添加</button>
+          </div>
+
+          <!-- 热门聚会爆笑词快捷添加 -->
+          <div class="quick-presets-box">
+            <span class="quick-preset-label">💡 快捷点击添加:</span>
+            <div class="quick-preset-tags">
+              <span class="preset-tag" data-word="提到“前任”">+ 提到“前任”</span>
+              <span class="preset-tag" data-word="凡尔赛炫耀">+ 凡尔赛炫耀</span>
+              <span class="preset-tag" data-word="说“我真的会谢”">+ 说“我真的会谢”</span>
+              <span class="preset-tag" data-word="摸后脑勺 / 挠头">+ 摸后脑勺</span>
+              <span class="preset-tag" data-word="看手表或手环">+ 看手表</span>
+              <span class="preset-tag" data-word="说“绝了”">+ 说“绝了”</span>
+              <span class="preset-tag" data-word="偷看手机通知">+ 看手机通知</span>
+              <span class="preset-tag" data-word="双手合十求饶">+ 双手合十</span>
+            </div>
+          </div>
+
+          <!-- 已添加的自定义词标签池 -->
+          <div id="custom-tags-container" class="custom-tags-container">
+            <div class="custom-tags-empty">暂未添加专属词。输入后任何模式都会混入，选“✨ 纯自定义”则仅用这些词！</div>
           </div>
         </div>
 

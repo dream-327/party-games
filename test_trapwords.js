@@ -190,6 +190,59 @@ async function runTrapwordsTest() {
     }
     console.log('✅ 返回大厅重置测试通过！');
 
+    // 12. 测试自定义词库机制 (添加、批量添加、纯自定义模式开局发牌)
+    console.log('\n📝 开始测试自定义词库功能...');
+    // 玩家2添加一个词
+    await new Promise((resolve) => player2Socket.emit('add_custom_word', { word: '提到“前女友”' }, resolve));
+    // 房主批量添加词汇
+    await new Promise((resolve) => hostSocket.emit('add_custom_word', { word: '大喊一声“牛逼”, 偷偷看手机, 凡尔赛炫耀' }, resolve));
+    await sleep(200);
+
+    if (hostRoomData.settings.customWords.length !== 4) {
+      throw new Error(`自定义词添加失败，预期4个，实际: ${hostRoomData.settings.customWords.length}`);
+    }
+    console.log(`✅ 成功添加自定义词汇列表: [${hostRoomData.settings.customWords.join(', ')}]`);
+
+    // 测试删除单个词
+    await new Promise((resolve) => hostSocket.emit('remove_custom_word', { word: '偷偷看手机' }, resolve));
+    await sleep(100);
+    if (hostRoomData.settings.customWords.includes('偷偷看手机')) {
+      throw new Error('删除单个自定义词失败');
+    }
+    console.log('✅ 成功删除单个自定义词');
+
+    // 切换为纯自定义模式
+    await new Promise((resolve) => hostSocket.emit('update_settings', { category: 'custom' }, resolve));
+    await sleep(100);
+    if (hostRoomData.settings.category !== 'custom') {
+      throw new Error('切换纯自定义分类失败');
+    }
+
+    // 在纯自定义模式下开局 (此时有 3 名玩家，3 个自定义词)
+    const customStartRes = await new Promise((resolve) => hostSocket.emit('start_game', {}, resolve));
+    if (!customStartRes || !customStartRes.success) {
+      throw new Error(`纯自定义模式开局失败: ${JSON.stringify(customStartRes)}`);
+    }
+    await sleep(300);
+
+    // 验证所有发出来的词必须全部来自于自定义词库！
+    const p2WordInCustomGame = hostRoomData.players.find(p => p.id === 'p_player2').word;
+    const expectedCustomPool = ['提到“前女友”', '大喊一声“牛逼”', '凡尔赛炫耀'];
+    if (!expectedCustomPool.includes(p2WordInCustomGame.text)) {
+      throw new Error(`纯自定义模式发牌错误，发出了未预期的词: ${p2WordInCustomGame.text}`);
+    }
+    console.log(`✅ 纯自定义模式验证通过！玩家2分到的专属词为:【${p2WordInCustomGame.text}】(100% 来自玩家自定义池)`);
+
+    // 重置并清空自定义词
+    await new Promise((resolve) => hostSocket.emit('back_to_lobby', {}, resolve));
+    await sleep(100);
+    await new Promise((resolve) => hostSocket.emit('clear_custom_words', {}, resolve));
+    await sleep(100);
+    if (hostRoomData.settings.customWords.length !== 0) {
+      throw new Error('清空自定义词失败');
+    }
+    console.log('✅ 清空自定义词库测试通过！');
+
     // 清理连接
     hostSocket.disconnect();
     player2Socket.disconnect();

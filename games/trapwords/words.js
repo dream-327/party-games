@@ -20,6 +20,11 @@ const categories = {
     name: '互动与套路',
     icon: '🎭',
     desc: '通过提问、引诱、反问等对话套路让对方掉坑！'
+  },
+  custom: {
+    name: '✨ 纯自定义 (好友专属)',
+    icon: '✨',
+    desc: '只使用大家亲手输入的专属词/黑料，损友互黑最绝！'
   }
 };
 
@@ -174,6 +179,16 @@ const punishments = [
  */
 function getWordListByType(category = 'all', customWords = []) {
   let list = [];
+  const customList = (Array.isArray(customWords) ? customWords : [])
+    .map(w => String(w).trim())
+    .filter(Boolean)
+    .map(text => ({ text, type: '自定义' }));
+
+  // 纯自定义模式：只使用玩家输入的词
+  if (category === 'custom') {
+    return customList.length > 0 ? customList : [{ text: '说“我没有填自定义词”', type: '自定义' }];
+  }
+
   if (category === 'phrases') {
     list = phraseTraps.map(text => ({ text, type: '口头禅' }));
   } else if (category === 'actions') {
@@ -181,7 +196,7 @@ function getWordListByType(category = 'all', customWords = []) {
   } else if (category === 'interaction') {
     list = interactionTraps.map(text => ({ text, type: '互动套路' }));
   } else {
-    // all
+    // all 全部混合
     list = [
       ...phraseTraps.map(text => ({ text, type: '口头禅' })),
       ...actionTraps.map(text => ({ text, type: '小动作' })),
@@ -189,14 +204,9 @@ function getWordListByType(category = 'all', customWords = []) {
     ];
   }
 
-  // 追加自定义词
-  if (Array.isArray(customWords) && customWords.length > 0) {
-    customWords.forEach(w => {
-      const trimmed = String(w).trim();
-      if (trimmed) {
-        list.push({ text: trimmed, type: '自定义' });
-      }
-    });
+  // 其他模式下，如果玩家输入了自定义词，也混合到总词库中
+  if (customList.length > 0) {
+    list = [...customList, ...list];
   }
 
   return list;

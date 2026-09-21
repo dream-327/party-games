@@ -370,13 +370,82 @@ function setupTrapwords(io, app) {
           room.settings.customWords = newSettings.customWords
             .map(w => escapeHtml(String(w || '').trim().substring(0, 30)))
             .filter(Boolean)
-            .slice(0, 50);
+            .slice(0, 100);
         }
 
         broadcastRoom(trapIo, room);
         if (typeof callback === 'function') callback({ success: true });
       } catch (err) {
         console.error('update_settings error:', err);
+      }
+    });
+
+    // 添加自定义词 (支持单词或逗号/换行分隔的多词批量输入)
+    socket.on('add_custom_word', ({ word }, callback) => {
+      try {
+        if (!currentRoomCode || !word) return;
+        const room = rooms.get(currentRoomCode);
+        if (!room) return;
+
+        if (!room.settings.customWords) room.settings.customWords = [];
+
+        // 支持逗号、分号、顿号、换行分隔的多词批量添加
+        const rawItems = String(word).split(/[,，;；、\n\r]+/);
+        let addedCount = 0;
+
+        for (const item of rawItems) {
+          const trimmed = item.trim();
+          if (!trimmed) continue;
+          const safe = escapeHtml(trimmed.substring(0, 30));
+          if (!room.settings.customWords.includes(safe) && room.settings.customWords.length < 100) {
+            room.settings.customWords.push(safe);
+            addedCount++;
+          }
+        }
+
+        broadcastRoom(trapIo, room);
+        if (typeof callback === 'function') callback({ success: true, addedCount, customWords: room.settings.customWords });
+      } catch (err) {
+        console.error('add_custom_word error:', err);
+        if (typeof callback === 'function') callback({ success: false, message: '添加自定义词失败' });
+      }
+    });
+
+    // 移除单个自定义词
+    socket.on('remove_custom_word', ({ word, index }, callback) => {
+      try {
+        if (!currentRoomCode) return;
+        const room = rooms.get(currentRoomCode);
+        if (!room || !room.settings.customWords) return;
+
+        if (typeof index === 'number' && index >= 0 && index < room.settings.customWords.length) {
+          room.settings.customWords.splice(index, 1);
+        } else if (word) {
+          const idx = room.settings.customWords.indexOf(word);
+          if (idx !== -1) {
+            room.settings.customWords.splice(idx, 1);
+          }
+        }
+
+        broadcastRoom(trapIo, room);
+        if (typeof callback === 'function') callback({ success: true, customWords: room.settings.customWords });
+      } catch (err) {
+        console.error('remove_custom_word error:', err);
+      }
+    });
+
+    // 清空自定义词
+    socket.on('clear_custom_words', (data, callback) => {
+      try {
+        if (!currentRoomCode) return;
+        const room = rooms.get(currentRoomCode);
+        if (!room) return;
+
+        room.settings.customWords = [];
+        broadcastRoom(trapIo, room);
+        if (typeof callback === 'function') callback({ success: true });
+      } catch (err) {
+        console.error('clear_custom_words error:', err);
       }
     });
 
@@ -396,6 +465,20 @@ function setupTrapwords(io, app) {
             });
           }
           return;
+        }
+
+        // 纯自定义模式校验：自定义词数量必须能支持发牌
+        if (room.settings.category === 'custom') {
+          const customCount = (room.settings.customWords || []).length;
+          if (customCount < activePlayers.length) {
+            if (typeof callback === 'function') {
+              callback({
+                success: false,
+                message: `纯自定义模式下词汇不足！当前有 ${activePlayers.length} 名玩家，但仅有 ${customCount} 个自定义词，请继续添加至少 ${activePlayers.length - customCount} 个专属词！`
+              });
+            }
+            return;
+          }
         }
 
         // 清空此前已抽取的词池，重新发牌

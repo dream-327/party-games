@@ -46,7 +46,12 @@
     playerCount: document.getElementById('player-count'),
     roomPlayersList: document.getElementById('room-players-list'),
     hostControls: document.getElementById('host-controls'),
-    btnStartGame: document.getElementById('btn-start-game')
+    btnStartGame: document.getElementById('btn-start-game'),
+    inputCustomWord: document.getElementById('input-custom-word'),
+    btnAddCustomWord: document.getElementById('btn-add-custom-word'),
+    customWordsBadge: document.getElementById('custom-words-badge'),
+    customTagsContainer: document.getElementById('custom-tags-container'),
+    btnClearCustomWords: document.getElementById('btn-clear-custom-words')
   };
 
   const playingElements = {
@@ -274,6 +279,42 @@
     });
   });
 
+  // 自定义词添加与操作
+  function submitCustomWord() {
+    const val = lobbyElements.inputCustomWord.value.trim();
+    if (!val) return;
+    sfx.playClick();
+    socket.emit('add_custom_word', { word: val }, (res) => {
+      if (res && res.success) {
+        lobbyElements.inputCustomWord.value = '';
+      }
+    });
+  }
+
+  lobbyElements.btnAddCustomWord.addEventListener('click', submitCustomWord);
+  lobbyElements.inputCustomWord.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      submitCustomWord();
+    }
+  });
+
+  // 快捷预设词点击添加
+  document.querySelectorAll('.preset-tag').forEach(tag => {
+    tag.addEventListener('click', () => {
+      sfx.playClick();
+      socket.emit('add_custom_word', { word: tag.dataset.word });
+    });
+  });
+
+  // 清空自定义词
+  lobbyElements.btnClearCustomWords.addEventListener('click', () => {
+    if (confirm('确定要清空房间内所有自定义禁忌词吗？')) {
+      sfx.playClick();
+      socket.emit('clear_custom_words');
+    }
+  });
+
   // 房主开始游戏
   lobbyElements.btnStartGame.addEventListener('click', () => {
     sfx.playClick();
@@ -380,6 +421,33 @@
         } else {
           c.classList.remove('active');
         }
+      });
+    }
+
+    // 渲染自定义词列表
+    const customWords = (data.settings && data.settings.customWords) || [];
+    lobbyElements.customWordsBadge.textContent = customWords.length;
+    lobbyElements.btnClearCustomWords.style.display = (customWords.length > 0) ? 'inline-block' : 'none';
+
+    lobbyElements.customTagsContainer.innerHTML = '';
+    if (customWords.length === 0) {
+      lobbyElements.customTagsContainer.innerHTML = `
+        <div class="custom-tags-empty">暂未添加专属词。输入后任何模式都会混入，选“✨ 纯自定义”则仅用这些词！</div>
+      `;
+    } else {
+      customWords.forEach((word, idx) => {
+        const chip = document.createElement('div');
+        chip.className = 'custom-tag-chip';
+        chip.innerHTML = `
+          <span>${escapeHtml(word)}</span>
+          <span class="custom-tag-del" data-index="${idx}" title="删除此词">✕</span>
+        `;
+        chip.querySelector('.custom-tag-del').addEventListener('click', (e) => {
+          e.stopPropagation();
+          sfx.playClick();
+          socket.emit('remove_custom_word', { word, index: idx });
+        });
+        lobbyElements.customTagsContainer.appendChild(chip);
       });
     }
   }
