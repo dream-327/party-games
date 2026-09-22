@@ -1212,9 +1212,12 @@
   function renderCardView(room, me, isHost, isPhaseChanged) {
     const cardEl = document.getElementById('secret-card-element');
     const wordEl = document.getElementById('my-secret-word');
+    const titleEl = document.getElementById('card-word-title');
+    const hintEl = document.getElementById('card-hint');
     const isGod = isHost && room.settings && (room.settings.isGodMode === true || room.settings.isGodMode === 'true');
     
     if (isGod) {
+      if (titleEl) titleEl.innerText = '👑 上帝法官全知视角';
       const civ = (room.wordsInfo && room.wordsInfo.civilianWord) || (room.godCustomWords && (room.godCustomWords.civilianWord || room.godCustomWords.civilian)) || '平民词';
       const spy = (room.wordsInfo && room.wordsInfo.undercoverWord) || (room.godCustomWords && (room.godCustomWords.undercoverWord || room.godCustomWords.undercover)) || '卧底词';
       wordEl.innerHTML = `
@@ -1224,8 +1227,16 @@
           卧底词: <b style="color: #f43f5e; font-size: 15px;">${escapeHtml(spy)}</b>
         </div>
       `;
+      if (hintEl) hintEl.innerHTML = '您拥有全场全知特权，请主持发言与投票流程。';
+    } else if (me && me.role === 'WHITEBOARD') {
+      if (titleEl) titleEl.innerText = '📄 白板身份 · 无底牌词';
+      wordEl.innerText = '❓ 无词';
+      if (hintEl) hintEl.innerHTML = '你没有任何词语！<br>全靠敏锐直觉听取大家发言进行伪装。';
     } else if (me && me.word) {
+      // 标准玩法：发牌时不显示平民或卧底身份，只显示底牌词语
+      if (titleEl) titleEl.innerText = '🤫 你的底牌词语';
       wordEl.innerText = me.word;
+      if (hintEl) hintEl.innerHTML = '千万不要直接说出词语！<br>根据词语特征用一句话进行描述，注意分辨身边的卧底。';
     } else {
       wordEl.innerText = '请等待分发...';
     }
@@ -1553,15 +1564,13 @@
         }
 
         if (roleTitleEl && roleDescEl) {
-          if (me.role === 'UNDERCOVER') {
-            roleTitleEl.innerText = '🕵️ 卧底身份 · 底牌词语';
-            roleDescEl.innerText = '注意隐藏身份，根据大家的发言推测平民词并做好伪装！';
-          } else if (me.role === 'WHITEBOARD') {
+          if (me.role === 'WHITEBOARD') {
             roleTitleEl.innerText = '📄 白板身份 · 无底牌词';
             roleDescEl.innerText = '你没有任何词语！全靠敏锐直觉听取大家发言进行伪装。';
           } else {
-            roleTitleEl.innerText = '🧑‍🤝‍🧑 平民身份 · 底牌词语';
-            roleDescEl.innerText = '不要直接说出词语！用一句话描述词语特征，揪出潜伏的卧底。';
+            // 标准规则：平民与卧底在看牌与游戏中均只看到底牌词语，不透露真实身份
+            roleTitleEl.innerText = '🤫 你的底牌词语';
+            roleDescEl.innerText = '千万不要直接说出词语！根据词语特征用一句话进行描述，注意分辨身边的卧底。';
           }
         }
       }

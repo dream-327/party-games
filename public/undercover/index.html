@@ -238,9 +238,9 @@
           </div>
           <!-- 背面 (词语) -->
           <div class="card-face card-back">
-            <div class="card-word-title">你的底牌词语</div>
+            <div class="card-word-title" id="card-word-title">你的底牌词语</div>
             <div class="card-word" id="my-secret-word">???</div>
-            <div class="card-hint">
+            <div class="card-hint" id="card-hint">
               千万不要直接说出词语！<br>根据词语特征用一句话进行描述。
             </div>
             <div class="card-hide-prompt" id="card-hide-prompt">🙈 松开手指立即隐藏</div>
@@ -788,10 +788,9 @@
         </div>
         <div style="font-size: 14px; line-height: 1.6; color: var(--text-main); display: flex; flex-direction: column; gap: 12px;">
           <div>
-            <strong style="color: #67e8f9;">1. 角色分配：</strong><br>
-            • <strong>平民</strong>：拿到平民词，人数占大多数。<br>
-            • <strong>卧底</strong>：拿到相似的卧底词，隐藏自己并找出同伴。<br>
-            • <strong>白板 (可选)</strong>：手中没有任何词语，全靠听别人发言伪装。
+            <strong style="color: #67e8f9;">1. 角色分配与标准玩法：</strong><br>
+            • <strong>平民 &amp; 卧底</strong>：所有人拿到一个词语（平民词与卧底词极其相似）。发牌时<strong>只显示底牌词语，不知道自己是平民还是卧底</strong>，需在发言过程中根据他人描述自行推测！<br>
+            • <strong>白板 (可选)</strong>：手中没有任何词语（显示白板），全靠敏锐直觉听取他人发言进行伪装。
           </div>
           <div>
             <strong style="color: #f59e0b;">2. 发言阶段：</strong><br>
