@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "test:undercover": "node test_undercover.js",
-    "test:trapwords": "node test_trapwords.js"
+    "test:trapwords": "node test_trapwords.js",
+    "test:spyfall": "node test_spyfall_locations.js && node test_spyfall_server.js && node test_spyfall_routes.js && node test_spyfall_ui.js && node test_spyfall_client.js && node test_spyfall_e2e.js"
   },
   "dependencies": {
     "express": "^4.19.2",
