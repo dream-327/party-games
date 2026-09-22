@@ -495,6 +495,7 @@ function handleVoteAccuse(room, voterId, agree) {
       success: true,
       voteFinished: true,
       consensus: true,
+      suspectIsSpy: true,
       accusedIsSpy: true,
       nextPhase: PHASES.SPY_GUESSING,
       message: '全票通过！被指控者正是间谍，间谍进入最后猜地点反击！'
@@ -509,6 +510,7 @@ function handleVoteAccuse(room, voterId, agree) {
       success: true,
       voteFinished: true,
       consensus: true,
+      suspectIsSpy: false,
       accusedIsSpy: false,
       nextPhase: PHASES.GAME_OVER,
       winner: 'SPY',
@@ -730,13 +732,13 @@ function setupSpyfall(io, app) {
           return;
         }
 
+        room._io = room._io || spyIo;
         const res = startGameForRoom(room, data && data.settings);
         if (!res.success) {
           if (typeof callback === 'function') callback(res);
           return;
         }
 
-        room._io = spyIo;
         if (typeof callback === 'function') callback({ success: true });
         broadcastRoom(spyIo, room);
       } catch (err) {
