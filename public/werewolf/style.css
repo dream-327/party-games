@@ -1394,3 +1394,265 @@ body {
   }
 }
 
+/* ==========================================================================
+   发牌助手专属样式 & 法官管理栏
+   ========================================================================== */
+
+/* 大厅法官信息条 */
+.god-identity-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.god-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.god-bar-icon {
+  font-size: 18px;
+}
+
+.god-bar-label {
+  color: #94a3b8;
+}
+
+.god-bar-name {
+  color: #f59e0b;
+  font-weight: 700;
+}
+
+.god-bar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* 发牌助手主容器 */
+.dealer-console-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  animation: fadeIn 0.3s ease;
+}
+
+/* 发牌助手 - 法官视角 */
+.dealer-god-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dealer-header-card {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95));
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.dealer-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.dealer-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #fbbf24;
+}
+
+.dealer-prompt-tip {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #e2e8f0;
+  background: rgba(245, 158, 11, 0.12);
+  border-left: 3px solid #f59e0b;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-top: 8px;
+}
+
+.dealer-seat-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dealer-seat-matrix {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.dealer-seat-card {
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: var(--radius-md);
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  position: relative;
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.dealer-seat-card.is-wolf {
+  border-color: rgba(239, 68, 68, 0.5);
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.15), rgba(30, 41, 59, 0.85));
+}
+
+.dealer-seat-card.is-god-role {
+  border-color: rgba(245, 158, 11, 0.5);
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.15), rgba(30, 41, 59, 0.85));
+}
+
+.dealer-seat-card.is-villager {
+  border-color: rgba(59, 130, 246, 0.5);
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.15), rgba(30, 41, 59, 0.85));
+}
+
+.dealer-seat-num {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #94a3b8;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.dealer-seat-avatar {
+  font-size: 26px;
+  margin-top: 8px;
+}
+
+.dealer-seat-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f8fafc;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dealer-seat-role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 12px;
+  margin-top: 2px;
+}
+
+.dealer-seat-role-badge.wolf {
+  background: rgba(239, 68, 68, 0.25);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.dealer-seat-role-badge.god-role {
+  background: rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.dealer-seat-role-badge.villager {
+  background: rgba(59, 130, 246, 0.25);
+  color: #93c5fd;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+}
+
+.dealer-bottom-bar {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  padding-bottom: 24px;
+}
+
+/* 发牌助手 - 普通玩家视角 */
+.dealer-player-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 10px 0 30px 0;
+}
+
+.dealer-player-seat-card {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.9));
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: var(--radius-lg);
+  padding: 18px 24px;
+  text-align: center;
+  width: 100%;
+  max-width: 380px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.seat-badge-title {
+  font-size: 13px;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.seat-huge-number {
+  font-size: 44px;
+  font-weight: 900;
+  color: #fbbf24;
+  margin: 6px 0;
+  text-shadow: 0 2px 10px rgba(245, 158, 11, 0.4);
+}
+
+.seat-notice {
+  font-size: 12px;
+  color: #cbd5e1;
+  line-height: 1.4;
+}
+
+.dealer-player-role-box {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.dealer-player-footer {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 380px;
+}
+
+.dealer-offline-hint {
+  font-size: 13px;
+  color: #94a3b8;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  line-height: 1.5;
+  width: 100%;
+}
+

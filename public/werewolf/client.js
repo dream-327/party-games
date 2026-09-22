@@ -38,6 +38,7 @@
   const nicknameInput = document.getElementById('nickname-input');
   const roomCodeInput = document.getElementById('room-code-input');
 
+  const btnModeDealer = document.getElementById('btn-mode-dealer');
   const btnModeOneNight = document.getElementById('btn-mode-onenight');
   const btnModeClassic = document.getElementById('btn-mode-classic');
 
@@ -176,6 +177,41 @@
   const btnForceEndTie = document.getElementById('btn-force-end-tie');
   const btnRefereeRedeal = document.getElementById('btn-referee-redeal');
 
+  // 极简发牌助手 DOM 元素
+  const dealerSettingsCard = document.getElementById('dealer-settings-card');
+  const settingDealerPreset = document.getElementById('setting-dealer-preset');
+  const godIdentityBar = document.getElementById('god-identity-bar');
+  const godBarName = document.getElementById('god-bar-name');
+  const btnRequestGod = document.getElementById('btn-request-god');
+  const btnTransferGod = document.getElementById('btn-transfer-god');
+
+  const dealerConsoleZone = document.getElementById('dealer-console-zone');
+  const dealerGodZone = document.getElementById('dealer-god-zone');
+  const dealerSeatMatrix = document.getElementById('dealer-seat-matrix');
+  const btnDealerTransferGod = document.getElementById('btn-dealer-transfer-god');
+  const btnDealerRedeal = document.getElementById('btn-dealer-redeal');
+  const btnDealerLobby = document.getElementById('btn-dealer-lobby');
+
+  const dealerPlayerZone = document.getElementById('dealer-player-zone');
+  const dealerPlayerSeatNum = document.getElementById('dealer-player-seat-num');
+  const dealerRoleCard = document.getElementById('dealer-role-card');
+  const dealerCardInner = document.getElementById('dealer-card-inner');
+  const dealerRoleIcon = document.getElementById('dealer-role-icon');
+  const dealerRoleName = document.getElementById('dealer-role-name');
+  const dealerRoleTeam = document.getElementById('dealer-role-team');
+  const dealerRoleDesc = document.getElementById('dealer-role-desc');
+  const btnDealerRequestGod = document.getElementById('btn-dealer-request-god');
+
+  const modalGodRequest = document.getElementById('modal-god-request');
+  const godRequestModalMsg = document.getElementById('god-request-modal-msg');
+  const btnApproveGod = document.getElementById('btn-approve-god');
+  const btnRejectGod = document.getElementById('btn-reject-god');
+
+  const modalTransferGod = document.getElementById('modal-transfer-god');
+  const selectTransferGodPlayer = document.getElementById('select-transfer-god-player');
+  const btnConfirmTransferGod = document.getElementById('btn-confirm-transfer-god');
+  const btnCloseTransferGod = document.getElementById('btn-close-transfer-god');
+
   // 屏幕常亮 Screen Wake Lock API
   let wakeLock = null;
   async function requestWakeLock() {
@@ -243,17 +279,32 @@
     });
 
     // 模式切换
+    if (btnModeDealer) {
+      btnModeDealer.addEventListener('click', () => {
+        btnModeDealer.classList.add('active');
+        btnModeOneNight.classList.remove('active');
+        btnModeClassic.classList.remove('active');
+        btnModeDealer.querySelector('input').checked = true;
+        if (dealerSettingsCard) dealerSettingsCard.classList.remove('hidden');
+        if (godSettingsCard) godSettingsCard.classList.add('hidden');
+      });
+    }
+
     btnModeOneNight.addEventListener('click', () => {
       btnModeOneNight.classList.add('active');
+      if (btnModeDealer) btnModeDealer.classList.remove('active');
       btnModeClassic.classList.remove('active');
       btnModeOneNight.querySelector('input').checked = true;
+      if (dealerSettingsCard) dealerSettingsCard.classList.add('hidden');
       if (godSettingsCard) godSettingsCard.classList.add('hidden');
     });
 
     btnModeClassic.addEventListener('click', () => {
       btnModeClassic.classList.add('active');
+      if (btnModeDealer) btnModeDealer.classList.remove('active');
       btnModeOneNight.classList.remove('active');
       btnModeClassic.querySelector('input').checked = true;
+      if (dealerSettingsCard) dealerSettingsCard.classList.add('hidden');
       if (godSettingsCard) godSettingsCard.classList.remove('hidden');
     });
 
@@ -291,6 +342,37 @@
     toggleCard(false);
   });
 
+  // 发牌助手 3D 防窥翻牌绑定
+  let isDealerCardFlipped = false;
+  function toggleDealerCard(flip) {
+    if (!dealerCardInner) return;
+    if (flip) {
+      dealerCardInner.classList.add('flipped');
+      isDealerCardFlipped = true;
+      window.sfx && window.sfx.playSwap();
+    } else {
+      dealerCardInner.classList.remove('flipped');
+      isDealerCardFlipped = false;
+    }
+  }
+
+  if (dealerRoleCard) {
+    dealerRoleCard.addEventListener('mousedown', () => toggleDealerCard(true));
+    dealerRoleCard.addEventListener('mouseup', () => toggleDealerCard(false));
+    dealerRoleCard.addEventListener('mouseleave', () => toggleDealerCard(false));
+    dealerRoleCard.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      toggleDealerCard(true);
+    });
+    dealerRoleCard.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      toggleDealerCard(false);
+    });
+    dealerRoleCard.addEventListener('click', () => {
+      toggleDealerCard(!isDealerCardFlipped);
+    });
+  }
+
   fetch('/api/server-info')
     .then(res => res.json())
     .then(info => { serverInfo = info; })
@@ -308,12 +390,15 @@
     viewGame.classList.remove('hidden');
     if (btnLeaveRoom) btnLeaveRoom.classList.remove('hidden');
 
+    const isDealer = room.settings && room.settings.mode === 'DEALER';
     const isGodMode = !!(room.settings && room.settings.isGodMode);
     const isGod = !!(room.myPlayer && room.myPlayer.isGod);
 
-    modeTag.textContent = room.settings.mode === 'ONE_NIGHT' 
-      ? '🌙 一夜终极模式' 
-      : (isGodMode ? '⚖️ 线下上帝模式' : '🐺 经典多夜模式');
+    modeTag.textContent = isDealer
+      ? '🎴 极简发牌助手'
+      : (room.settings.mode === 'ONE_NIGHT' 
+          ? '🌙 一夜终极模式' 
+          : (isGodMode ? '⚖️ 线下上帝模式' : '🐺 经典多夜模式'));
     roomCodeBadge.textContent = `房号: ${room.code}`;
     playersCountNum.textContent = room.players.length;
 
@@ -336,10 +421,42 @@
     // 2. 阶段横幅与描述
     renderPhaseBanner(room);
 
-    // 3. 上帝模式 vs 常规模式分支处理
+    // 大厅中的法官管理条渲染
+    if ((isGodMode || isDealer) && room.gameState.phase === 'LOBBY' && godIdentityBar) {
+      godIdentityBar.classList.remove('hidden');
+      const godPlayer = room.players.find(p => p.id === (room.godId || room.hostId));
+      if (godBarName) {
+        godBarName.textContent = godPlayer ? `${godPlayer.name}${isGod ? ' (你)' : ''}` : '待定';
+      }
+      if (isGod) {
+        if (btnRequestGod) btnRequestGod.classList.add('hidden');
+        if (btnTransferGod) btnTransferGod.classList.remove('hidden');
+      } else {
+        if (btnRequestGod) btnRequestGod.classList.remove('hidden');
+        if (btnTransferGod) btnTransferGod.classList.add('hidden');
+      }
+    } else if (godIdentityBar) {
+      godIdentityBar.classList.add('hidden');
+    }
+
+    // 3. 极简发牌助手 vs 经典上帝模式 vs 常规模式分支处理
     const playersZone = document.querySelector('.players-zone');
     const myRoleZone = document.getElementById('my-role-zone');
     const actionFooterBar = document.getElementById('action-footer-bar');
+
+    if (isDealer && room.gameState.phase === 'DEAL_VIEW') {
+      if (godConsoleZone) godConsoleZone.classList.add('hidden');
+      if (playerOfflineZone) playerOfflineZone.classList.add('hidden');
+      if (playersZone) playersZone.classList.add('hidden');
+      if (centerCardsZone) centerCardsZone.classList.add('hidden');
+      if (myRoleZone) myRoleZone.classList.add('hidden');
+      if (actionFooterBar) actionFooterBar.classList.add('hidden');
+      if (dealerConsoleZone) dealerConsoleZone.classList.remove('hidden');
+      renderDealerZone(room);
+      return;
+    } else {
+      if (dealerConsoleZone) dealerConsoleZone.classList.add('hidden');
+    }
 
     if (isGodMode && room.gameState.phase !== 'LOBBY') {
       if (isGod) {
@@ -405,6 +522,79 @@
   }
 
   let currentShooterId = null;
+
+  // 发牌助手主会场渲染
+  function renderDealerZone(room) {
+    if (!dealerConsoleZone) return;
+    const isGod = !!(room.myPlayer && room.myPlayer.isGod);
+
+    if (isGod) {
+      if (dealerGodZone) dealerGodZone.classList.remove('hidden');
+      if (dealerPlayerZone) dealerPlayerZone.classList.add('hidden');
+
+      if (dealerSeatMatrix) {
+        dealerSeatMatrix.innerHTML = '';
+        const overview = room.godOverview || [];
+        overview.forEach(item => {
+          const card = document.createElement('div');
+          const isWolf = item.team === 'WEREWOLF';
+          const isVillager = item.role === 'VILLAGER';
+          let roleClass = 'is-god-role';
+          let badgeClass = 'god-role';
+          if (isWolf) {
+            roleClass = 'is-wolf';
+            badgeClass = 'wolf';
+          } else if (isVillager) {
+            roleClass = 'is-villager';
+            badgeClass = 'villager';
+          }
+
+          card.className = `dealer-seat-card ${roleClass}`;
+          card.innerHTML = `
+            <span class="dealer-seat-num">${item.seatNumber}号</span>
+            <div class="dealer-seat-avatar">${item.playerAvatar || '👤'}</div>
+            <div class="dealer-seat-name" title="${item.playerName}">${item.playerName}</div>
+            <div class="dealer-seat-role-badge ${badgeClass}">
+              <span>${item.roleIcon || '❓'}</span>
+              <span>${item.roleName || item.role}</span>
+            </div>
+          `;
+          dealerSeatMatrix.appendChild(card);
+        });
+      }
+    } else {
+      if (dealerGodZone) dealerGodZone.classList.add('hidden');
+      if (dealerPlayerZone) dealerPlayerZone.classList.remove('hidden');
+
+      if (dealerPlayerSeatNum) {
+        dealerPlayerSeatNum.textContent = `${room.myPlayer && room.myPlayer.seatNumber ? room.myPlayer.seatNumber : '?'} 号`;
+      }
+
+      if (room.myPlayer && room.myPlayer.initialRole) {
+        const roleDef = room.availableRoles[room.myPlayer.initialRole] || {
+          name: room.myPlayer.initialRole,
+          icon: '❓',
+          team: 'UNKNOWN',
+          desc: ''
+        };
+        if (dealerRoleIcon) dealerRoleIcon.textContent = roleDef.icon || '❓';
+        if (dealerRoleName) dealerRoleName.textContent = roleDef.name || room.myPlayer.initialRole;
+        if (dealerRoleTeam) {
+          dealerRoleTeam.textContent = roleDef.team === 'WEREWOLF' 
+            ? '狼人阵营 🐺' 
+            : (roleDef.team === 'TANNER' ? '制皮匠 (独立求死) 🧟' : '好人阵营 🧑');
+          if (roleDef.team === 'WEREWOLF') {
+            dealerRoleTeam.style.background = '#ef4444';
+          } else if (roleDef.team === 'TANNER') {
+            dealerRoleTeam.style.background = '#8b5cf6';
+          } else {
+            dealerRoleTeam.style.background = '#10b981';
+          }
+        }
+        if (dealerRoleDesc) dealerRoleDesc.textContent = roleDef.desc || '听从线下法官口令行动。';
+      }
+    }
+  }
 
   // 上帝总控台渲染
   function renderGodConsole(room) {
@@ -857,7 +1047,21 @@
 
     if (phase === 'LOBBY') {
       phaseTitle.textContent = '🏕️ 游戏大厅';
-      phaseDesc.textContent = room.myPlayer && room.myPlayer.isHost ? '房主可添加电脑，人齐后点击开始游戏' : '等待房主开始游戏...';
+      if (room.settings && room.settings.mode === 'DEALER') {
+        const isGod = room.myPlayer && room.myPlayer.isGod;
+        phaseDesc.textContent = isGod 
+          ? `极简发牌助手已就绪（当前 ${room.players.length} 人，智能动态配平），点击开始发牌`
+          : `等待法官开始发牌（当前 ${room.players.length} 人，可随时申请当法官）...`;
+      } else {
+        phaseDesc.textContent = room.myPlayer && room.myPlayer.isHost ? '房主可添加电脑，人齐后点击开始游戏' : '等待房主开始游戏...';
+      }
+      phaseTimer.classList.add('hidden');
+    } else if (phase === 'DEAL_VIEW') {
+      const isGod = room.myPlayer && room.myPlayer.isGod;
+      phaseTitle.textContent = '🎴 底牌已分发完毕';
+      phaseDesc.textContent = isGod 
+        ? '您是本局法官，请查阅下方全知大盘并主持线下游戏' 
+        : '请查看并牢记您的底牌与座位号，听从法官线下口令行动';
       phaseTimer.classList.add('hidden');
     } else if (phase === 'NIGHT') {
       phaseTitle.textContent = '🌙 天黑请闭眼';
@@ -897,6 +1101,7 @@
       el.innerHTML = `
         <div class="player-avatar-circle">${p.avatar}</div>
         <div class="player-name-text">${p.name} ${isMe ? '(我)' : ''}</div>
+        ${p.id === room.godId ? '<span class="badge-god" style="background:#f59e0b; color:#1e293b; padding:1px 6px; border-radius:10px; font-size:11px; font-weight:700; margin-left:4px;">法官</span>' : ''}
         ${p.isHost ? '<span class="badge-host">👑</span>' : ''}
         ${p.isAi ? '<span class="badge-voted" style="background:#475569;">AI</span>' : ''}
         ${p.hasVoted && phase === 'VOTING' ? '<span class="badge-voted">已投</span>' : ''}
@@ -989,12 +1194,15 @@
 
     const phase = room.gameState.phase;
     const isHost = room.myPlayer && room.myPlayer.isHost;
+    const isGod = room.myPlayer && room.myPlayer.isGod;
+    const canManageLobby = isHost || isGod;
 
     if (phase === 'LOBBY') {
       panelLobby.classList.remove('hidden');
-      if (isHost) {
+      if (canManageLobby) {
         btnAddAi.classList.remove('hidden');
         btnStartGame.classList.remove('hidden');
+        btnStartGame.textContent = (room.settings && room.settings.mode === 'DEALER') ? '🎴 开始发牌' : '👑 开始游戏';
         if (btnRemoveAi) {
           const hasAi = room.players.some(p => p.isAi);
           if (hasAi) btnRemoveAi.classList.remove('hidden');
@@ -1055,13 +1263,16 @@
 
   btnCreateRoom.addEventListener('click', () => {
     const selectedMode = document.querySelector('input[name="game-mode"]:checked').value;
+    const isDealer = selectedMode === 'DEALER';
     const isClassic = selectedMode === 'CLASSIC';
-    const isGodMode = isClassic && settingIsGodMode && settingIsGodMode.checked;
+    const isGodMode = isDealer || (isClassic && settingIsGodMode && settingIsGodMode.checked);
 
     const settings = {
       isGodMode: !!isGodMode,
-      mode: isClassic ? 'CLASSIC' : 'ONE_NIGHT',
-      boardPreset: settingBoardPreset ? settingBoardPreset.value : '9_STANDARD',
+      mode: selectedMode,
+      boardPreset: isDealer 
+        ? (settingDealerPreset ? settingDealerPreset.value : 'AUTO')
+        : (settingBoardPreset ? settingBoardPreset.value : '9_STANDARD'),
       firstDaySheriffTiming: settingFirstDaySheriffTiming ? settingFirstDaySheriffTiming.value : 'BEFORE_DEATH_ANNOUNCE',
       hasSheriff: settingHasSheriff ? settingHasSheriff.value === 'true' : true,
       witchSelfSave: settingWitchSelfSave ? settingWitchSelfSave.value : 'FIRST_NIGHT_ONLY',
@@ -1658,6 +1869,139 @@
       socket.emit('god_redeal', { roomCode: currentRoom.code });
       modalReferee.classList.add('hidden');
     };
+  }
+
+  // ==========================================
+  // 发牌助手与法官申请/移交交互
+  // ==========================================
+  function handleRequestGod() {
+    if (!currentRoom) return;
+    socket.emit('request_god', { roomCode: currentRoom.code }, (res) => {
+      if (res && res.message) {
+        showToast(res.message);
+      }
+    });
+  }
+
+  if (btnRequestGod) btnRequestGod.addEventListener('click', handleRequestGod);
+  if (btnDealerRequestGod) btnDealerRequestGod.addEventListener('click', handleRequestGod);
+
+  function openTransferGodModal() {
+    if (!currentRoom || !selectTransferGodPlayer) return;
+    const candidates = currentRoom.players.filter(p => p.id !== myPlayerId);
+    if (candidates.length === 0) {
+      showToast('当前没有其他玩家可移交');
+      return;
+    }
+    selectTransferGodPlayer.innerHTML = candidates.map(p => 
+      `<option value="${p.id}">${p.seatNumber ? p.seatNumber + '号 ' : ''}${p.name} ${p.avatar || ''}</option>`
+    ).join('');
+    if (modalTransferGod) modalTransferGod.classList.remove('hidden');
+  }
+
+  if (btnTransferGod) btnTransferGod.addEventListener('click', openTransferGodModal);
+  if (btnDealerTransferGod) btnDealerTransferGod.addEventListener('click', openTransferGodModal);
+
+  if (btnCloseTransferGod) {
+    btnCloseTransferGod.addEventListener('click', () => {
+      if (modalTransferGod) modalTransferGod.classList.add('hidden');
+    });
+  }
+
+  if (btnConfirmTransferGod) {
+    btnConfirmTransferGod.addEventListener('click', () => {
+      if (!currentRoom || !selectTransferGodPlayer) return;
+      const targetPlayerId = selectTransferGodPlayer.value;
+      if (!targetPlayerId) return;
+      socket.emit('transfer_god', {
+        roomCode: currentRoom.code,
+        targetPlayerId
+      }, (res) => {
+        if (res && res.success) {
+          showToast(res.message || '移交成功');
+          if (modalTransferGod) modalTransferGod.classList.add('hidden');
+        } else {
+          showToast((res && res.message) || '移交失败');
+        }
+      });
+    });
+  }
+
+  let currentGodRequestId = null;
+  socket.on('god_request_received', ({ requestId, requester }) => {
+    currentGodRequestId = requestId;
+    if (godRequestModalMsg) {
+      godRequestModalMsg.innerHTML = `玩家 <strong>${requester.name} ${requester.avatar || ''}</strong> 申请接任法官/上帝职务。<br><br>若同意让位，全知底牌大盘将移交给对方，你将成为普通参战玩家。`;
+    }
+    if (modalGodRequest) modalGodRequest.classList.remove('hidden');
+    window.sfx && window.sfx.playGavel();
+  });
+
+  if (btnApproveGod) {
+    btnApproveGod.addEventListener('click', () => {
+      if (!currentRoom || !currentGodRequestId) return;
+      socket.emit('respond_god_request', {
+        roomCode: currentRoom.code,
+        requestId: currentGodRequestId,
+        approve: true
+      }, (res) => {
+        if (res && res.message) showToast(res.message);
+      });
+      if (modalGodRequest) modalGodRequest.classList.add('hidden');
+      currentGodRequestId = null;
+    });
+  }
+
+  if (btnRejectGod) {
+    btnRejectGod.addEventListener('click', () => {
+      if (!currentRoom || !currentGodRequestId) return;
+      socket.emit('respond_god_request', {
+        roomCode: currentRoom.code,
+        requestId: currentGodRequestId,
+        approve: false
+      }, (res) => {
+        if (res && res.message) showToast(res.message);
+      });
+      if (modalGodRequest) modalGodRequest.classList.add('hidden');
+      currentGodRequestId = null;
+    });
+  }
+
+  socket.on('god_request_approved', ({ godId, godName }) => {
+    showToast(`🎉 当前法官已同意让位，你现在是本局法官！`);
+    window.sfx && window.sfx.playWin();
+  });
+
+  socket.on('god_request_rejected', ({ reason }) => {
+    showToast(`❌ 法官拒绝了你的接任申请: ${reason || '请稍后再试'}`);
+  });
+
+  if (btnDealerRedeal) {
+    btnDealerRedeal.addEventListener('click', () => {
+      if (!currentRoom) return;
+      if (confirm('确定要为所有玩家重新洗牌发牌吗？')) {
+        socket.emit('redeal_cards', { roomCode: currentRoom.code }, (res) => {
+          if (res && !res.success) {
+            showToast(res.message);
+          } else {
+            showToast('已重新洗牌发牌！');
+          }
+        });
+      }
+    });
+  }
+
+  if (btnDealerLobby) {
+    btnDealerLobby.addEventListener('click', () => {
+      if (!currentRoom) return;
+      if (confirm('确定要结束发牌并返回准备大厅吗？')) {
+        socket.emit('return_to_lobby', { roomCode: currentRoom.code }, (res) => {
+          if (res && !res.success) {
+            showToast(res.message);
+          }
+        });
+      }
+    });
   }
 
   // 自动入房与重连检测

@@ -192,6 +192,61 @@ function getClassicPreset(playerCount) {
   }
 }
 
+// 极简发牌助手智能动态配平算法 (支持 3 ~ 18 人任意非标准人数)
+function getDealerPreset(playerCount, preferredPreset = null) {
+  if (preferredPreset && BOARD_PRESETS[preferredPreset] && BOARD_PRESETS[preferredPreset].length === playerCount) {
+    return [...BOARD_PRESETS[preferredPreset]];
+  }
+  if (playerCount <= 3) {
+    return ['WEREWOLF', 'SEER', 'VILLAGER'];
+  }
+  if (playerCount === 4) {
+    return ['WEREWOLF', 'SEER', 'VILLAGER', 'VILLAGER'];
+  }
+  if (playerCount === 5) {
+    return ['WEREWOLF', 'SEER', 'WITCH', 'VILLAGER', 'VILLAGER'];
+  }
+  if (playerCount === 6) {
+    return [...BOARD_PRESETS['6_SIMPLE']];
+  }
+  if (playerCount === 7) {
+    return ['WEREWOLF', 'WEREWOLF', 'SEER', 'WITCH', 'VILLAGER', 'VILLAGER', 'VILLAGER'];
+  }
+  if (playerCount === 8) {
+    return ['WEREWOLF', 'WEREWOLF', 'SEER', 'WITCH', 'HUNTER', 'VILLAGER', 'VILLAGER', 'VILLAGER'];
+  }
+  if (playerCount === 9) {
+    return [...BOARD_PRESETS['9_STANDARD']];
+  }
+  if (playerCount === 10) {
+    return [...BOARD_PRESETS['10_STANDARD']];
+  }
+  if (playerCount === 11) {
+    return ['WEREWOLF', 'WEREWOLF', 'WEREWOLF', 'SEER', 'WITCH', 'HUNTER', 'GUARD', 'VILLAGER', 'VILLAGER', 'VILLAGER', 'VILLAGER'];
+  }
+  if (playerCount === 12) {
+    return [...BOARD_PRESETS['12_STANDARD']];
+  }
+  // 13人及以上智能动态均衡
+  const wolvesCount = Math.max(1, Math.floor(playerCount / 3));
+  const godsCount = Math.min(5, Math.floor((playerCount - wolvesCount) / 2));
+  const villagersCount = playerCount - wolvesCount - godsCount;
+
+  const result = [];
+  for (let i = 0; i < wolvesCount; i++) {
+    if (i === 3) result.push('WHITE_WOLF');
+    else result.push('WEREWOLF');
+  }
+  const GOD_ORDER = ['SEER', 'WITCH', 'HUNTER', 'GUARD', 'IDIOT'];
+  for (let i = 0; i < godsCount; i++) {
+    result.push(GOD_ORDER[i % GOD_ORDER.length]);
+  }
+  for (let i = 0; i < villagersCount; i++) {
+    result.push('VILLAGER');
+  }
+  return result;
+}
+
 /**
  * 校验板子配置合法性（防呆校验）
  */
@@ -200,6 +255,11 @@ function validateBoardSettings(settings, playerCount) {
     return { valid: false, error: '缺少房间设置' };
   }
   const mode = settings.mode || 'CLASSIC';
+
+  if (mode === 'DEALER') {
+    const roleList = getDealerPreset(playerCount, settings.boardPreset);
+    return { valid: true, totalCards: roleList.length, roleList };
+  }
 
   if (mode === 'ONE_NIGHT') {
     const needed = playerCount + 3;
@@ -291,6 +351,9 @@ function validateBoardSettings(settings, playerCount) {
  * 依据设置与人数获取安全卡牌池
  */
 function getRolePoolFromSettings(settings, playerCount) {
+  if (settings && settings.mode === 'DEALER') {
+    return getDealerPreset(playerCount, settings.boardPreset);
+  }
   const check = validateBoardSettings(settings, playerCount);
   if (check.valid && check.roleList) {
     return [...check.roleList];
@@ -304,6 +367,7 @@ module.exports = {
   BOARD_PRESETS,
   getOneNightPreset,
   getClassicPreset,
+  getDealerPreset,
   validateBoardSettings,
   getRolePoolFromSettings
 };

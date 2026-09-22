@@ -37,6 +37,13 @@
 
         <!-- 模式选择 -->
         <div class="mode-switch-group">
+          <label class="mode-radio-btn" id="btn-mode-dealer">
+            <input type="radio" name="game-mode" value="DEALER">
+            <div>
+              <div class="mode-name">🎴 极简发牌助手 (线下专享·越简单越好)</div>
+              <div class="mode-tip">仅发牌看牌 · 任意人数自动配平 · 上帝全知底牌提词 · 零繁琐步骤</div>
+            </div>
+          </label>
           <label class="mode-radio-btn" id="btn-mode-onenight">
             <input type="radio" name="game-mode" value="ONE_NIGHT">
             <div>
@@ -51,6 +58,25 @@
               <div class="mode-tip">房主法官大字提词 · 纯手势推进 · 无强制倒计时</div>
             </div>
           </label>
+        </div>
+
+        <!-- 极简发牌助手配置与提示 -->
+        <div id="dealer-settings-card" class="god-settings-box hidden">
+          <div class="god-settings-header">
+            <div style="font-weight:700; color:#fbbf24; font-size:15px;">🎴 极简发牌助手规则说明</div>
+            <span class="badge-tag">3~18人智能配平</span>
+          </div>
+          <p class="god-settings-desc" style="margin-top:6px;">无需凑齐固定人数！系统根据入场人数智能配平神民狼阵容，法官全知所有底牌，参战玩家防偷窥看牌，发完即开玩。</p>
+          <div class="rule-field" style="margin-top:8px;">
+            <label>偏好板子风格 (系统将以此为基准智能适配当前人数)</label>
+            <select id="setting-dealer-preset" class="form-select">
+              <option value="AUTO" selected>🤖 自由人数全自动平衡 (推荐)</option>
+              <option value="9_STANDARD">9人标准预女猎基准 (3狼3民3神)</option>
+              <option value="6_SIMPLE">6人快速入门基准 (2狼2民2神)</option>
+              <option value="10_STANDARD">10人守卫预女猎基准 (3狼3民4神)</option>
+              <option value="12_STANDARD">12人白狼王白痴基准 (4狼4民4神)</option>
+            </select>
+          </div>
         </div>
 
         <!-- 线下上帝模式及板子配置 -->
@@ -215,6 +241,64 @@
         </div>
       </div>
 
+      <!-- 极简发牌助手专属会场 -->
+      <div id="dealer-console-zone" class="dealer-console-container hidden">
+        <!-- 法官视角: 全知大盘 -->
+        <div id="dealer-god-zone" class="dealer-god-zone hidden">
+          <div class="dealer-header-card">
+            <div class="dealer-title-row">
+              <div class="dealer-title">🎴 极简发牌助手 · 法官全知大盘</div>
+              <div class="dealer-actions-top">
+                <button id="btn-dealer-transfer-god" class="btn btn-secondary btn-sm">👑 移交法官</button>
+              </div>
+            </div>
+            <div class="dealer-prompt-tip">📢 底牌已全部派发至各玩家手机！请核对座次并主持线下对局：天黑请闭眼...</div>
+          </div>
+
+          <div class="dealer-seat-section">
+            <div class="section-title">👁️ 参战玩家物理座次与底牌清单</div>
+            <div id="dealer-seat-matrix" class="dealer-seat-matrix"></div>
+          </div>
+
+          <div class="dealer-bottom-bar">
+            <button id="btn-dealer-redeal" class="btn btn-warning btn-lg" style="flex:1;">🎴 重新洗牌发牌</button>
+            <button id="btn-dealer-lobby" class="btn btn-secondary btn-lg" style="flex:1;">🚪 返回大厅</button>
+          </div>
+        </div>
+
+        <!-- 普通玩家视角: 物理座次与防偷窥身份卡 -->
+        <div id="dealer-player-zone" class="dealer-player-zone hidden">
+          <div class="dealer-player-seat-card">
+            <div class="seat-badge-title">你的物理座位号</div>
+            <div class="seat-huge-number" id="dealer-player-seat-num">-- 号</div>
+            <div class="seat-notice">请牢记你的座位号，入夜后请听从线下法官口令与指引行动</div>
+          </div>
+
+          <div class="dealer-player-role-box">
+            <div class="role-card-wrapper" id="dealer-role-card">
+              <div class="card-inner" id="dealer-card-inner">
+                <div class="card-face card-back">
+                  <div class="peek-icon">👁️</div>
+                  <div class="peek-tip">长按或点击翻转查看我的底牌</div>
+                  <div class="peek-sub">（离开手指自动隐藏，严防旁人偷窥）</div>
+                </div>
+                <div class="card-face card-front" id="dealer-card-front">
+                  <div class="role-icon" id="dealer-role-icon">🐺</div>
+                  <div class="role-name" id="dealer-role-name">狼人</div>
+                  <div class="role-team-tag" id="dealer-role-team">狼人阵营</div>
+                  <p class="role-ability" id="dealer-role-desc">等待发牌...</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="dealer-player-footer">
+            <div class="dealer-offline-hint">📢 看清身份后请扣下手机，听从法官线下闭眼睁眼！</div>
+            <button id="btn-dealer-request-god" class="btn btn-secondary btn-sm" style="margin-top:12px;">🙋 申请接任法官</button>
+          </div>
+        </div>
+      </div>
+
       <!-- 中间游戏区域: 玩家座位网格 -->
       <div class="players-zone">
         <div class="section-title" style="display: flex; justify-content: space-between; align-items: center;">
@@ -224,6 +308,19 @@
             <button id="btn-leave-lobby" class="btn btn-secondary" style="width: auto; padding: 4px 10px; font-size: 12px; border-radius: 6px;">🚪 退出</button>
           </div>
         </div>
+        <!-- 法官管理横条 -->
+        <div id="god-identity-bar" class="god-identity-bar hidden">
+          <div class="god-bar-left">
+            <span class="god-bar-icon">👑</span>
+            <span class="god-bar-label">当前法官:</span>
+            <span id="god-bar-name" class="god-bar-name">--</span>
+          </div>
+          <div class="god-bar-actions">
+            <button id="btn-request-god" class="btn btn-secondary btn-sm">🙋 申请当法官</button>
+            <button id="btn-transfer-god" class="btn btn-secondary btn-sm hidden">👑 移交法官</button>
+          </div>
+        </div>
+
         <div class="players-grid" id="players-grid"></div>
 
         <!-- 大厅卡牌池实时预览 -->
@@ -496,6 +593,39 @@
             <div style="font-weight:700; margin-bottom:8px; color:#a78bfa;">3. 重新洗牌与发牌</div>
             <button id="btn-referee-redeal" class="btn btn-secondary" style="width:100%;">🎴 重新随机洗牌发牌</button>
           </div>
+        </div>
+      </div>
+    <!-- 弹窗: 法官审批申请 -->
+    <div id="modal-god-request" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>👑 法官接任申请</h3>
+        </div>
+        <div class="modal-body">
+          <p id="god-request-modal-msg" style="margin-bottom:16px; color:#e2e8f0; font-size:15px; line-height:1.6;">
+            玩家申请接任法官。
+          </p>
+          <div style="display:flex; gap:10px;">
+            <button id="btn-approve-god" class="btn btn-gold btn-lg" style="flex:1;">✅ 同意让位</button>
+            <button id="btn-reject-god" class="btn btn-secondary btn-lg" style="flex:1;">❌ 拒绝</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 弹窗: 法官主动移交 -->
+    <div id="modal-transfer-god" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>👑 移交法官职务</h3>
+          <button class="modal-close" id="btn-close-transfer-god">✕</button>
+        </div>
+        <div class="modal-body">
+          <p style="margin-bottom:12px; color:#94a3b8; font-size:13px;">选择一名玩家继任法官，移交后全知大盘将转移给对方：</p>
+          <div class="form-group" style="margin-bottom:16px;">
+            <select id="select-transfer-god-player" class="form-select"></select>
+          </div>
+          <button id="btn-confirm-transfer-god" class="btn btn-gold btn-lg" style="width:100%;">确认移交</button>
         </div>
       </div>
     </div>
