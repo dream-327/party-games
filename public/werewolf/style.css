@@ -19,13 +19,20 @@
   user-select: none;
 }
 
+input, select, textarea, button {
+  user-select: auto;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", sans-serif;
   background-color: var(--bg-dark);
   color: #f1f5f9;
   min-height: 100vh;
+  min-height: 100dvh;
   position: relative;
   overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* 夜幕迷雾背景动效 */
@@ -46,11 +53,13 @@ body {
 #app {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  min-height: 100vh;
+  min-height: 100dvh;
   max-width: 800px;
   margin: 0 auto;
   position: relative;
   z-index: 10;
+  width: 100%;
 }
 
 /* 顶部导航 */
@@ -59,9 +68,13 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 10px 16px;
-  background: rgba(9, 11, 20, 0.85);
+  background: rgba(9, 11, 20, 0.9);
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 50;
 }
 
 .header-left {
@@ -167,24 +180,25 @@ body {
   box-shadow: none;
 }
 
-/* 首页 */
+/* 首页与主视图容器 */
 .main-container {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   position: relative;
+  width: 100%;
 }
 
 .hero-card {
-  margin: auto;
-  max-width: 460px;
-  width: 90%;
+  margin: 16px auto 36px auto;
+  max-width: 500px;
+  width: calc(100% - 32px);
   background: var(--card-bg);
   backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  padding: 32px 24px;
+  padding: 28px 20px;
   text-align: center;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
 }
@@ -568,10 +582,15 @@ body {
 
 /* 底部操作面板 */
 .action-footer-bar {
-  padding: 12px 16px;
-  background: rgba(9, 11, 20, 0.9);
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)) 16px;
+  background: rgba(9, 11, 20, 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border-top: 1px solid var(--border-color);
   min-height: 60px;
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
 }
 
 .footer-panel {
@@ -587,19 +606,25 @@ body {
   font-weight: 700;
 }
 
-/* 结算弹窗 */
+/* 结算与功能弹窗通用系统 */
 .modal-backdrop {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
+  width: 100%;
   height: 100vh;
+  height: 100dvh;
   background: rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
+  padding: 16px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .modal-card {
@@ -607,10 +632,13 @@ body {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   max-width: 480px;
-  width: 92%;
+  width: 100%;
   max-height: 85vh;
+  max-height: 85dvh;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 24px;
+  margin: auto;
 }
 
 .modal-header {
@@ -936,7 +964,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 8px 0 24px 0;
+  padding: 12px 14px 48px 14px;
+  width: 100%;
 }
 
 .god-top-bar {
@@ -1214,7 +1243,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 10px 0;
+  padding: 12px 14px 48px 14px;
+  width: 100%;
 }
 
 .offline-seat-box {
@@ -1309,3 +1339,58 @@ body {
   color: #f1f5f9;
   cursor: pointer;
 }
+
+/* ================= 移动端与全平台视口自适应优化 ================= */
+@media (max-width: 640px) {
+  #app {
+    padding: 0;
+  }
+
+  .header-bar {
+    padding: 8px 12px;
+  }
+
+  .logo-badge {
+    font-size: 15px;
+  }
+
+  .hero-card {
+    padding: 20px 14px;
+    width: calc(100% - 20px);
+    margin: 12px auto 32px auto;
+  }
+
+  .hero-icon {
+    font-size: 42px;
+  }
+
+  .hero-title {
+    font-size: 22px;
+  }
+
+  .god-rules-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .god-seat-matrix {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 6px;
+  }
+
+  .prompter-script {
+    font-size: 18px;
+    line-height: 1.5;
+  }
+
+  .modal-card {
+    padding: 18px 14px;
+    max-height: 90vh;
+    max-height: 90dvh;
+  }
+
+  .action-footer-bar {
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)) 12px;
+  }
+}
+
