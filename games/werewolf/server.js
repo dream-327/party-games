@@ -140,6 +140,8 @@ function getSafeRoomData(room, targetPlayerId) {
       hasVoted: p.hasVoted,
       nightDone: p.nightDone,
       isSheriff: room.gameState.sheriffPlayerId === p.id,
+      isImmuneExiled: !!p.isImmuneExiled,
+      canShoot: isTargetGod ? !!p.canShoot : undefined,
       // 只有在游戏结算复盘时，或者对自己，或者对上帝房主，才显示身份
       initialRole: canSeeRole ? p.initialRole : null,
       currentRole: (isGameOver || isTargetGod) ? p.currentRole : null
@@ -171,6 +173,8 @@ function getSafeRoomData(room, targetPlayerId) {
       hasVoted: myPlayer.hasVoted,
       nightDone: myPlayer.nightDone,
       isSheriff: room.gameState.sheriffPlayerId === myPlayer.id,
+      isImmuneExiled: !!myPlayer.isImmuneExiled,
+      canShoot: !!myPlayer.canShoot,
       initialRole: myPlayer.initialRole,
       currentRole: (isGameOver || isTargetGod) ? myPlayer.currentRole : null
     } : null,
@@ -642,6 +646,160 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000).unref();
 
+/**
+ * 依据阶段生成上帝大字提词台词
+ */
+function getGodPrompterScript(room, step, extra = {}) {
+  switch (step) {
+    case 'NIGHT_FALL':
+      return '天黑请闭眼。请所有玩家低下头，闭上双眼，不要发出任何声音。';
+    case 'GUARD':
+      return '守卫请睁眼。守卫请示意你今晚要守护的玩家号码……守卫请闭眼。';
+    case 'WEREWOLF':
+      return '狼人请睁眼。狼人请互认同伴……请比划手势示意今晚要击杀的玩家号码……狼人请闭眼。';
+    case 'WITCH': {
+      const wolfTarget = room.players.get(room.gameState.nightRecord.wolfTarget);
+      if (wolfTarget) {
+        return `女巫请睁眼。今晚 ${wolfTarget.seatNumber}号 [${wolfTarget.name}] 倒台了，你有一瓶解药要使用吗？……你有一瓶毒药要使用吗？……女巫请闭眼。`;
+      }
+      return '女巫请睁眼。今晚 TA 倒台了，你有一瓶解药要使用吗？……你有一瓶毒药要使用吗？……女巫请闭眼。';
+    }
+    case 'SEER':
+      return '预言家请睁眼。请指出你今晚想要查验的玩家号码……TA 的身份是这个……预言家请闭眼。';
+    case 'NIGHT_END':
+      return '夜晚行动全部结束。上帝请核对夜间记录，确认无误后点击天亮！';
+    case 'DAY_SHERIFF':
+      return '天亮了，昨夜死讯暂不公布。现在进入警长竞选，请上警的玩家举手示意！';
+    case 'DAY_DEATH_ANNOUNCE': {
+      const deadList = (extra && extra.deadTonight) || room.gameState.dayRecord.deadTonight || [];
+      if (deadList.length === 0) {
+        return '天亮了，大家请睁眼。昨夜是——平安夜！';
+      }
+      const names = deadList.map(p => `${p.seatNumber}号 [${p.name}]`).join('、');
+      return `天亮了，大家请睁眼。昨夜出局的玩家是 ${names}。`;
+    }
+    case 'DAY_DISCUSS':
+      return extra.speakerText
+        ? `请 ${extra.speakerText} 开始顺序发言。`
+        : '现在进入白天自由发言阶段。';
+    case 'DAY_VOTING':
+      return '发言结束，所有存活玩家请准备，3、2、1，请举手投票！';
+    case 'DAY_PK_DISCUSS':
+      return '平票玩家进行 PK 发言，请按顺序依次陈词。';
+    case 'DAY_PK_VOTE':
+      return 'PK 发言结束，除 PK 玩家外的其余存活玩家请举手投票！';
+    case 'DAY_PEACE_DAY':
+      return '二次投票仍然平票，今日为平安日，无人被放逐！';
+    default:
+      return '';
+  }
+}
+
+function checkRoleStatus(room, roleId) {
+  const playing = Array.from(room.players.values()).filter(p => !p.isGod);
+  const playersWithRole = playing.filter(p => p.initialRole === roleId);
+  if (playersWithRole.length === 0) {
+    return { inGame: false, isAllDead: false };
+  }
+  const isAllDead = playersWithRole.every(p => !p.isAlive);
+  return { inGame: true, isAllDead };
+}
+
+function getNightSequence(room) {
+  const guardStatus = checkRoleStatus(room, 'GUARD');
+  if (guardStatus.inGame) {
+    return ['NIGHT_FALL', 'GUARD', 'WEREWOLF', 'WITCH', 'SEER', 'NIGHT_END'];
+  }
+  return ['NIGHT_FALL', 'WEREWOLF', 'WITCH', 'SEER', 'NIGHT_END'];
+}
+
+function resolveNightDeaths(room) {
+  const rec = room.gameState.nightRecord;
+  const deadTonightIds = [];
+
+  // 1. 狼刀与守卫、女巫救
+  if (rec.wolfTarget) {
+    const isGuarded = (rec.guardTarget === rec.wolfTarget);
+    const isSaved = (rec.witchSaveTarget === rec.wolfTarget);
+
+    if (isGuarded && isSaved && room.settings.guardWitchConflict === 'DIE') {
+      // 奶穿：同时被守且被救则判定死亡
+      deadTonightIds.push(rec.wolfTarget);
+    } else if (!isGuarded && !isSaved) {
+      deadTonightIds.push(rec.wolfTarget);
+    }
+  }
+
+  // 2. 女巫下毒
+  if (rec.witchPoisonTarget && !deadTonightIds.includes(rec.witchPoisonTarget)) {
+    deadTonightIds.push(rec.witchPoisonTarget);
+  }
+
+  // 3. 执行死亡与标记猎人/狼王开枪
+  const deadTonightPlayers = [];
+  deadTonightIds.forEach(id => {
+    const p = room.players.get(id);
+    if (p && p.isAlive) {
+      p.isAlive = false;
+      const isPoisoned = (id === rec.witchPoisonTarget);
+      if (p.initialRole === 'HUNTER') {
+        p.canShoot = !isPoisoned;
+      }
+      if (p.initialRole === 'WOLF_KING') {
+        p.canShoot = !isPoisoned;
+      }
+      deadTonightPlayers.push({
+        id: p.id,
+        name: p.name,
+        seatNumber: p.seatNumber,
+        role: p.initialRole,
+        canShoot: !!p.canShoot
+      });
+    }
+  });
+
+  room.gameState.dayRecord.deadTonight = deadTonightPlayers;
+  room.gameState.nightRecord.lastGuardedTarget = rec.guardTarget;
+  return deadTonightPlayers;
+}
+
+function checkGameWinner(room) {
+  if (room.settings.mode === 'ONE_NIGHT') return null;
+
+  const playing = Array.from(room.players.values()).filter(p => !p.isGod);
+  const alivePlayers = playing.filter(p => p.isAlive);
+
+  const aliveWolves = alivePlayers.filter(p => ['WEREWOLF', 'WHITE_WOLF', 'WOLF_KING'].includes(p.initialRole));
+  const aliveCivilians = alivePlayers.filter(p => p.initialRole === 'VILLAGER');
+  const aliveGods = alivePlayers.filter(p => ['SEER', 'WITCH', 'HUNTER', 'GUARD', 'IDIOT'].includes(p.initialRole));
+  const aliveGoods = alivePlayers.filter(p => !['WEREWOLF', 'WHITE_WOLF', 'WOLF_KING', 'MINION'].includes(p.initialRole));
+
+  // 狼人全部出局
+  if (aliveWolves.length === 0) {
+    if (aliveGoods.length === 0) {
+      return { winnerTeam: 'TIE', winnerRole: '同归于尽 · 平局！(场上好人与恶狼同时全灭！)' };
+    }
+    return { winnerTeam: TEAMS.VILLAGER, winnerRole: '好人正义阵营获胜！(所有恶狼已被全部剿灭！)' };
+  }
+
+  // 屠边判定
+  if (room.settings.winCondition === 'KILL_SIDE') {
+    if (aliveCivilians.length === 0) {
+      return { winnerTeam: TEAMS.WEREWOLF, winnerRole: '狼人阵营获胜！(平民已被屠杀殆尽，恶狼屠边成功！)' };
+    }
+    if (aliveGods.length === 0) {
+      return { winnerTeam: TEAMS.WEREWOLF, winnerRole: '狼人阵营获胜！(神职已被屠杀殆尽，恶狼屠边成功！)' };
+    }
+  } else {
+    // 屠城判定 (KILL_ALL)
+    if (aliveGoods.length === 0) {
+      return { winnerTeam: TEAMS.WEREWOLF, winnerRole: '狼人阵营获胜！(好人全员阵亡，恶狼屠城成功！)' };
+    }
+  }
+
+  return null;
+}
+
 function setupWerewolf(io, app) {
   const werewolfIo = io.of('/werewolf');
 
@@ -1111,6 +1269,473 @@ function setupWerewolf(io, app) {
         console.error('werewolf leave_room error:', err);
         if (typeof callback === 'function') callback({ success: false });
       }
+    });
+
+    // ===== 上帝模式专属事件 =====
+
+    // 1. 夜间手动推进
+    socket.on('god_night_step', ({ roomCode, step, actionData }, callback) => {
+      const room = rooms.get(roomCode || currentRoomCode);
+      if (!room || room.hostId !== currentPlayerId) {
+        if (typeof callback === 'function') callback({ success: false, message: '无权限' });
+        return;
+      }
+      if (room.gameState.phase !== 'NIGHT') {
+        if (typeof callback === 'function') callback({ success: false, message: '非夜晚阶段' });
+        return;
+      }
+
+      // 保存快照供 ⏪ 上一步撤回
+      room.gameState.stepHistory.push({
+        activeNightStep: room.gameState.activeNightStep,
+        currentSpeechScript: room.gameState.currentSpeechScript,
+        isDeadFakeCall: room.gameState.isDeadFakeCall,
+        nightRecord: JSON.parse(JSON.stringify(room.gameState.nightRecord))
+      });
+
+      const seq = getNightSequence(room);
+      const currStep = step || room.gameState.activeNightStep;
+      const currIdx = seq.indexOf(currStep);
+      const nextStep = (currIdx >= 0 && currIdx < seq.length - 1) ? seq[currIdx + 1] : 'NIGHT_END';
+
+      let seerResultData = null;
+
+      // 录入动作
+      if (currStep === 'GUARD') {
+        if (actionData && actionData.targetId) {
+          room.gameState.nightRecord.guardTarget = actionData.targetId;
+        } else {
+          room.gameState.nightRecord.guardTarget = null;
+        }
+      } else if (currStep === 'WEREWOLF') {
+        if (actionData && actionData.targetId) {
+          room.gameState.nightRecord.wolfTarget = actionData.targetId;
+        }
+      } else if (currStep === 'WITCH') {
+        if (actionData) {
+          if (actionData.saveTarget) {
+            room.gameState.nightRecord.witchSaveUsed = true;
+            room.gameState.nightRecord.witchSaveTarget = actionData.saveTarget;
+          }
+          if (actionData.poisonTarget) {
+            room.gameState.nightRecord.witchPoisonUsed = true;
+            room.gameState.nightRecord.witchPoisonTarget = actionData.poisonTarget;
+          }
+        }
+      } else if (currStep === 'SEER') {
+        if (actionData && actionData.targetId) {
+          room.gameState.nightRecord.seerTarget = actionData.targetId;
+          const target = room.players.get(actionData.targetId);
+          const isWolf = target ? ['WEREWOLF', 'WHITE_WOLF', 'WOLF_KING'].includes(target.initialRole) : false;
+          room.gameState.nightRecord.seerResult = isWolf ? 'WEREWOLF' : 'GOOD';
+          seerResultData = {
+            success: true,
+            isWolf,
+            roleName: isWolf ? '狼人' : '好人'
+          };
+        }
+      }
+
+      // 步进到下一阶段
+      room.gameState.activeNightStep = nextStep;
+
+      // 检查神职空唤防泄密标记
+      if (['GUARD', 'WITCH', 'SEER'].includes(nextStep)) {
+        const roleStatus = checkRoleStatus(room, nextStep);
+        room.gameState.isDeadFakeCall = roleStatus.inGame && roleStatus.isAllDead;
+      } else {
+        room.gameState.isDeadFakeCall = false;
+      }
+
+      room.gameState.currentSpeechScript = getGodPrompterScript(room, nextStep);
+      broadcastRoom(werewolfIo, room);
+
+      if (seerResultData) {
+        if (typeof callback === 'function') callback(seerResultData);
+      } else {
+        if (typeof callback === 'function') callback({ success: true, nextStep });
+      }
+    });
+
+    // 2. 夜间 ⏪ 上一步撤回
+    socket.on('god_night_prev_step', ({ roomCode }, callback) => {
+      const room = rooms.get(roomCode || currentRoomCode);
+      if (!room || room.hostId !== currentPlayerId) {
+        if (typeof callback === 'function') callback({ success: false, message: '无权限' });
+        return;
+      }
+      if (room.gameState.stepHistory && room.gameState.stepHistory.length > 0) {
+        const snapshot = room.gameState.stepHistory.pop();
+        room.gameState.activeNightStep = snapshot.activeNightStep;
+        room.gameState.currentSpeechScript = snapshot.currentSpeechScript;
+        room.gameState.isDeadFakeCall = snapshot.isDeadFakeCall;
+        room.gameState.nightRecord = snapshot.nightRecord;
+        broadcastRoom(werewolfIo, room);
+        if (typeof callback === 'function') callback({ success: true, restoredStep: snapshot.activeNightStep });
+      } else {
+        if (typeof callback === 'function') callback({ success: false, message: '没有可撤回的步骤' });
+      }
+    });
+
+    // 3. 上帝确认天亮结算死伤
+    socket.on('god_announce_dawn', ({ roomCode }, callback) => {
+      const room = rooms.get(roomCode || currentRoomCode);
+      if (!room || room.hostId !== currentPlayerId) {
+        if (typeof callback === 'function') callback({ success: false, message: '无权限' });
+        return;
+      }
+      if (room.gameState.phase !== 'NIGHT') {
+        if (typeof callback === 'function') callback({ success: false, message: '非夜晚阶段' });
+        return;
+      }
+
+      const deadTonight = resolveNightDeaths(room);
+
+      // 检查胜负
+      const winResult = checkGameWinner(room);
+      if (winResult) {
+        room.gameState.phase = 'GAME_OVER';
+        room.gameState.winnerTeam = winResult.winnerTeam;
+        room.gameState.winnerRole = winResult.winnerRole;
+        broadcastRoom(werewolfIo, room);
+        if (typeof callback === 'function') callback({ success: true, deadTonight, phase: 'GAME_OVER' });
+        return;
+      }
+
+      // 检查首日警长竞选时序
+      if (room.gameState.round === 1 && room.settings.hasSheriff) {
+        if (room.settings.firstDaySheriffTiming === 'BEFORE_DEATH_ANNOUNCE') {
+          room.gameState.phase = 'DAY_SHERIFF';
+          room.gameState.currentSpeechScript = getGodPrompterScript(room, 'DAY_SHERIFF');
+        } else {
+          room.gameState.phase = 'DAY_DEATH_ANNOUNCE';
+          room.gameState.currentSpeechScript = getGodPrompterScript(room, 'DAY_DEATH_ANNOUNCE', { deadTonight });
+        }
+      } else {
+        room.gameState.phase = 'DAY_DEATH_ANNOUNCE';
+        room.gameState.currentSpeechScript = getGodPrompterScript(room, 'DAY_DEATH_ANNOUNCE', { deadTonight });
+      }
+
+      broadcastRoom(werewolfIo, room);
+      if (typeof callback === 'function') callback({ success: true, deadTonight, phase: room.gameState.phase });
+    });
+
+    // 4. 警长竞选与授徽
+    socket.on('god_sheriff_action', ({ roomCode, action, targetId }, callback) => {
+      const room = rooms.get(roomCode || currentRoomCode);
+      if (!room || room.hostId !== currentPlayerId) return;
+
+      if (action === 'elect_badge' && targetId) {
+        room.gameState.sheriffPlayerId = targetId;
+
+        // 若时序为先竞选后报死，授徽后进入死讯公告
+        if (room.settings.firstDaySheriffTiming === 'BEFORE_DEATH_ANNOUNCE') {
+          room.gameState.phase = 'DAY_DEATH_ANNOUNCE';
+          room.gameState.currentSpeechScript = getGodPrompterScript(room, 'DAY_DEATH_ANNOUNCE');
+        } else {
+          room.gameState.phase = 'DAY_DISCUSS';
+          room.gameState.currentSpeechScript = getGodPrompterScript(room, 'DAY_DISCUSS');
+        }
+      } else if (action === 'skip') {
+        if (room.settings.firstDaySheriffTiming === 'BEFORE_DEATH_ANNOUNCE') {
+          room.gameState.phase = 'DAY_DEATH_ANNOUNCE';
+          room.gameState.currentSpeechScript = getGodPrompterScript(room, 'DAY_DEATH_ANNOUNCE');
+        } else {
+          room.gameState.phase = 'DAY_DISCUSS';
+          room.gameState.currentSpeechScript = getGodPrompterScript(room, 'DAY_DISCUSS');
+        }
+      }
+
+      broadcastRoom(werewolfIo, room);
+      if (typeof callback === 'function') callback({ success: true, phase: room.gameState.phase });
+    });
+
+    // 5. 警长阵亡移交或撕毁警徽
+    socket.on('god_transfer_badge', ({ roomCode, action, targetId }, callback) => {
+      const room = rooms.get(roomCode || currentRoomCode);
+      if (!room || room.hostId !== currentPlayerId) return;
+
+      if (action === 'transfer' && targetId) {
+        room.gameState.sheriffPlayerId = targetId;
+      } else if (action === 'tear') {
+        room.gameState.sheriffPlayerId = null;
+        room.settings.hasSheriff = false;
+      }
+
+      broadcastRoom(werewolfIo, room);
+      if (typeof callback === 'function') callback({ success: true, sheriffPlayerId: room.gameState.sheriffPlayerId });
+    });
+
+    // 6. 白天发言人标记
+    socket.on('god_select_speaker', ({ roomCode, playerId }, callback) => {
+      const room = rooms.get(roomCode || currentRoomCode);
+      if (!room || room.hostId !== currentPlayerId) return;
+
+      room.gameState.currentSpeakerId = playerId;
+      const sp = room.players.get(playerId);
+      const spText = sp ? `${sp.seatNumber}号 [${sp.name}]` : '';
+      room.gameState.currentSpeechScript = getGodPrompterScript(room, 'DAY_DISCUSS', { speakerText: spText });
+
+      broadcastRoom(werewolfIo, room);
+      if (typeof callback === 'function') callback({ success: true });
+    });
+
+    // 7. 狼人自爆 (普通狼自爆入夜 / 白狼王自爆带人入夜)
+    socket.on('god_wolf_explode', ({ roomCode, wolfPlayerId, targetId }, callback) => {
+      const room = rooms.get(roomCode || currentRoomCode);
+      if (!room || room.hostId !== currentPlayerId) return;
+
+      const wolf = room.players.get(wolfPlayerId);
+      if (wolf) wolf.isAlive = false;
+
+      if (targetId) {
+        const victim = room.players.get(targetId);
+        if (victim) victim.isAlive = false;
+      }
+
+      // 检查胜负
+      const winResult = checkGameWinner(room);
+      if (winResult) {
+        room.gameState.phase = 'GAME_OVER';
+        room.gameState.winnerTeam = winResult.winnerTeam;
+        room.gameState.winnerRole = winResult.winnerRole;
+      } else {
+        // 自爆直接强制入夜
+        room.gameState.phase = 'NIGHT';
+        room.gameState.round++;
+        room.gameState.activeNightStep = 'NIGHT_FALL';
+        room.gameState.currentSpeechScript = getGodPrompterScript(room, 'NIGHT_FALL');
+        room.gameState.stepHistory = [];
+        room.gameState.nightRecord = {
+          guardTarget: null,
+          lastGuardedTarget: room.gameState.nightRecord.lastGuardedTarget,
+          wolfTarget: null,
+          witchSaveUsed: room.gameState.nightRecord.witchSaveUsed,
+          witchPoisonUsed: room.gameState.nightRecord.witchPoisonUsed,
+          witchSaveTarget: null,
+          witchPoisonTarget: null,
+          seerTarget: null,
+          seerResult: null
+        };
+      }
+
+      broadcastRoom(werewolfIo, room);
+      if (typeof callback === 'function') callback({ success: true, phase: room.gameState.phase });
+    });
+
+    // 8. 触发平票 PK
+    socket.on('god_trigger_pk', ({ roomCode, candidateIds }, callback) => {
+      const room = rooms.get(roomCode || currentRoomCode);
+      if (!room || room.hostId !== currentPlayerId) return;
+
+      room.gameState.phase = 'DAY_PK_DISCUSS';
+      room.gameState.dayRecord.pkCandidates = candidateIds || [];
+      room.gameState.dayRecord.isPkRound = true;
+      room.gameState.currentSpeechScript = getGodPrompterScript(room, 'DAY_PK_DISCUSS');
+
+      broadcastRoom(werewolfIo, room);
+      if (typeof callback === 'function') callback({ success: true });
+    });
+
+    // 9. 二次投票平票判定平安日
+    socket.on('god_peace_day', ({ roomCode }, callback) => {
+      const room = rooms.get(roomCode || currentRoomCode);
+      if (!room || room.hostId !== currentPlayerId) return;
+
+      room.gameState.phase = 'DAY_PEACE_DAY';
+      room.gameState.currentSpeechScript = getGodPrompterScript(room, 'DAY_PEACE_DAY');
+
+      broadcastRoom(werewolfIo, room);
+      if (typeof callback === 'function') callback({ success: true });
+    });
+
+    // 10. 公投票决出局 (包含白痴翻牌免死)
+    socket.on('god_vote_execute', ({ roomCode, targetPlayerId }, callback) => {
+      const room = rooms.get(roomCode || currentRoomCode);
+      if (!room || room.hostId !== currentPlayerId) return;
+
+      const target = room.players.get(targetPlayerId);
+      if (!target) return;
+
+      let isIdiotImmune = false;
+      if (target.initialRole === 'IDIOT' && !target.isImmuneExiled) {
+        target.isImmuneExiled = true;
+        isIdiotImmune = true;
+        room.gameState.currentSpeechScript = `${target.seatNumber}号 [${target.name}] 为白痴，翻牌免死，保留发言权但永久失去投票权！`;
+      } else {
+        target.isAlive = false;
+        if (target.initialRole === 'HUNTER' || target.initialRole === 'WOLF_KING') {
+          target.canShoot = true;
+        }
+      }
+
+      room.gameState.dayRecord.executedToday = targetPlayerId;
+
+      // 检查胜负
+      const winResult = checkGameWinner(room);
+      if (winResult) {
+        room.gameState.phase = 'GAME_OVER';
+        room.gameState.winnerTeam = winResult.winnerTeam;
+        room.gameState.winnerRole = winResult.winnerRole;
+      }
+
+      broadcastRoom(werewolfIo, room);
+      if (typeof callback === 'function') {
+        callback({
+          success: true,
+          isIdiotImmune,
+          canShoot: !!target.canShoot,
+          isSheriffDead: room.gameState.sheriffPlayerId === targetPlayerId,
+          phase: room.gameState.phase
+        });
+      }
+    });
+
+    // 4.5. 死讯公告完毕，推进至竞选或讨论
+    socket.on('god_confirm_death', ({ roomCode }, callback) => {
+      const room = rooms.get(roomCode || currentRoomCode);
+      if (!room || room.hostId !== currentPlayerId) return;
+
+      if (room.gameState.round === 1 && room.settings.hasSheriff && room.settings.firstDaySheriffTiming === 'AFTER_DEATH_ANNOUNCE' && !room.gameState.sheriffPlayerId) {
+        room.gameState.phase = 'DAY_SHERIFF';
+        room.gameState.currentSpeechScript = getGodPrompterScript(room, 'DAY_SHERIFF');
+      } else {
+        room.gameState.phase = 'DAY_DISCUSS';
+        room.gameState.currentSpeechScript = getGodPrompterScript(room, 'DAY_DISCUSS');
+      }
+
+      broadcastRoom(werewolfIo, room);
+      if (typeof callback === 'function') callback({ success: true, phase: room.gameState.phase });
+    });
+
+    // 4.6. 发言结束进入公投 / PK投票
+    socket.on('god_start_vote', ({ roomCode }, callback) => {
+      const room = rooms.get(roomCode || currentRoomCode);
+      if (!room || room.hostId !== currentPlayerId) return;
+
+      if (room.gameState.phase === 'DAY_PK_DISCUSS') {
+        room.gameState.phase = 'DAY_PK_VOTE';
+        room.gameState.currentSpeechScript = getGodPrompterScript(room, 'DAY_PK_VOTE');
+      } else {
+        room.gameState.phase = 'DAY_VOTING';
+        room.gameState.currentSpeechScript = getGodPrompterScript(room, 'DAY_VOTING');
+      }
+
+      broadcastRoom(werewolfIo, room);
+      if (typeof callback === 'function') callback({ success: true, phase: room.gameState.phase });
+    });
+
+    // 10.5. 猎人 / 狼王开枪带人
+    socket.on('god_shoot_kill', ({ roomCode, shooterId, targetId }, callback) => {
+      const room = rooms.get(roomCode || currentRoomCode);
+      if (!room || room.hostId !== currentPlayerId) return;
+
+      const shooter = room.players.get(shooterId);
+      if (shooter) {
+        shooter.canShoot = false;
+      }
+
+      const target = room.players.get(targetId);
+      if (target) {
+        target.isAlive = false;
+        if (target.initialRole === 'HUNTER' || target.initialRole === 'WOLF_KING') {
+          target.canShoot = true; // 被枪杀可继续开枪
+        }
+        room.gameState.currentSpeechScript = `${shooter ? shooter.seatNumber : ''}号 [${shooter ? shooter.name : ''}] 开枪带走了 ${target.seatNumber}号 [${target.name}]！`;
+      }
+
+      const winResult = checkGameWinner(room);
+      if (winResult) {
+        room.gameState.phase = 'GAME_OVER';
+        room.gameState.winnerTeam = winResult.winnerTeam;
+        room.gameState.winnerRole = winResult.winnerRole;
+      }
+
+      broadcastRoom(werewolfIo, room);
+      if (typeof callback === 'function') {
+        callback({
+          success: true,
+          phase: room.gameState.phase,
+          targetCanShoot: target ? !!target.canShoot : false,
+          isSheriffDead: target ? room.gameState.sheriffPlayerId === target.id : false
+        });
+      }
+    });
+
+    // 10.6. 法官直接裁判淘汰违规玩家
+    socket.on('god_judge_eliminate', ({ roomCode, targetPlayerId, reason }, callback) => {
+      const room = rooms.get(roomCode || currentRoomCode);
+      if (!room || room.hostId !== currentPlayerId) return;
+
+      const p = room.players.get(targetPlayerId);
+      if (p) {
+        p.isAlive = false;
+        p.eliminateReason = reason || '裁判裁决淘汰';
+      }
+
+      const winResult = checkGameWinner(room);
+      if (winResult) {
+        room.gameState.phase = 'GAME_OVER';
+        room.gameState.winnerTeam = winResult.winnerTeam;
+        room.gameState.winnerRole = winResult.winnerRole;
+      }
+
+      broadcastRoom(werewolfIo, room);
+      if (typeof callback === 'function') callback({ success: true, phase: room.gameState.phase });
+    });
+
+    // 11. 法官裁判强制终局
+    socket.on('god_force_end', ({ roomCode, winnerTeam }, callback) => {
+      const room = rooms.get(roomCode || currentRoomCode);
+      if (!room || room.hostId !== currentPlayerId) return;
+
+      room.gameState.phase = 'GAME_OVER';
+      room.gameState.winnerTeam = winnerTeam || 'TIE';
+      room.gameState.winnerRole = '法官裁决强制终局';
+
+      broadcastRoom(werewolfIo, room);
+      if (typeof callback === 'function') callback({ success: true });
+    });
+
+    // 12. 重新发牌洗牌
+    socket.on('god_redeal', ({ roomCode }, callback) => {
+      const room = rooms.get(roomCode || currentRoomCode);
+      if (!room || room.hostId !== currentPlayerId) return;
+
+      startGame(werewolfIo, room);
+      if (typeof callback === 'function') callback({ success: true });
+    });
+
+    // 13. 进入下一夜 (白天讨论或投票结束后手动进入下一夜)
+    socket.on('god_enter_next_night', ({ roomCode }, callback) => {
+      const room = rooms.get(roomCode || currentRoomCode);
+      if (!room || room.hostId !== currentPlayerId) return;
+
+      room.gameState.round++;
+      room.gameState.phase = 'NIGHT';
+      room.gameState.activeNightStep = 'NIGHT_FALL';
+      room.gameState.currentSpeechScript = getGodPrompterScript(room, 'NIGHT_FALL');
+      room.gameState.stepHistory = [];
+      room.gameState.nightRecord = {
+        guardTarget: null,
+        lastGuardedTarget: room.gameState.nightRecord.lastGuardedTarget,
+        wolfTarget: null,
+        witchSaveUsed: room.gameState.nightRecord.witchSaveUsed,
+        witchPoisonUsed: room.gameState.nightRecord.witchPoisonUsed,
+        witchSaveTarget: null,
+        witchPoisonTarget: null,
+        seerTarget: null,
+        seerResult: null
+      };
+      room.gameState.dayRecord = {
+        deadTonight: [],
+        executedToday: null,
+        pkCandidates: [],
+        isPkRound: false
+      };
+
+      broadcastRoom(werewolfIo, room);
+      if (typeof callback === 'function') callback({ success: true });
     });
 
     // 掉线
