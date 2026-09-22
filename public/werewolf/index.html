@@ -37,20 +37,86 @@
 
         <!-- 模式选择 -->
         <div class="mode-switch-group">
-          <label class="mode-radio-btn active" id="btn-mode-onenight">
-            <input type="radio" name="game-mode" value="ONE_NIGHT" checked>
+          <label class="mode-radio-btn" id="btn-mode-onenight">
+            <input type="radio" name="game-mode" value="ONE_NIGHT">
             <div>
-              <div class="mode-name">🌙 一夜终极模式 (推荐)</div>
+              <div class="mode-name">🌙 一夜终极模式</div>
               <div class="mode-tip">5分钟一局 · 3~10人 · 无人出局全程高能</div>
             </div>
           </label>
-          <label class="mode-radio-btn" id="btn-mode-classic">
-            <input type="radio" name="game-mode" value="CLASSIC">
+          <label class="mode-radio-btn active" id="btn-mode-classic">
+            <input type="radio" name="game-mode" value="CLASSIC" checked>
             <div>
-              <div class="mode-name">🐺 经典多夜模式</div>
-              <div class="mode-tip">预女猎白 · 多轮天黑天亮辩论与逐轮放逐</div>
+              <div class="mode-name">🐺 经典多夜 / 线下上帝模式 (推荐)</div>
+              <div class="mode-tip">房主法官大字提词 · 纯手势推进 · 无强制倒计时</div>
             </div>
           </label>
+        </div>
+
+        <!-- 线下上帝模式及板子配置 -->
+        <div id="god-mode-settings-card" class="god-settings-box">
+          <div class="god-settings-header">
+            <label class="checkbox-label">
+              <input type="checkbox" id="setting-is-god-mode" checked>
+              <span class="checkbox-title">⚖️ 开启线下纯手动上帝模式</span>
+            </label>
+            <span class="badge-tag">纯手动·大字提词·防泄密</span>
+          </div>
+          <p class="god-settings-desc">房主担任纯手动法官（不占游戏卡位），全屏大字台词提词卡，零倒计时，专为线下聚会围坐设计。</p>
+
+          <div class="god-rules-grid" id="god-rules-grid">
+            <div class="rule-field">
+              <label>板子预设</label>
+              <select id="setting-board-preset" class="form-select">
+                <option value="9_STANDARD" selected>9人标准预女猎 (3狼3民3神)</option>
+                <option value="6_SIMPLE">6人快速入门 (2狼2民2神)</option>
+                <option value="10_STANDARD">10人守卫预女猎 (3狼3民4神)</option>
+                <option value="12_STANDARD">12人白狼王白痴 (4狼4民4神)</option>
+                <option value="12_GUARD">12人狼王守卫 (4狼4民4神)</option>
+              </select>
+            </div>
+
+            <div class="rule-field">
+              <label>首日警长时序</label>
+              <select id="setting-first-day-sheriff-timing" class="form-select">
+                <option value="BEFORE_DEATH_ANNOUNCE" selected>先竞选警长，再报死讯 (标准竞技)</option>
+                <option value="AFTER_DEATH_ANNOUNCE">先报死讯遗言，再竞选 (娱乐赛制)</option>
+              </select>
+            </div>
+
+            <div class="rule-field">
+              <label>警长制度</label>
+              <select id="setting-has-sheriff" class="form-select">
+                <option value="true" selected>开启警长 (1.5票归票)</option>
+                <option value="false">关闭警长 (普通轮流发言)</option>
+              </select>
+            </div>
+
+            <div class="rule-field">
+              <label>女巫自救</label>
+              <select id="setting-witch-self-save" class="form-select">
+                <option value="FIRST_NIGHT_ONLY" selected>仅第一夜可自救 (标准)</option>
+                <option value="NEVER">全程不可自救 (严谨)</option>
+                <option value="ALWAYS">全程可自救 (娱乐)</option>
+              </select>
+            </div>
+
+            <div class="rule-field">
+              <label>同守同救结算</label>
+              <select id="setting-guard-witch-conflict" class="form-select">
+                <option value="DIE" selected>奶穿死亡 (同守同救死)</option>
+                <option value="SAFE">判定安全 (同守同救活)</option>
+              </select>
+            </div>
+
+            <div class="rule-field">
+              <label>胜利条件</label>
+              <select id="setting-win-condition" class="form-select">
+                <option value="KILL_SIDE" selected>屠边 (杀光神职或村民)</option>
+                <option value="KILL_ALL">屠城 (杀光所有好人)</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <!-- 个人名片设定 -->
@@ -84,6 +150,69 @@
         <div class="phase-title" id="phase-title">🌙 准备阶段</div>
         <div class="phase-desc" id="phase-desc">等待玩家加入...</div>
         <div class="phase-timer hidden" id="phase-timer">--s</div>
+      </div>
+
+      <!-- 上帝专属全知总控台 -->
+      <div id="god-console-zone" class="god-console-container hidden">
+        <!-- 上帝顶栏状态与控制 -->
+        <div class="god-top-bar">
+          <div class="god-status-pill">
+            <span id="god-wakelock-badge" class="wakelock-badge">🟢 屏幕常亮保活</span>
+            <span id="god-round-badge" class="round-badge">第 1 轮</span>
+            <span id="god-phase-badge" class="phase-badge">🌙 天黑请闭眼</span>
+          </div>
+          <div class="god-top-actions">
+            <button id="btn-god-prev-step" class="btn btn-warning btn-sm" title="撤回上一步">⏪ 上一步</button>
+            <button id="btn-god-referee-toggle" class="btn btn-secondary btn-sm" title="裁判特权">⚖️ 裁判特权</button>
+          </div>
+        </div>
+
+        <!-- 空唤防泄密横幅 (神职阵亡时触发) -->
+        <div id="god-fake-call-banner" class="fake-call-banner hidden">
+          ⚠️ 【空唤防泄密提示】该角色已阵亡！请法官照常大声念白，并在心中默数 3~5 秒后手动点击下一步，严防线下泄密！
+        </div>
+
+        <!-- 上帝大字台词提词卡 -->
+        <div class="god-prompter-card">
+          <div class="prompter-title">📢 主持大字念白提词卡 (纯手动节奏控制)</div>
+          <div id="god-prompter-text" class="prompter-script">天黑请闭眼。请所有玩家低下头，闭上双眼，不要发出任何声音。</div>
+        </div>
+
+        <!-- 预言家即时验人反馈大字卡片 -->
+        <div id="god-seer-feedback-card" class="seer-feedback-card hidden">
+          <div class="feedback-title">🔮 查验结果即时反馈 (仅上帝可见)</div>
+          <div id="god-seer-feedback-text" class="feedback-result">--</div>
+        </div>
+
+        <!-- 上帝操作工作台 -->
+        <div id="god-actions-workbench" class="god-actions-workbench"></div>
+
+        <!-- 上帝全知座次大盘 -->
+        <div class="god-seat-overview">
+          <div class="section-title" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>👁️ 全知物理座次大盘 (1~N号玩家底牌一览)</span>
+            <small style="color: #94a3b8;">点击存活玩家卡片可设为发言人</small>
+          </div>
+          <div id="god-seat-matrix" class="god-seat-matrix"></div>
+        </div>
+      </div>
+
+      <!-- 普通玩家在上帝模式下的极暗防窥界面 -->
+      <div id="player-offline-zone" class="player-offline-container hidden">
+        <div class="offline-seat-box">
+          <div class="seat-label">你的物理座位号</div>
+          <div class="seat-number" id="player-offline-seat">-- 号</div>
+          <div id="player-offline-sheriff-badge" class="badge-pill hidden">🏅 现任警长</div>
+          <div id="player-offline-status-text" class="status-pill alive">🟢 存活中</div>
+        </div>
+
+        <div class="offline-alert-box">
+          <div class="alert-icon">⚠️</div>
+          <div class="alert-content">
+            <div class="alert-title">本局为线下面对面纯手势对决</div>
+            <div class="alert-text">请看清自己的底牌后立即扣下手机。夜间一切行动请听从法官大字念白口令闭眼、举手示意。手机已全程静音无震动。</div>
+          </div>
+        </div>
       </div>
 
       <!-- 中间游戏区域: 玩家座位网格 -->
@@ -256,6 +385,117 @@
         <div class="modal-footer" style="display: flex; gap: 10px;">
           <button id="btn-settle-leave" class="btn btn-secondary" style="flex: 1;">🚪 退出房间</button>
           <button id="btn-play-again" class="btn btn-gold btn-lg" style="flex: 1.5;">再来一局</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 弹窗: 警长出局强制阻断移交/撕毁警徽 -->
+    <div id="modal-badge-transfer" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>🏅 警长出局 · 警徽流转决定</h3>
+        </div>
+        <div class="modal-body">
+          <p style="margin-bottom:12px; color:#e2e8f0;">警长已阵亡出局！线下询问警长是否移交警徽：</p>
+          <div class="form-group" style="margin-bottom:16px;">
+            <label style="display:block; margin-bottom:6px; font-size:13px; color:#94a3b8;">选择继任警长的存活玩家:</label>
+            <select id="select-badge-successor" class="form-select"></select>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <button id="btn-transfer-badge" class="btn btn-gold" style="flex:1;">🏅 移交警徽</button>
+            <button id="btn-tear-badge" class="btn btn-danger" style="flex:1;">🔥 撕毁警徽 (无警长)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 弹窗: 猎人/狼王出局开枪带人 -->
+    <div id="modal-shoot-kill" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 id="shoot-kill-title">🔫 开枪带人技能发动</h3>
+        </div>
+        <div class="modal-body">
+          <p id="shoot-kill-prompt" style="margin-bottom:12px; color:#e2e8f0;">玩家出局可发动开枪带人技能，请询问线下目标：</p>
+          <div class="form-group" style="margin-bottom:16px;">
+            <label style="display:block; margin-bottom:6px; font-size:13px; color:#94a3b8;">选择被击杀带走的存活玩家:</label>
+            <select id="select-shoot-target" class="form-select"></select>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <button id="btn-confirm-shoot" class="btn btn-danger" style="flex:1;">🔫 开枪带走</button>
+            <button id="btn-cancel-shoot" class="btn btn-secondary" style="flex:1;">不发动 (压枪)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 弹窗: 狼人自爆 / 白狼王自爆 -->
+    <div id="modal-wolf-explode" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>💥 狼人自爆裁决</h3>
+          <button class="modal-close" id="btn-close-explode">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group" style="margin-bottom:12px;">
+            <label style="display:block; margin-bottom:6px; font-size:13px; color:#94a3b8;">选择自爆的狼人:</label>
+            <select id="select-explode-wolf" class="form-select"></select>
+          </div>
+          <div class="form-group" id="group-white-wolf-victim" style="margin-bottom:16px;">
+            <label style="display:block; margin-bottom:6px; font-size:13px; color:#94a3b8;">若为白狼王自爆，选择带走的玩家 (普通狼请选不带人):</label>
+            <select id="select-explode-victim" class="form-select">
+              <option value="">-- 普通狼自爆 (不带人，直接入夜) --</option>
+            </select>
+          </div>
+          <button id="btn-confirm-explode" class="btn btn-danger btn-lg" style="width:100%;">💥 确认自爆并强制入夜</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 弹窗: 平票 PK 候选人发起 -->
+    <div id="modal-pk-setup" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>⚖️ 发起平票 PK 轮</h3>
+          <button class="modal-close" id="btn-close-pk">✕</button>
+        </div>
+        <div class="modal-body">
+          <p style="margin-bottom:10px; font-size:13px; color:#94a3b8;">请勾选参与平票 PK 发言的玩家 (至少2人):</p>
+          <div id="pk-candidates-checkboxes" class="checkbox-list-box"></div>
+          <button id="btn-confirm-pk" class="btn btn-primary btn-lg" style="width:100%; margin-top:16px;">进入平票 PK 发言</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 弹窗: 裁判特权面板 -->
+    <div id="modal-referee" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>⚖️ 法官裁判特权控制台</h3>
+          <button class="modal-close" id="btn-close-referee">✕</button>
+        </div>
+        <div class="modal-body">
+          <div style="margin-bottom:16px;">
+            <div style="font-weight:700; margin-bottom:8px; color:#fbbf24;">1. 违规出局判定</div>
+            <div style="display:flex; gap:8px;">
+              <select id="select-referee-eliminate-player" class="form-select" style="flex:1.2;"></select>
+              <button id="btn-referee-eliminate" class="btn btn-warning" style="flex:1;">判处淘汰</button>
+            </div>
+          </div>
+
+          <div style="margin-bottom:16px;">
+            <div style="font-weight:700; margin-bottom:8px; color:#f87171;">2. 强制终局裁决 (不可撤销)</div>
+            <div style="display:flex; gap:8px;">
+              <button id="btn-force-end-villagers" class="btn btn-secondary" style="flex:1;">好人胜利</button>
+              <button id="btn-force-end-wolves" class="btn btn-danger" style="flex:1;">狼人胜利</button>
+              <button id="btn-force-end-tie" class="btn btn-secondary" style="flex:1;">平局</button>
+            </div>
+          </div>
+
+          <div>
+            <div style="font-weight:700; margin-bottom:8px; color:#a78bfa;">3. 重新洗牌与发牌</div>
+            <button id="btn-referee-redeal" class="btn btn-secondary" style="width:100%;">🎴 重新随机洗牌发牌</button>
+          </div>
         </div>
       </div>
     </div>

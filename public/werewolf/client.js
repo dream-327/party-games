@@ -113,6 +113,91 @@
   const settleCenterCards = document.getElementById('settle-center-cards');
   const btnPlayAgain = document.getElementById('btn-play-again');
 
+  // 上帝模式与规则设置元素
+  const godSettingsCard = document.getElementById('god-mode-settings-card');
+  const settingIsGodMode = document.getElementById('setting-is-god-mode');
+  const settingBoardPreset = document.getElementById('setting-board-preset');
+  const settingFirstDaySheriffTiming = document.getElementById('setting-first-day-sheriff-timing');
+  const settingHasSheriff = document.getElementById('setting-has-sheriff');
+  const settingWitchSelfSave = document.getElementById('setting-witch-self-save');
+  const settingGuardWitchConflict = document.getElementById('setting-guard-witch-conflict');
+  const settingWinCondition = document.getElementById('setting-win-condition');
+
+  // 上帝总控台元素
+  const godConsoleZone = document.getElementById('god-console-zone');
+  const godWakelockBadge = document.getElementById('god-wakelock-badge');
+  const godRoundBadge = document.getElementById('god-round-badge');
+  const godPhaseBadge = document.getElementById('god-phase-badge');
+  const btnGodPrevStep = document.getElementById('btn-god-prev-step');
+  const btnGodRefereeToggle = document.getElementById('btn-god-referee-toggle');
+  const godFakeCallBanner = document.getElementById('god-fake-call-banner');
+  const godPrompterText = document.getElementById('god-prompter-text');
+  const godSeerFeedbackCard = document.getElementById('god-seer-feedback-card');
+  const godSeerFeedbackText = document.getElementById('god-seer-feedback-text');
+  const godActionsWorkbench = document.getElementById('god-actions-workbench');
+  const godSeatMatrix = document.getElementById('god-seat-matrix');
+
+  // 普通玩家线下界面元素
+  const playerOfflineZone = document.getElementById('player-offline-zone');
+  const playerOfflineSeat = document.getElementById('player-offline-seat');
+  const playerOfflineSheriffBadge = document.getElementById('player-offline-sheriff-badge');
+  const playerOfflineStatusText = document.getElementById('player-offline-status-text');
+
+  // 新增弹窗
+  const modalBadgeTransfer = document.getElementById('modal-badge-transfer');
+  const selectBadgeSuccessor = document.getElementById('select-badge-successor');
+  const btnTransferBadge = document.getElementById('btn-transfer-badge');
+  const btnTearBadge = document.getElementById('btn-tear-badge');
+
+  const modalShootKill = document.getElementById('modal-shoot-kill');
+  const shootKillTitle = document.getElementById('shoot-kill-title');
+  const shootKillPrompt = document.getElementById('shoot-kill-prompt');
+  const selectShootTarget = document.getElementById('select-shoot-target');
+  const btnConfirmShoot = document.getElementById('btn-confirm-shoot');
+  const btnCancelShoot = document.getElementById('btn-cancel-shoot');
+
+  const modalWolfExplode = document.getElementById('modal-wolf-explode');
+  const btnCloseExplode = document.getElementById('btn-close-explode');
+  const selectExplodeWolf = document.getElementById('select-explode-wolf');
+  const selectExplodeVictim = document.getElementById('select-explode-victim');
+  const btnConfirmExplode = document.getElementById('btn-confirm-explode');
+
+  const modalPkSetup = document.getElementById('modal-pk-setup');
+  const btnClosePk = document.getElementById('btn-close-pk');
+  const pkCandidatesCheckboxes = document.getElementById('pk-candidates-checkboxes');
+  const btnConfirmPk = document.getElementById('btn-confirm-pk');
+
+  const modalReferee = document.getElementById('modal-referee');
+  const btnCloseReferee = document.getElementById('btn-close-referee');
+  const selectRefereeEliminatePlayer = document.getElementById('select-referee-eliminate-player');
+  const btnRefereeEliminate = document.getElementById('btn-referee-eliminate');
+  const btnForceEndVillagers = document.getElementById('btn-force-end-villagers');
+  const btnForceEndWolves = document.getElementById('btn-force-end-wolves');
+  const btnForceEndTie = document.getElementById('btn-force-end-tie');
+  const btnRefereeRedeal = document.getElementById('btn-referee-redeal');
+
+  // 屏幕常亮 Screen Wake Lock API
+  let wakeLock = null;
+  async function requestWakeLock() {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLock = await navigator.wakeLock.request('screen');
+        if (godWakelockBadge) godWakelockBadge.textContent = '🟢 屏幕常亮保活';
+        wakeLock.addEventListener('release', () => {
+          wakeLock = null;
+          if (godWakelockBadge) godWakelockBadge.textContent = '⚪ 常亮已休眠';
+        });
+      }
+    } catch (e) {
+      console.log('Wake Lock request error:', e);
+    }
+  }
+  document.addEventListener('visibilitychange', async () => {
+    if (wakeLock !== null && document.visibilityState === 'visible') {
+      await requestWakeLock();
+    }
+  });
+
   function showToast(msg, duration = 2800) {
     const t = document.createElement('div');
     t.className = 'toast-box';
@@ -162,13 +247,22 @@
       btnModeOneNight.classList.add('active');
       btnModeClassic.classList.remove('active');
       btnModeOneNight.querySelector('input').checked = true;
+      if (godSettingsCard) godSettingsCard.classList.add('hidden');
     });
 
     btnModeClassic.addEventListener('click', () => {
       btnModeClassic.classList.add('active');
       btnModeOneNight.classList.remove('active');
       btnModeClassic.querySelector('input').checked = true;
+      if (godSettingsCard) godSettingsCard.classList.remove('hidden');
     });
+
+    if (settingIsGodMode) {
+      settingIsGodMode.addEventListener('change', () => {
+        const grid = document.getElementById('god-rules-grid');
+        if (grid) grid.style.display = settingIsGodMode.checked ? 'grid' : 'none';
+      });
+    }
   }
 
   // 3D 防窥翻牌绑定 (手指长按或点击翻看，松开自动合上)
@@ -205,12 +299,21 @@
   // 渲染房间主状态
   function renderRoom(room) {
     currentRoom = room;
+    if (room && room.code) {
+      localStorage.setItem('werewolf_room_code', room.code);
+    }
+    requestWakeLock();
 
     viewHome.classList.add('hidden');
     viewGame.classList.remove('hidden');
     if (btnLeaveRoom) btnLeaveRoom.classList.remove('hidden');
 
-    modeTag.textContent = room.settings.mode === 'ONE_NIGHT' ? '🌙 一夜终极模式' : '🐺 经典多夜模式';
+    const isGodMode = !!(room.settings && room.settings.isGodMode);
+    const isGod = !!(room.myPlayer && room.myPlayer.isGod);
+
+    modeTag.textContent = room.settings.mode === 'ONE_NIGHT' 
+      ? '🌙 一夜终极模式' 
+      : (isGodMode ? '⚖️ 线下上帝模式' : '🐺 经典多夜模式');
     roomCodeBadge.textContent = `房号: ${room.code}`;
     playersCountNum.textContent = room.players.length;
 
@@ -225,25 +328,61 @@
       }
     } else {
       myRoleIcon.textContent = '❓';
-      myRoleName.textContent = '等待发牌';
-      myRoleTeam.textContent = '身份保密';
-      myRoleDesc.textContent = '长按翻牌可防偷窥查看自己的身份。';
+      myRoleName.textContent = isGod ? '法官/上帝' : '等待发牌';
+      myRoleTeam.textContent = isGod ? '中立裁判' : '身份保密';
+      myRoleDesc.textContent = isGod ? '您是本局线下法官，负责掌控全场节奏与提词。' : '长按翻牌可防偷窥查看自己的身份。';
     }
 
     // 2. 阶段横幅与描述
     renderPhaseBanner(room);
 
-    // 3. 渲染玩家列表卡片
+    // 3. 上帝模式 vs 常规模式分支处理
+    const playersZone = document.querySelector('.players-zone');
+    const myRoleZone = document.getElementById('my-role-zone');
+    const actionFooterBar = document.getElementById('action-footer-bar');
+
+    if (isGodMode && room.gameState.phase !== 'LOBBY') {
+      if (isGod) {
+        // 上帝总控台
+        if (godConsoleZone) godConsoleZone.classList.remove('hidden');
+        if (playerOfflineZone) playerOfflineZone.classList.add('hidden');
+        if (playersZone) playersZone.classList.add('hidden');
+        if (centerCardsZone) centerCardsZone.classList.add('hidden');
+        if (myRoleZone) myRoleZone.classList.add('hidden');
+        if (actionFooterBar) actionFooterBar.classList.add('hidden');
+        renderGodConsole(room);
+        return;
+      } else {
+        // 普通参战玩家极暗防窥视角
+        if (godConsoleZone) godConsoleZone.classList.add('hidden');
+        if (playerOfflineZone) playerOfflineZone.classList.remove('hidden');
+        if (playersZone) playersZone.classList.add('hidden');
+        if (centerCardsZone) centerCardsZone.classList.add('hidden');
+        if (myRoleZone) myRoleZone.classList.remove('hidden');
+        if (actionFooterBar) actionFooterBar.classList.add('hidden');
+        renderPlayerOfflineZone(room);
+        return;
+      }
+    }
+
+    // 常规模式或准备大厅
+    if (godConsoleZone) godConsoleZone.classList.add('hidden');
+    if (playerOfflineZone) playerOfflineZone.classList.add('hidden');
+    if (playersZone) playersZone.classList.remove('hidden');
+    if (myRoleZone) myRoleZone.classList.remove('hidden');
+    if (actionFooterBar) actionFooterBar.classList.remove('hidden');
+
+    // 渲染玩家列表卡片
     renderPlayersGrid(room);
 
-    // 4. 一夜模式桌中底牌
+    // 一夜模式桌中底牌
     if (room.settings.mode === 'ONE_NIGHT' && room.gameState.phase !== 'LOBBY') {
       centerCardsZone.classList.remove('hidden');
     } else {
       centerCardsZone.classList.add('hidden');
     }
 
-    // 5. 大厅卡牌配置池预览
+    // 大厅卡牌配置池预览
     if (room.deckPool && room.deckPool.length > 0 && room.gameState.phase === 'LOBBY') {
       if (deckPoolBox && deckPoolCount && deckPoolTags) {
         deckPoolBox.classList.remove('hidden');
@@ -261,8 +400,455 @@
       deckPoolBox.classList.add('hidden');
     }
 
-    // 6. 操作控制面板
+    // 操作控制面板
     renderControls(room);
+  }
+
+  let currentShooterId = null;
+
+  // 上帝总控台渲染
+  function renderGodConsole(room) {
+    if (!godConsoleZone) return;
+
+    if (godRoundBadge) godRoundBadge.textContent = `第 ${room.gameState.round || 1} 轮`;
+    const phaseNames = {
+      'LOBBY': '🏕️ 大厅组局',
+      'NIGHT': '🌙 夜间巡查',
+      'DAY_SHERIFF': '🏅 警长竞选',
+      'DAY_DEATH_ANNOUNCE': '📢 宣读死讯',
+      'DAY_DISCUSS': '🗣️ 白天讨论',
+      'DAY_VOTING': '⚖️ 举手投票',
+      'DAY_PK_DISCUSS': '⚔️ 平票PK陈词',
+      'DAY_PK_VOTE': '🗳️ PK二次投票',
+      'DAY_PEACE_DAY': '🕊️ 平安日',
+      'GAME_OVER': '🎉 游戏结算'
+    };
+    if (godPhaseBadge) {
+      godPhaseBadge.textContent = phaseNames[room.gameState.phase] || room.gameState.phase;
+    }
+
+    if (godFakeCallBanner) {
+      if (room.gameState.isDeadFakeCall) {
+        godFakeCallBanner.classList.remove('hidden');
+      } else {
+        godFakeCallBanner.classList.add('hidden');
+      }
+    }
+
+    if (godPrompterText) {
+      godPrompterText.textContent = room.gameState.currentSpeechScript || '请主持线下对局推进...';
+    }
+
+    renderGodWorkbench(room);
+    renderGodSeatMatrix(room);
+  }
+
+  // 普通玩家极暗防窥界面
+  function renderPlayerOfflineZone(room) {
+    if (!playerOfflineZone) return;
+    if (playerOfflineSeat) {
+      playerOfflineSeat.textContent = `${room.myPlayer && room.myPlayer.seatNumber ? room.myPlayer.seatNumber : '?'} 号`;
+    }
+    if (playerOfflineSheriffBadge) {
+      if (room.myPlayer && room.myPlayer.isSheriff) {
+        playerOfflineSheriffBadge.classList.remove('hidden');
+      } else {
+        playerOfflineSheriffBadge.classList.add('hidden');
+      }
+    }
+    if (playerOfflineStatusText) {
+      if (!room.myPlayer || !room.myPlayer.isAlive) {
+        playerOfflineStatusText.className = 'status-pill dead';
+        playerOfflineStatusText.textContent = '☠️ 已出局';
+      } else if (room.myPlayer.isImmuneExiled) {
+        playerOfflineStatusText.className = 'status-pill alive';
+        playerOfflineStatusText.textContent = '🃏 翻牌免死 (保留发言权，失去投票权)';
+      } else {
+        playerOfflineStatusText.className = 'status-pill alive';
+        playerOfflineStatusText.textContent = '🟢 存活中';
+      }
+    }
+  }
+
+  // 上帝实时操作工作台
+  function renderGodWorkbench(room) {
+    if (!godActionsWorkbench) return;
+    godActionsWorkbench.innerHTML = '';
+    const phase = room.gameState.phase;
+    const nightStep = room.gameState.activeNightStep;
+    const playing = room.players.filter(p => p.id !== room.hostId);
+    const alivePlayers = playing.filter(p => p.isAlive);
+
+    const stepBox = document.createElement('div');
+    stepBox.className = 'god-workbench-step';
+
+    if (phase === 'NIGHT') {
+      if (nightStep === 'NIGHT_FALL') {
+        stepBox.innerHTML = `
+          <div class="workbench-instruction">入夜念白完成，点击唤醒角色行动：</div>
+          <button id="btn-god-wb-next" class="workbench-btn btn btn-gold btn-lg">唤醒角色行动 ➜</button>
+        `;
+        godActionsWorkbench.appendChild(stepBox);
+        document.getElementById('btn-god-wb-next').onclick = () => {
+          socket.emit('god_night_step', { roomCode: room.code, step: 'NIGHT_FALL' });
+        };
+      } else if (nightStep === 'GUARD') {
+        let opts = `<option value="">-- 空守 (不守护任何人) --</option>`;
+        alivePlayers.forEach(p => {
+          opts += `<option value="${p.id}">${p.seatNumber}号 [${p.name}]</option>`;
+        });
+        stepBox.innerHTML = `
+          <div class="workbench-instruction">守卫示意守护目标：</div>
+          <div class="workbench-selector-group">
+            <select id="select-god-guard" class="form-select">${opts}</select>
+            <button id="btn-god-wb-guard" class="workbench-btn btn btn-primary btn-lg">守卫闭眼，下一角色 ➜</button>
+          </div>
+        `;
+        godActionsWorkbench.appendChild(stepBox);
+        document.getElementById('btn-god-wb-guard').onclick = () => {
+          const targetId = document.getElementById('select-god-guard').value || null;
+          socket.emit('god_night_step', { roomCode: room.code, step: 'GUARD', actionData: { targetId } });
+        };
+      } else if (nightStep === 'WEREWOLF') {
+        let opts = `<option value="">-- 空刀 (今晚不杀人) --</option>`;
+        alivePlayers.forEach(p => {
+          opts += `<option value="${p.id}">${p.seatNumber}号 [${p.name}]</option>`;
+        });
+        stepBox.innerHTML = `
+          <div class="workbench-instruction">狼人商议示意击杀目标：</div>
+          <div class="workbench-selector-group">
+            <select id="select-god-wolf" class="form-select">${opts}</select>
+            <button id="btn-god-wb-wolf" class="workbench-btn btn btn-danger btn-lg">狼人闭眼，下一角色 ➜</button>
+          </div>
+        `;
+        godActionsWorkbench.appendChild(stepBox);
+        document.getElementById('btn-god-wb-wolf').onclick = () => {
+          const targetId = document.getElementById('select-god-wolf').value || null;
+          socket.emit('god_night_step', { roomCode: room.code, step: 'WEREWOLF', actionData: { targetId } });
+        };
+      } else if (nightStep === 'WITCH') {
+        const wolfTargetId = room.gameState.nightRecord && room.gameState.nightRecord.wolfTarget;
+        const wolfTargetPlayer = wolfTargetId ? playing.find(p => p.id === wolfTargetId) : null;
+        let poisonOpts = `<option value="">-- 不使用毒药 --</option>`;
+        alivePlayers.forEach(p => {
+          poisonOpts += `<option value="${p.id}">${p.seatNumber}号 [${p.name}]</option>`;
+        });
+        stepBox.innerHTML = `
+          <div class="workbench-instruction">女巫用药决策：</div>
+          <div style="font-size:13px; color:#fbbf24; margin-bottom:6px;">
+            ${wolfTargetPlayer ? `今晚中刀玩家: ${wolfTargetPlayer.seatNumber}号 [${wolfTargetPlayer.name}]` : '今晚无人中刀 (平安或空刀)'}
+          </div>
+          <div class="workbench-selector-group">
+            <label style="font-size:12px; color:#94a3b8;">解药使用:</label>
+            <select id="select-god-witch-save" class="form-select">
+              <option value="">-- 不使用解药 --</option>
+              ${wolfTargetPlayer ? `<option value="${wolfTargetPlayer.id}">使用解药救 ${wolfTargetPlayer.seatNumber}号</option>` : ''}
+            </select>
+            <label style="font-size:12px; color:#94a3b8; margin-top:4px;">毒药使用:</label>
+            <select id="select-god-witch-poison" class="form-select">${poisonOpts}</select>
+            <button id="btn-god-wb-witch" class="workbench-btn btn btn-primary btn-lg" style="margin-top:6px;">女巫闭眼，下一角色 ➜</button>
+          </div>
+        `;
+        godActionsWorkbench.appendChild(stepBox);
+        document.getElementById('btn-god-wb-witch').onclick = () => {
+          const saveTarget = document.getElementById('select-god-witch-save').value || null;
+          const poisonTarget = document.getElementById('select-god-witch-poison').value || null;
+          socket.emit('god_night_step', {
+            roomCode: room.code,
+            step: 'WITCH',
+            actionData: { saveTarget, poisonTarget }
+          });
+        };
+      } else if (nightStep === 'SEER') {
+        let seerOpts = ``;
+        alivePlayers.forEach(p => {
+          seerOpts += `<option value="${p.id}">${p.seatNumber}号 [${p.name}]</option>`;
+        });
+        stepBox.innerHTML = `
+          <div class="workbench-instruction">预言家查验目标：</div>
+          <div class="workbench-selector-group">
+            <select id="select-god-seer" class="form-select">${seerOpts}</select>
+            <button id="btn-god-wb-seer" class="workbench-btn btn btn-primary btn-lg">查验目标身份 ➜</button>
+          </div>
+        `;
+        godActionsWorkbench.appendChild(stepBox);
+        document.getElementById('btn-god-wb-seer').onclick = () => {
+          const targetId = document.getElementById('select-god-seer').value;
+          socket.emit('god_night_step', { roomCode: room.code, step: 'SEER', actionData: { targetId } }, (res) => {
+            if (res && res.success && res.roleName) {
+              if (godSeerFeedbackCard && godSeerFeedbackText) {
+                godSeerFeedbackCard.classList.remove('hidden');
+                godSeerFeedbackText.innerHTML = res.isWolf 
+                  ? `<span style="color:#ef4444;">查杀 🔴 【狼人阵营】</span>`
+                  : `<span style="color:#10b981;">金水 🟢 【好人阵营】</span>`;
+              }
+            }
+          });
+        };
+      } else if (nightStep === 'NIGHT_END') {
+        stepBox.innerHTML = `
+          <div class="workbench-instruction">夜间行动全部完毕，确认核对后点击天亮结算：</div>
+          <button id="btn-god-wb-dawn" class="workbench-btn btn btn-gold btn-lg">☀️ 天亮了，自动死伤结算 ➜</button>
+        `;
+        godActionsWorkbench.appendChild(stepBox);
+        document.getElementById('btn-god-wb-dawn').onclick = () => {
+          if (godSeerFeedbackCard) godSeerFeedbackCard.classList.add('hidden');
+          socket.emit('god_announce_dawn', { roomCode: room.code });
+        };
+      }
+    } else if (phase === 'DAY_SHERIFF') {
+      let sheriffOpts = ``;
+      alivePlayers.forEach(p => {
+        sheriffOpts += `<option value="${p.id}">${p.seatNumber}号 [${p.name}]</option>`;
+      });
+      stepBox.innerHTML = `
+        <div class="workbench-instruction">线下投票完成，选择当选警长的玩家：</div>
+        <div class="workbench-selector-group">
+          <select id="select-god-sheriff" class="form-select">${sheriffOpts}</select>
+          <div class="workbench-buttons-row">
+            <button id="btn-god-wb-badge" class="workbench-btn btn btn-gold">授予警徽 🏅</button>
+            <button id="btn-god-wb-skip-sheriff" class="workbench-btn btn btn-secondary">无人竞选 / 跳过</button>
+          </div>
+        </div>
+      `;
+      godActionsWorkbench.appendChild(stepBox);
+      document.getElementById('btn-god-wb-badge').onclick = () => {
+        const targetId = document.getElementById('select-god-sheriff').value;
+        socket.emit('god_sheriff_action', { roomCode: room.code, action: 'elect_badge', targetId });
+      };
+      document.getElementById('btn-god-wb-skip-sheriff').onclick = () => {
+        socket.emit('god_sheriff_action', { roomCode: room.code, action: 'skip' });
+      };
+    } else if (phase === 'DAY_DEATH_ANNOUNCE') {
+      const deadTonight = (room.gameState.dayRecord && room.gameState.dayRecord.deadTonight) || [];
+      let deadHtml = '';
+      if (deadTonight.length === 0) {
+        deadHtml = `<div style="color:#10b981; font-weight:700; margin-bottom:8px;">昨夜为：平安夜（无人死亡）</div>`;
+      } else {
+        deadHtml = `<div style="color:#ef4444; font-weight:700; margin-bottom:8px;">昨夜出局：` + 
+          deadTonight.map(p => `${p.seatNumber}号 [${p.name}]${p.canShoot ? ' 🔫(可开枪)' : ''}`).join('、') + `</div>`;
+      }
+      const canShootPlayer = deadTonight.find(p => p.canShoot);
+      stepBox.innerHTML = `
+        <div class="workbench-instruction">死讯公告与遗言阶段：</div>
+        ${deadHtml}
+        <div class="workbench-buttons-row">
+          ${canShootPlayer ? `<button id="btn-god-wb-trigger-shoot" class="workbench-btn btn btn-danger">🔫 ${canShootPlayer.seatNumber}号开枪带人</button>` : ''}
+          <button id="btn-god-wb-confirm-death" class="workbench-btn btn btn-primary btn-lg">死讯公告完毕，进入发言 ➜</button>
+        </div>
+      `;
+      godActionsWorkbench.appendChild(stepBox);
+      if (canShootPlayer) {
+        document.getElementById('btn-god-wb-trigger-shoot').onclick = () => {
+          openShootModal(canShootPlayer.id, `${canShootPlayer.seatNumber}号 [${canShootPlayer.name}]`);
+        };
+      }
+      document.getElementById('btn-god-wb-confirm-death').onclick = () => {
+        socket.emit('god_confirm_death', { roomCode: room.code });
+      };
+    } else if (phase === 'DAY_DISCUSS') {
+      stepBox.innerHTML = `
+        <div class="workbench-instruction">自由发言阶段（点击下方座次可切换当前发言人）：</div>
+        <div class="workbench-buttons-row">
+          <button id="btn-god-wb-explode" class="workbench-btn btn btn-danger">💥 狼人自爆</button>
+          <button id="btn-god-wb-pk" class="workbench-btn btn btn-warning">⚖️ 发起平票PK</button>
+          <button id="btn-god-wb-vote" class="workbench-btn btn btn-primary btn-lg">🗳️ 发言结束，进入投票 ➜</button>
+        </div>
+      `;
+      godActionsWorkbench.appendChild(stepBox);
+      document.getElementById('btn-god-wb-explode').onclick = openWolfExplodeModal;
+      document.getElementById('btn-god-wb-pk').onclick = openPkSetupModal;
+      document.getElementById('btn-god-wb-vote').onclick = () => {
+        socket.emit('god_start_vote', { roomCode: room.code });
+      };
+    } else if (phase === 'DAY_VOTING') {
+      let voteOpts = ``;
+      alivePlayers.forEach(p => {
+        voteOpts += `<option value="${p.id}">${p.seatNumber}号 [${p.name}]</option>`;
+      });
+      stepBox.innerHTML = `
+        <div class="workbench-instruction">线下举手票决统计：</div>
+        <div class="workbench-selector-group">
+          <label style="font-size:12px; color:#cbd5e1;">最高票出局者:</label>
+          <select id="select-god-voted-player" class="form-select">${voteOpts}</select>
+          <div class="workbench-buttons-row">
+            <button id="btn-god-wb-confirm-vote" class="workbench-btn btn btn-danger btn-lg">确认处决该玩家出局 ➜</button>
+            <button id="btn-god-wb-peace-day" class="workbench-btn btn btn-secondary">平票判定平安日 🕊️</button>
+          </div>
+        </div>
+      `;
+      godActionsWorkbench.appendChild(stepBox);
+      document.getElementById('btn-god-wb-confirm-vote').onclick = () => {
+        const targetPlayerId = document.getElementById('select-god-voted-player').value;
+        socket.emit('god_vote_execute', { roomCode: room.code, targetPlayerId }, (res) => {
+          if (res) {
+            if (res.isIdiotImmune) {
+              showToast('🃏 该玩家为白痴，翻牌免死成功！保留发言权，永久失去投票权！');
+            } else if (res.isSheriffDead) {
+              openBadgeTransferModal();
+            } else if (res.canShoot) {
+              openShootModal(targetPlayerId);
+            }
+          }
+        });
+      };
+      document.getElementById('btn-god-wb-peace-day').onclick = () => {
+        socket.emit('god_peace_day', { roomCode: room.code });
+      };
+    } else if (phase === 'DAY_PK_DISCUSS') {
+      stepBox.innerHTML = `
+        <div class="workbench-instruction">平票 PK 陈词进行中：</div>
+        <div class="workbench-buttons-row">
+          <button id="btn-god-wb-start-pk-vote" class="workbench-btn btn btn-primary btn-lg">🗳️ PK发言结束，进入二次投票 ➜</button>
+          <button id="btn-god-wb-peace-day-pk" class="workbench-btn btn btn-secondary">判定平安日 🕊️</button>
+        </div>
+      `;
+      godActionsWorkbench.appendChild(stepBox);
+      document.getElementById('btn-god-wb-start-pk-vote').onclick = () => {
+        socket.emit('god_start_vote', { roomCode: room.code });
+      };
+      document.getElementById('btn-god-wb-peace-day-pk').onclick = () => {
+        socket.emit('god_peace_day', { roomCode: room.code });
+      };
+    } else if (phase === 'DAY_PK_VOTE') {
+      const candidates = (room.gameState.dayRecord && room.gameState.dayRecord.pkCandidates) || [];
+      const candPlayers = playing.filter(p => candidates.includes(p.id) && p.isAlive);
+      let pkOpts = ``;
+      candPlayers.forEach(p => {
+        pkOpts += `<option value="${p.id}">${p.seatNumber}号 [${p.name}]</option>`;
+      });
+      stepBox.innerHTML = `
+        <div class="workbench-instruction">二次投票统计：</div>
+        <div class="workbench-selector-group">
+          <select id="select-god-pk-voted" class="form-select">${pkOpts}</select>
+          <div class="workbench-buttons-row">
+            <button id="btn-god-wb-execute-pk-vote" class="workbench-btn btn btn-danger btn-lg">确认处决该玩家 ➜</button>
+            <button id="btn-god-wb-pk-peace" class="workbench-btn btn btn-secondary">再次平票判定平安日 🕊️</button>
+          </div>
+        </div>
+      `;
+      godActionsWorkbench.appendChild(stepBox);
+      document.getElementById('btn-god-wb-execute-pk-vote').onclick = () => {
+        const targetPlayerId = document.getElementById('select-god-pk-voted').value;
+        socket.emit('god_vote_execute', { roomCode: room.code, targetPlayerId }, (res) => {
+          if (res) {
+            if (res.isIdiotImmune) {
+              showToast('🃏 该玩家为白痴，翻牌免死成功！');
+            } else if (res.isSheriffDead) {
+              openBadgeTransferModal();
+            } else if (res.canShoot) {
+              openShootModal(targetPlayerId);
+            }
+          }
+        });
+      };
+      document.getElementById('btn-god-wb-pk-peace').onclick = () => {
+        socket.emit('god_peace_day', { roomCode: room.code });
+      };
+    } else if (phase === 'DAY_PEACE_DAY' || room.gameState.dayRecord.executedToday) {
+      stepBox.innerHTML = `
+        <div class="workbench-instruction">今日白天流程已全部结束：</div>
+        <button id="btn-god-wb-enter-next-night" class="workbench-btn btn btn-gold btn-lg">🌙 天黑请闭眼，进入下一夜 ➜</button>
+      `;
+      godActionsWorkbench.appendChild(stepBox);
+      document.getElementById('btn-god-wb-enter-next-night').onclick = () => {
+        socket.emit('god_enter_next_night', { roomCode: room.code });
+      };
+    } else if (phase === 'GAME_OVER') {
+      stepBox.innerHTML = `
+        <div class="workbench-instruction" style="color:#fbbf24; font-size:16px;">🎉 对局终结：${room.gameState.winnerRole}</div>
+        <button id="btn-god-wb-redeal" class="workbench-btn btn btn-gold btn-lg">🎴 重新随机洗牌发牌</button>
+      `;
+      godActionsWorkbench.appendChild(stepBox);
+      document.getElementById('btn-god-wb-redeal').onclick = () => {
+        socket.emit('god_redeal', { roomCode: room.code });
+      };
+    }
+  }
+
+  // 上帝全知座次大盘
+  function renderGodSeatMatrix(room) {
+    if (!godSeatMatrix) return;
+    godSeatMatrix.innerHTML = '';
+    const playing = room.players.filter(p => p.id !== room.hostId);
+    const phase = room.gameState.phase;
+
+    playing.forEach(p => {
+      const card = document.createElement('div');
+      const isAlive = p.isAlive;
+      const isSpeaker = room.gameState.currentSpeakerId === p.id;
+      card.className = `god-seat-card ${isAlive ? '' : 'dead'} ${isSpeaker ? 'speaker' : ''}`;
+
+      const roleDef = room.availableRoles[p.initialRole] || { name: p.initialRole || '未知', icon: '❓', team: 'VILLAGER' };
+      const roleTeamClass = (roleDef.team === 'WEREWOLF') ? 'wolf' : (roleDef.team === 'VILLAGER' && ['SEER', 'WITCH', 'HUNTER', 'GUARD', 'IDIOT'].includes(p.initialRole) ? 'god' : 'villager');
+
+      card.innerHTML = `
+        <div class="god-seat-top">
+          <span class="seat-num-badge">${p.seatNumber}号</span>
+          <span class="seat-player-name">${p.name}</span>
+        </div>
+        <div>
+          <span class="seat-role-pill ${roleTeamClass}">${roleDef.icon} ${roleDef.name}</span>
+        </div>
+        <div class="seat-tags-row">
+          ${p.isSheriff ? '<span class="seat-tag sheriff">🏅 警长</span>' : ''}
+          ${p.canShoot ? '<span class="seat-tag shoot">🔫 可开枪</span>' : ''}
+          ${p.isImmuneExiled ? '<span class="seat-tag idiot">🃏 免死</span>' : ''}
+          ${!isAlive ? '<span class="seat-tag" style="background:#dc2626; color:#fff;">☠️ 出局</span>' : ''}
+        </div>
+      `;
+
+      if (phase === 'DAY_DISCUSS' && isAlive) {
+        card.onclick = () => {
+          socket.emit('god_select_speaker', { roomCode: room.code, playerId: p.id });
+        };
+      }
+
+      godSeatMatrix.appendChild(card);
+    });
+  }
+
+  // 弹窗开启辅助方法
+  function openBadgeTransferModal() {
+    if (!modalBadgeTransfer || !currentRoom) return;
+    const living = currentRoom.players.filter(p => p.id !== currentRoom.hostId && p.isAlive);
+    selectBadgeSuccessor.innerHTML = living.map(p => `<option value="${p.id}">${p.seatNumber}号 [${p.name}]</option>`).join('');
+    modalBadgeTransfer.classList.remove('hidden');
+  }
+
+  function openShootModal(shooterId, shooterName) {
+    if (!modalShootKill || !currentRoom) return;
+    currentShooterId = shooterId;
+    if (shooterName && shootKillPrompt) {
+      shootKillPrompt.textContent = `${shooterName} 可发动出局开枪技能，请询问线下带人目标：`;
+    }
+    const living = currentRoom.players.filter(p => p.id !== currentRoom.hostId && p.isAlive && p.id !== shooterId);
+    selectShootTarget.innerHTML = living.map(p => `<option value="${p.id}">${p.seatNumber}号 [${p.name}]</option>`).join('');
+    modalShootKill.classList.remove('hidden');
+  }
+
+  function openWolfExplodeModal() {
+    if (!modalWolfExplode || !currentRoom) return;
+    const wolves = currentRoom.players.filter(p => p.id !== currentRoom.hostId && p.isAlive && ['WEREWOLF', 'WHITE_WOLF', 'WOLF_KING'].includes(p.initialRole));
+    selectExplodeWolf.innerHTML = wolves.map(p => `<option value="${p.id}">${p.seatNumber}号 [${p.name}] (${p.initialRole === 'WHITE_WOLF' ? '白狼王' : '狼人'})</option>`).join('');
+
+    const others = currentRoom.players.filter(p => p.id !== currentRoom.hostId && p.isAlive);
+    selectExplodeVictim.innerHTML = `<option value="">-- 普通狼自爆 (不带人，直接入夜) --</option>` +
+      others.map(p => `<option value="${p.id}">带走 ${p.seatNumber}号 [${p.name}] (仅白狼王)</option>`).join('');
+
+    modalWolfExplode.classList.remove('hidden');
+  }
+
+  function openPkSetupModal() {
+    if (!modalPkSetup || !currentRoom) return;
+    const living = currentRoom.players.filter(p => p.id !== currentRoom.hostId && p.isAlive);
+    pkCandidatesCheckboxes.innerHTML = living.map(p => `
+      <label class="checkbox-item">
+        <input type="checkbox" value="${p.id}" class="pk-candidate-cb">
+        <span>${p.seatNumber}号 [${p.name}]</span>
+      </label>
+    `).join('');
+    modalPkSetup.classList.remove('hidden');
   }
 
   function renderPhaseBanner(room) {
@@ -469,13 +1055,28 @@
 
   btnCreateRoom.addEventListener('click', () => {
     const selectedMode = document.querySelector('input[name="game-mode"]:checked').value;
+    const isClassic = selectedMode === 'CLASSIC';
+    const isGodMode = isClassic && settingIsGodMode && settingIsGodMode.checked;
+
+    const settings = {
+      isGodMode: !!isGodMode,
+      mode: isClassic ? 'CLASSIC' : 'ONE_NIGHT',
+      boardPreset: settingBoardPreset ? settingBoardPreset.value : '9_STANDARD',
+      firstDaySheriffTiming: settingFirstDaySheriffTiming ? settingFirstDaySheriffTiming.value : 'BEFORE_DEATH_ANNOUNCE',
+      hasSheriff: settingHasSheriff ? settingHasSheriff.value === 'true' : true,
+      witchSelfSave: settingWitchSelfSave ? settingWitchSelfSave.value : 'FIRST_NIGHT_ONLY',
+      guardWitchConflict: settingGuardWitchConflict ? settingGuardWitchConflict.value : 'DIE',
+      winCondition: settingWinCondition ? settingWinCondition.value : 'KILL_SIDE'
+    };
+
     socket.emit('create_room', {
       id: myPlayerId,
       name: myNickname,
-      avatar: myAvatar
+      avatar: myAvatar,
+      settings
     }, (res) => {
       if (res && res.success) {
-        socket.emit('change_mode', selectedMode);
+        localStorage.setItem('werewolf_room_code', res.roomCode);
         window.history.replaceState(null, '', `?room=${res.roomCode}`);
       }
     });
@@ -940,11 +1541,135 @@
     });
   }
 
-  // 自动入房检测
-  const urlParams = new URLSearchParams(window.location.search);
-  const roomParam = urlParams.get('room');
-  if (roomParam && roomParam.length === 4) {
-    roomCodeInput.value = roomParam;
-    joinRoomByCode(roomParam);
+  // 上帝模式顶栏按钮绑定
+  if (btnGodPrevStep) {
+    btnGodPrevStep.onclick = () => {
+      if (currentRoom) {
+        socket.emit('god_night_prev_step', { roomCode: currentRoom.code });
+      }
+    };
+  }
+
+  if (btnGodRefereeToggle) {
+    btnGodRefereeToggle.onclick = () => {
+      if (!currentRoom || !modalReferee) return;
+      const living = currentRoom.players.filter(p => p.id !== currentRoom.hostId && p.isAlive);
+      selectRefereeEliminatePlayer.innerHTML = living.map(p => `<option value="${p.id}">${p.seatNumber}号 [${p.name}]</option>`).join('');
+      modalReferee.classList.remove('hidden');
+    };
+  }
+
+  // 弹窗关闭与动作绑定
+  if (btnCloseExplode) btnCloseExplode.onclick = () => modalWolfExplode.classList.add('hidden');
+  if (btnClosePk) btnClosePk.onclick = () => modalPkSetup.classList.add('hidden');
+  if (btnCloseReferee) btnCloseReferee.onclick = () => modalReferee.classList.add('hidden');
+  if (btnCancelShoot) btnCancelShoot.onclick = () => modalShootKill.classList.add('hidden');
+
+  if (btnTransferBadge) {
+    btnTransferBadge.onclick = () => {
+      if (!currentRoom) return;
+      const targetId = selectBadgeSuccessor.value;
+      socket.emit('god_transfer_badge', { roomCode: currentRoom.code, action: 'transfer', targetId });
+      modalBadgeTransfer.classList.add('hidden');
+    };
+  }
+
+  if (btnTearBadge) {
+    btnTearBadge.onclick = () => {
+      if (!currentRoom) return;
+      socket.emit('god_transfer_badge', { roomCode: currentRoom.code, action: 'tear' });
+      modalBadgeTransfer.classList.add('hidden');
+    };
+  }
+
+  if (btnConfirmShoot) {
+    btnConfirmShoot.onclick = () => {
+      if (!currentRoom || !currentShooterId) return;
+      const targetId = selectShootTarget.value;
+      socket.emit('god_shoot_kill', { roomCode: currentRoom.code, shooterId: currentShooterId, targetId }, (res) => {
+        if (res && res.isSheriffDead) {
+          openBadgeTransferModal();
+        }
+      });
+      modalShootKill.classList.add('hidden');
+    };
+  }
+
+  if (btnConfirmExplode) {
+    btnConfirmExplode.onclick = () => {
+      if (!currentRoom) return;
+      const wolfPlayerId = selectExplodeWolf.value;
+      const targetId = selectExplodeVictim.value || null;
+      socket.emit('god_wolf_explode', { roomCode: currentRoom.code, wolfPlayerId, targetId });
+      modalWolfExplode.classList.add('hidden');
+    };
+  }
+
+  if (btnConfirmPk) {
+    btnConfirmPk.onclick = () => {
+      if (!currentRoom) return;
+      const checkedBoxes = Array.from(document.querySelectorAll('.pk-candidate-cb:checked'));
+      const candidateIds = checkedBoxes.map(cb => cb.value);
+      if (candidateIds.length < 2) {
+        alert('请至少勾选 2 名平票玩家！');
+        return;
+      }
+      socket.emit('god_trigger_pk', { roomCode: currentRoom.code, candidateIds });
+      modalPkSetup.classList.add('hidden');
+    };
+  }
+
+  if (btnRefereeEliminate) {
+    btnRefereeEliminate.onclick = () => {
+      if (!currentRoom) return;
+      const targetPlayerId = selectRefereeEliminatePlayer.value;
+      socket.emit('god_judge_eliminate', { roomCode: currentRoom.code, targetPlayerId, reason: '法官裁判淘汰' });
+      modalReferee.classList.add('hidden');
+    };
+  }
+
+  if (btnForceEndVillagers) {
+    btnForceEndVillagers.onclick = () => {
+      if (!currentRoom) return;
+      socket.emit('god_force_end', { roomCode: currentRoom.code, winnerTeam: 'VILLAGER' });
+      modalReferee.classList.add('hidden');
+    };
+  }
+
+  if (btnForceEndWolves) {
+    btnForceEndWolves.onclick = () => {
+      if (!currentRoom) return;
+      socket.emit('god_force_end', { roomCode: currentRoom.code, winnerTeam: 'WEREWOLF' });
+      modalReferee.classList.add('hidden');
+    };
+  }
+
+  if (btnForceEndTie) {
+    btnForceEndTie.onclick = () => {
+      if (!currentRoom) return;
+      socket.emit('god_force_end', { roomCode: currentRoom.code, winnerTeam: 'TIE' });
+      modalReferee.classList.add('hidden');
+    };
+  }
+
+  if (btnRefereeRedeal) {
+    btnRefereeRedeal.onclick = () => {
+      if (!currentRoom) return;
+      socket.emit('god_redeal', { roomCode: currentRoom.code });
+      modalReferee.classList.add('hidden');
+    };
+  }
+
+  // 自动入房与重连检测
+  const savedRoomCode = new URLSearchParams(window.location.search).get('room') || localStorage.getItem('werewolf_room_code');
+  if (savedRoomCode && myPlayerId) {
+    socket.emit('reconnect_room', {
+      roomCode: savedRoomCode,
+      playerId: myPlayerId
+    }, (res) => {
+      if (res && res.success && res.roomData) {
+        renderRoom(res.roomData);
+      }
+    });
   }
 })();
