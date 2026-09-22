@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>间谍危机 - 聚会游戏盒子</title>
+  <meta name="theme-color" content="#0b0f19">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- ======================================================== -->
+    <!-- 1. 游戏大厅屏幕 (#screen-lobby) -->
+    <!-- ======================================================== -->
+    <section id="screen-lobby" class="screen">
+      <div class="lobby-hero">
+        <h1 class="lobby-title">
+          <span>🕵️‍♂️</span> 间谍危机 (Spyfall)
+        </h1>
+        <p class="lobby-subtitle">暗流涌动 · 隐秘代号 · 心理博弈问答</p>
+      </div>
+
+      <!-- 身份档案设定卡 -->
+      <div class="card-panel">
+        <div class="field-label">
+          <span>🎭</span> 选择特工代号头像
+        </div>
+        <div class="avatar-selector" id="avatar-selector">
+          <div class="avatar-option selected" data-avatar="🤠">🤠</div>
+          <div class="avatar-option" data-avatar="🕵️‍♂️">🕵️‍♂️</div>
+          <div class="avatar-option" data-avatar="🕶️">🕶️</div>
+          <div class="avatar-option" data-avatar="👩‍💼">👩‍💼</div>
+          <div class="avatar-option" data-avatar="👨‍🔬">👨‍🔬</div>
+          <div class="avatar-option" data-avatar="🤖">🤖</div>
+          <div class="avatar-option" data-avatar="🥷">🥷</div>
+          <div class="avatar-option" data-avatar="👮">👮</div>
+          <div class="avatar-option" data-avatar="🧙">🧙</div>
+          <div class="avatar-option" data-avatar="🧑‍🚀">🧑‍🚀</div>
+          <div class="avatar-option" data-avatar="🧕">🧕</div>
+          <div class="avatar-option" data-avatar="🦊">🦊</div>
+        </div>
+
+        <div class="field-label" style="margin-top: 6px;">
+          <span>📝</span> 特工昵称
+        </div>
+        <input type="text" id="input-name" class="input-text" placeholder="输入特工代号/昵称..." maxlength="10">
+      </div>
+
+      <!-- 快速入局 / 创建房间操作区 -->
+      <div class="card-panel">
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <button id="btn-create-room" class="btn btn-primary btn-block">
+            <span>✨</span> 建立绝密行动组 (创建房间)
+          </button>
+
+          <div style="display: flex; gap: 8px; margin-top: 4px;">
+            <input type="text" id="input-room-code" class="input-text" placeholder="4位行动代码..." maxlength="4" style="text-align: center; font-weight: 700; letter-spacing: 2px;">
+            <button id="btn-join-room" class="btn btn-secondary" style="min-width: 110px;">
+              加入行动
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 房间内等待就绪区 (加入/创建后展示) -->
+      <div id="lobby-room-details" class="card-panel" style="display: none;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 13px; color: var(--text-secondary);">行动代码:</span>
+            <span id="lobby-room-code" class="room-code-tag">----</span>
+          </div>
+          <button id="btn-share" class="btn-icon-tag" title="扫码分享房间">
+            <span>📱</span> 邀请特工
+          </button>
+        </div>
+
+        <!-- 局长时长配置 -->
+        <div class="field-label">
+          <span>⏱️</span> 对局问答时长设定
+        </div>
+        <div class="duration-selector" id="select-duration">
+          <div class="duration-option" data-minutes="5">
+            <span class="duration-num">5</span>
+            <span class="duration-unit">分钟</span>
+          </div>
+          <div class="duration-option active" data-minutes="8">
+            <span class="duration-num">8</span>
+            <span class="duration-unit">标准</span>
+          </div>
+          <div class="duration-option" data-minutes="10">
+            <span class="duration-num">10</span>
+            <span class="duration-unit">从容</span>
+          </div>
+          <div class="duration-option" data-minutes="12">
+            <span class="duration-num">12</span>
+            <span class="duration-unit">持久</span>
+          </div>
+        </div>
+
+        <!-- 等待席位名单 -->
+        <div class="field-label" style="margin-top: 14px;">
+          <span>👥</span> 已集结特工列表 (<span id="lobby-player-count">0</span>/12)
+        </div>
+        <div class="player-roster" id="waiting-players">
+          <!-- 动态渲染入座特工 -->
+        </div>
+
+        <div style="margin-top: 16px;">
+          <button id="btn-start-game" class="btn btn-amber btn-block">
+            <span>🚀</span> 开启绝密任务 (至少3人)
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================== -->
+    <!-- 2. 对局主屏幕 (#screen-playing) -->
+    <!-- ======================================================== -->
+    <section id="screen-playing" class="screen hidden">
+      <!-- 顶部特工状态栏 -->
+      <header class="top-header">
+        <div class="header-left">
+          <span class="badge-brand"><span>🕵️</span>行动中</span>
+          <span id="room-code-display" class="room-code-tag">----</span>
+          <span class="online-tag"><span>🟢</span><span id="online-count">0</span>人</span>
+        </div>
+        <div class="header-actions">
+          <button id="btn-wakelock" class="btn-icon-tag" title="屏幕常亮保持">
+            <span>💡</span><span id="wakelock-label">常亮</span>
+          </button>
+          <button id="btn-guide" class="btn-icon-tag" title="查看游戏规则与提问指南">
+            <span>📖</span>指南
+          </button>
+        </div>
+      </header>
+
+      <!-- 核心倒计时看板 -->
+      <div class="timer-panel">
+        <div class="timer-row">
+          <span id="timer-display" class="timer-digits">08:00</span>
+          <span id="timer-badge" class="timer-badge">进行中</span>
+        </div>
+      </div>
+
+      <!-- 绝密身份卡 (Hold-to-Reveal Card 防偷窥设计) -->
+      <div class="secret-card-container">
+        <div id="card-secret" class="card-secret">
+          <!-- 遮罩保护层 (按住解密，松开隐藏) -->
+          <div id="card-secret-cover" class="card-secret-cover">
+            <div class="lock-badge-icon">🔒</div>
+            <div class="cover-prompt">按住查看绝密身份</div>
+            <div class="cover-subprompt">周围如有敌特侦察，松开即刻闭锁</div>
+          </div>
+
+          <!-- 翻开脱敏内容呈现层 -->
+          <div id="card-secret-content" class="card-secret-content">
+            <div id="secret-badge" class="secret-role-badge">特工身份档案</div>
+            <div id="secret-location-title" class="secret-location-title">
+              <span id="secret-location-icon">🏢</span>
+              <span id="secret-location-name">未知地点</span>
+            </div>
+            <div id="secret-role-desc" class="secret-role-desc">
+              角色：<span id="secret-role-name">正在解密中...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 行动指令按钮组 -->
+      <div class="action-grid">
+        <button id="btn-spy-guess" class="btn btn-action" title="间谍主动亮明身份指认地点">
+          <span>🎯</span> 自曝猜地点
+        </button>
+        <button id="btn-accuse" class="btn btn-action" title="平民对嫌疑特工发起紧急指控">
+          <span>🔍</span> 发起指控
+        </button>
+      </div>
+
+      <!-- 交互式候选地点排查板 (Scratchpad) -->
+      <div class="scratchpad-container">
+        <div class="scratchpad-header">
+          <div class="scratchpad-title">
+            <span>🗺️</span> 候选地点情报排查板
+          </div>
+          <div class="scratchpad-hint">
+            点击切换：正常 ➔ 排除 ➔ 标星
+          </div>
+        </div>
+        <div class="scratchpad-grid" id="location-scratchpad">
+          <!-- 由 client.js 动态渲染 16~18 个候选地点卡片 -->
+        </div>
+      </div>
+
+      <!-- 底部玩家席位展示轮播栏 -->
+      <div class="seats-bar" id="seats-bar">
+        <!-- 动态渲染在席特工头像及指控状态 -->
+      </div>
+    </section>
+
+    <!-- ======================================================== -->
+    <!-- 3. 模态弹窗系统 (Modals) -->
+    <!-- ======================================================== -->
+
+    <!-- 弹窗 1: 新手向导与提问技巧弹窗 (#modal-guide) -->
+    <div id="modal-guide" class="modal-overlay">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <div class="modal-title"><span>📖</span> 新手特工问答指南</div>
+          <button class="modal-close" data-close="modal-guide">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="guide-section">
+            <div class="guide-title">🎯 胜负目标</div>
+            <p><strong>平民</strong>：在限定时间内通过口头交流，揪出潜伏的唯一间谍；或防范间谍猜出真实地点。</p>
+            <p><strong>间谍</strong>：隐藏自身不被投票出局，并在对话线索中推断出真实地点。</p>
+          </div>
+
+          <div class="guide-section">
+            <div class="guide-title">🛡️ 平民发问与回答技巧</div>
+            <p><strong>目标</strong>：向同伴暗示你了解地点，同时不给间谍透露关键环境特征！</p>
+            <div class="guide-box bad-example">
+              <strong>❌ 错误示范（太直白）</strong>：<br>
+              在“综合医院”问：“你今天做手术用了几号手术刀？”（间谍秒懂是医院，送分！）
+            </div>
+            <div class="guide-box good-example">
+              <strong>✅ 优秀示范（巧妙暗号）</strong>：<br>
+              在“综合医院”问：“你平时上班进门前有没有闻到特殊的刺激性气味？”或“你平时工作对环境噪音敏感吗？”
+            </div>
+          </div>
+
+          <div class="guide-section">
+            <div class="guide-title">🕵️ 间谍伪装与刺探话术</div>
+            <p><strong>套话心法</strong>：回答尽量“普适通用”、“留有回旋余地”，随风使舵。</p>
+            <div class="guide-box good-example">
+              <strong>被问：“你来这里需要穿制服吗？”</strong><br>
+              伪装回答：“按规矩是有要求的，毕竟在这儿讲究规范。”（无论医院、海盗船还是潜艇均成立）
+            </div>
+            <p style="margin-top: 6px;">当轮到你发问时，借力向刚才回答精妙的平民提问，引诱对方说出更多细节！</p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-primary" data-close="modal-guide">我已掌握要领</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 弹窗 2: 指控与投票表决弹窗 (#modal-accuse) -->
+    <div id="modal-accuse" class="modal-overlay">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <div class="modal-title"><span>🔍</span> 紧急指控与表决</div>
+          <button class="modal-close" data-close="modal-accuse">&times;</button>
+        </div>
+        <div class="modal-body">
+          <!-- 阶段 A: 选择指控嫌疑人 -->
+          <div id="accuse-step-select">
+            <p style="color: var(--text-secondary); margin-bottom: 8px;">
+              每位特工每局仅能发起一次指控。请指定你高度怀疑的间谍目标：
+            </p>
+            <div class="suspect-list" id="suspect-list">
+              <!-- 动态填充非自己玩家 -->
+            </div>
+          </div>
+
+          <!-- 阶段 B: 全员紧急表决投票 -->
+          <div id="accuse-step-vote" style="display: none; text-align: center;">
+            <div style="font-size: 15px; margin-bottom: 12px;">
+              <span id="accuser-name" style="color: var(--color-cyan); font-weight: 700;">---</span>
+              指控
+              <span id="suspect-name" style="color: var(--color-crimson); font-weight: 700;">---</span>
+              为间谍！
+            </div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">
+              除被指控人外需全票赞成，被指控人方可被定罪并翻牌验明身份。
+            </p>
+            <div style="display: flex; gap: 12px; justify-content: center;">
+              <button id="btn-vote-agree" class="btn btn-crimson" style="flex: 1;">
+                <span>👍</span> 赞成指控
+              </button>
+              <button id="btn-vote-disagree" class="btn btn-secondary" style="flex: 1;">
+                <span>👎</span> 反对指控
+              </button>
+            </div>
+            <div id="vote-status-text" style="font-size: 12px; color: var(--color-amber); margin-top: 12px;">
+              表决倒计时...
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" id="accuse-footer-select">
+          <button class="btn btn-secondary" data-close="modal-accuse">取消</button>
+          <button id="btn-confirm-accuse" class="btn btn-crimson" disabled>发起全员公决</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 弹窗 3: 间谍自曝猜地点弹窗 (#modal-guess) -->
+    <div id="modal-guess" class="modal-overlay">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <div class="modal-title"><span>🎯</span> 间谍指认真实地点</div>
+          <button class="modal-close" data-close="modal-guess">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p style="color: var(--color-amber); margin-bottom: 10px; font-weight: 600;">
+            ⚠️ 注意：指认一旦提交立即结算！选对间谍胜，选错平民胜。
+          </p>
+          <div class="guess-grid" id="guess-grid">
+            <!-- 动态填充 16~18 个候选地点 -->
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-close="modal-guess">稍后再猜</button>
+          <button id="btn-confirm-guess" class="btn btn-amber" disabled>确认指认</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 弹窗 4: 游戏结算复盘弹窗 (#modal-settlement) -->
+    <div id="modal-settlement" class="modal-overlay">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <div class="modal-title"><span>🏁</span> 任务结算与档案解密</div>
+        </div>
+        <div class="modal-body">
+          <div class="settlement-banner">
+            <div id="settlement-winner-text" class="settlement-winner spy">间谍获胜！</div>
+            <div id="settlement-reason-text" class="settlement-reason">平民未能查获间谍踪迹</div>
+          </div>
+
+          <div class="card-panel" style="background: rgba(0, 0, 0, 0.3); margin-top: 10px;">
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">真实行动地点</div>
+            <div id="settlement-location" style="font-size: 18px; font-weight: 800; color: #ffffff;">
+              🏢 综合医院
+            </div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-top: 8px; margin-bottom: 4px;">潜伏的间谍</div>
+            <div id="settlement-spy" style="font-size: 16px; font-weight: 700; color: var(--color-amber);">
+              🕵️ 特工小明
+            </div>
+          </div>
+
+          <div class="field-label" style="margin-top: 14px;">
+            <span>📋</span> 全员特工档案揭晓
+          </div>
+          <div class="settlement-cards" id="settlement-players-list">
+            <!-- 动态填充全员底牌与角色 -->
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-restart" class="btn btn-primary btn-block">
+            <span>🔄</span> 开启新一轮对局 (再来一局)
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 脚本引入 -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="sfx.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>
