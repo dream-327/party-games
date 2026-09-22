@@ -9,6 +9,7 @@ const { setupDoudizhu } = require('./games/doudizhu/server');
 const { setupWerewolf } = require('./games/werewolf/server');
 const { setupMahjong } = require('./games/mahjong/server');
 const { setupTrapwords } = require('./games/trapwords/server');
+const { setupSpyfall } = require('./games/spyfall/server');
 
 const app = express();
 const server = http.createServer(app);
@@ -42,6 +43,7 @@ app.use('/doudizhu', express.static(path.join(__dirname, 'public/doudizhu'), noC
 app.use('/werewolf', express.static(path.join(__dirname, 'public/werewolf'), noCacheStaticOptions));
 app.use('/mahjong', express.static(path.join(__dirname, 'public/mahjong'), noCacheStaticOptions));
 app.use('/trapwords', express.static(path.join(__dirname, 'public/trapwords'), noCacheStaticOptions));
+app.use('/spyfall', express.static(path.join(__dirname, 'public/spyfall'), noCacheStaticOptions));
 app.use('/downloads', express.static(path.join(__dirname, 'public/downloads')));
 app.use('/', express.static(path.join(__dirname, 'public/hub'), noCacheStaticOptions));
 
@@ -88,6 +90,7 @@ app.get('/api/server-info', (req, res) => {
     categories: wordCategories,
     games: [
       { id: 'undercover', name: '谁是卧底', path: '/undercover/' },
+      { id: 'spyfall', name: '间谍危机', path: '/spyfall/' },
       { id: 'doudizhu', name: '欢乐斗地主', path: '/doudizhu/' },
       { id: 'werewolf', name: '聚会狼人杀', path: '/werewolf/' },
       { id: 'mahjong', name: '四川麻将 (血战到底)', path: '/mahjong/' },
@@ -98,6 +101,7 @@ app.get('/api/server-info', (req, res) => {
 
 // 挂载游戏的 Socket.IO 服务
 setupUndercover(io, app);
+setupSpyfall(io, app);
 setupDoudizhu(io, app);
 setupWerewolf(io, app);
 setupMahjong(io, app);
@@ -110,6 +114,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('🎉 聚会游戏盒子 (Party Games Hub) 服务器启动成功！');
   console.log(`🌐 电脑本机访问游戏大厅: http://localhost:${PORT}`);
   console.log(`🕵️‍♂️ 《谁是卧底》直达: http://localhost:${PORT}/undercover/`);
+  console.log(`🕵️‍♂️ 《间谍危机》直达: http://localhost:${PORT}/spyfall/`);
   console.log(`🃏 《欢乐斗地主》直达: http://localhost:${PORT}/doudizhu/`);
   console.log(`🐺 《聚会狼人杀》直达: http://localhost:${PORT}/werewolf/`);
   console.log(`🀄 《四川麻将》直达: http://localhost:${PORT}/mahjong/`);
