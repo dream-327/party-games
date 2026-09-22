@@ -501,6 +501,9 @@ body {
   touch-action: manipulation;
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .card-secret:active {

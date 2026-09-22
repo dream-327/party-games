@@ -36,6 +36,7 @@
       // 定时器引用
       this.timerInterval = null;
       this.lastTickSecond = null;
+      this.spyGuessAutoOpenTimer = null;
 
       // 屏幕常亮 Wake Lock
       this.wakeLockSentinel = null;
@@ -703,6 +704,17 @@
         this.renderPlayingPhase();
       }
 
+      // 指控全票通过抓出间谍时，若自身为间谍，自动弹窗进入反击猜地点界面
+      if ((data.nextPhase === 'SPY_GUESSING' || this.gameState?.phase === 'SPY_GUESSING') && this.self && this.self.isSpy) {
+        const isModalActive = this.dom.modalGuess && this.dom.modalGuess.classList && this.dom.modalGuess.classList.contains('active');
+        if (!isModalActive && !this.spyGuessAutoOpenTimer) {
+          this.spyGuessAutoOpenTimer = setTimeout(() => {
+            this.spyGuessAutoOpenTimer = null;
+            this.openSpyGuessModal();
+          }, 600);
+        }
+      }
+
       // 同步倒计时时钟
       this.syncTimer();
     }
@@ -715,7 +727,11 @@
       if (this.dom.screenLobby) this.dom.screenLobby.classList.remove('hidden');
       if (this.dom.screenPlaying) this.dom.screenPlaying.classList.add('hidden');
 
-      // 关闭所有模态弹窗
+      // 清除自动弹窗定时器并关闭所有模态弹窗
+      if (this.spyGuessAutoOpenTimer) {
+        clearTimeout(this.spyGuessAutoOpenTimer);
+        this.spyGuessAutoOpenTimer = null;
+      }
       this.closeModal(this.dom.modalGuide);
       this.closeModal(this.dom.modalAccuse);
       this.closeModal(this.dom.modalGuess);
@@ -1102,12 +1118,26 @@
       if (data && data.message) {
         this.notify(data.message);
       }
+      if (data && (data.nextPhase === 'SPY_GUESSING' || data.gameState?.phase === 'SPY_GUESSING')) {
+        if (this.self && this.self.isSpy) {
+          if (this.spyGuessAutoOpenTimer) clearTimeout(this.spyGuessAutoOpenTimer);
+          this.spyGuessAutoOpenTimer = setTimeout(() => {
+            this.spyGuessAutoOpenTimer = null;
+            this.openSpyGuessModal();
+          }, 600);
+        }
+      }
     }
 
     /**
      * 打开间谍自曝猜地点弹窗
      */
     openSpyGuessModal() {
+      if (this.spyGuessAutoOpenTimer) {
+        clearTimeout(this.spyGuessAutoOpenTimer);
+        this.spyGuessAutoOpenTimer = null;
+      }
+
       if (!this.self || !this.self.isSpy) {
         this.notify('只有间谍可以自曝指认地点！');
         return;
@@ -1166,6 +1196,10 @@
      */
     handleGameOverReveal(settlementData) {
       if (!settlementData) return;
+      if (this.spyGuessAutoOpenTimer) {
+        clearTimeout(this.spyGuessAutoOpenTimer);
+        this.spyGuessAutoOpenTimer = null;
+      }
       this.settlement = settlementData;
 
       // 判断自身输赢

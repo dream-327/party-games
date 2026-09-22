@@ -82,7 +82,8 @@ function createGameRoom(code, hostPlayer, settings = {}) {
     isSpy: false
   };
 
-  const durationMinutes = (settings && Number(settings.durationMinutes)) || 8;
+  const parsedDuration = (settings && Number(settings.durationMinutes)) || 8;
+  const durationMinutes = Math.min(20, Math.max(3, parsedDuration));
   const room = {
     code: roomCode,
     hostId: host.id,
@@ -126,9 +127,10 @@ function startGameForRoom(room, settings = {}) {
     return { success: false, message: '至少需要 3 名玩家才能开始游戏' };
   }
 
-  const durationMinutes = (settings && Number(settings.durationMinutes))
+  const parsedDuration = (settings && Number(settings.durationMinutes))
     || (room.settings && room.settings.durationMinutes)
     || 8;
+  const durationMinutes = Math.min(20, Math.max(3, parsedDuration));
   room.settings.durationMinutes = durationMinutes;
 
   // 1. 抽取真实目标地点
@@ -419,7 +421,15 @@ function handleAccuse(room, accuserId, suspectId) {
   const votes = new Map();
   votes.set(accuserId, true);
 
-  const eligibleVoters = Array.from(room.players.keys()).filter(id => id !== suspectId);
+  let eligibleVoters = Array.from(room.players.values())
+    .filter(p => p.id !== suspectId && p.isOnline)
+    .map(p => p.id);
+  if (eligibleVoters.length === 0) {
+    eligibleVoters = Array.from(room.players.values())
+      .filter(p => p.id !== suspectId)
+      .map(p => p.id);
+  }
+
   room.currentAccuse = {
     accuserId,
     suspectId,
@@ -468,8 +478,17 @@ function handleVoteAccuse(room, voterId, agree) {
     };
   }
 
-  // 检查是否所有合格表决者均已投票
-  const eligibleVoters = Array.from(room.players.keys()).filter(id => id !== room.currentAccuse.suspectId);
+  // 检查是否所有合格表决者均已投票（动态排除离线玩家防死锁挂起）
+  let eligibleVoters = Array.from(room.players.values())
+    .filter(p => p.id !== room.currentAccuse.suspectId && p.isOnline)
+    .map(p => p.id);
+  if (eligibleVoters.length === 0) {
+    eligibleVoters = Array.from(room.players.values())
+      .filter(p => p.id !== room.currentAccuse.suspectId)
+      .map(p => p.id);
+  }
+  room.currentAccuse.totalEligibleVoters = eligibleVoters.length;
+
   const allVoted = eligibleVoters.every(id => room.currentAccuse.votes.has(id));
 
   if (!allVoted) {
@@ -568,7 +587,8 @@ function resetRoomForNextGame(room) {
     room.gameEndTimer = null;
   }
 
-  const durationMinutes = (room.settings && room.settings.durationMinutes) || 8;
+  const parsedDuration = (room.settings && room.settings.durationMinutes) || 8;
+  const durationMinutes = Math.min(20, Math.max(3, parsedDuration));
   room.gameState = {
     phase: PHASES.LOBBY,
     durationMinutes,
