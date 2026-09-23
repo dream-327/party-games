@@ -295,6 +295,7 @@ function startGameForRoom(room, settings = {}) {
     firstQuestionerId: room.firstQuestionerId
   };
 
+  cancelAccuseTimeout(room);
   room.currentAccuse = null;
   room.settlement = null;
 
@@ -455,7 +456,10 @@ function getSafePlayerView(room, playerId) {
       suspectId: room.currentAccuse.suspectId,
       suspectName: suspect ? suspect.name : '',
       votes: Object.fromEntries(room.currentAccuse.votes || new Map()),
-      totalEligibleVoters: room.currentAccuse.totalEligibleVoters
+      totalEligibleVoters: room.currentAccuse.totalEligibleVoters,
+      votedCount: (room.currentAccuse.votes ? room.currentAccuse.votes.size : 0),
+      startedAt: room.currentAccuse.startedAt || null,
+      expiresAt: room.currentAccuse.expiresAt || null
     };
   }
 
@@ -529,34 +533,98 @@ function handleAccuse(room, accuserId, suspectId) {
       .map(p => p.id);
   }
 
+  const timeoutTimer = setTimeout(() => {
+    onAccuseTimeout(room);
+  }, ACCUSE_TIMEOUT_MS);
+  if (timeoutTimer && typeof timeoutTimer.unref === 'function') {
+    timeoutTimer.unref();
+  }
+
   room.currentAccuse = {
     accuserId,
     suspectId,
     votes,
-    totalEligibleVoters: eligibleVoters.length
+    totalEligibleVoters: eligibleVoters.length,
+    timeoutTimer,
+    startedAt: now,
+    expiresAt: now + ACCUSE_TIMEOUT_MS
   };
 
   return { success: true, message: '发起指控成功，进入全员投票' };
 }
 
+const ACCUSE_TIMEOUT_MS = 45 * 1000;
+
+function cancelAccuseTimeout(room) {
+  if (room && room.currentAccuse && room.currentAccuse.timeoutTimer) {
+    clearTimeout(room.currentAccuse.timeoutTimer);
+    room.currentAccuse.timeoutTimer = null;
+  }
+}
+
+function onAccuseTimeout(room) {
+  if (!room || room.gameState.phase !== PHASES.PAUSED_ACCUSE || !room.currentAccuse) return;
+  cancelAccuseTimeout(room);
+  room.currentAccuse = null;
+
+  const now = Date.now();
+  room.gameState.phase = PHASES.PLAYING;
+  room.gameState.isPaused = false;
+  room.gameState.expiresAt = now + room.gameState.remainingMs;
+
+  if (room._io) {
+    room.gameEndTimer = setTimeout(() => {
+      onTimeExpired(room);
+    }, room.gameState.remainingMs);
+
+    room._io.to(room.code).emit('accuse_result', {
+      success: true,
+      voteFinished: true,
+      consensus: false,
+      message: '指控公决超时（45秒未全票通过），指控失败，恢复对局'
+    });
+    broadcastRoom(room._io, room);
+  }
+}
+
 /**
- * 投票表决指控
+ * 校验并结算指控表决结果
  */
-function handleVoteAccuse(room, voterId, agree) {
+function checkAccuseConsensus(room) {
   if (!room || room.gameState.phase !== PHASES.PAUSED_ACCUSE || !room.currentAccuse) {
-    return { success: false, message: '当前没有正在进行的指控投票' };
-  }
-  if (voterId === room.currentAccuse.suspectId) {
-    return { success: false, message: '被指控者不能参与投票' };
-  }
-  if (!room.players.has(voterId)) {
-    return { success: false, message: '玩家不存在' };
+    return null;
   }
 
-  room.currentAccuse.votes.set(voterId, !!agree);
+  // 动态排除离线玩家防死锁挂起
+  let eligibleVoters = Array.from(room.players.values())
+    .filter(p => p.id !== room.currentAccuse.suspectId && p.isOnline)
+    .map(p => p.id);
+  if (eligibleVoters.length === 0) {
+    eligibleVoters = Array.from(room.players.values())
+      .filter(p => p.id !== room.currentAccuse.suspectId)
+      .map(p => p.id);
+  }
+  room.currentAccuse.totalEligibleVoters = eligibleVoters.length;
 
-  // 若有人投反对票 -> 无法达成全票赞成，指控失败，恢复游戏与倒计时
-  if (!agree) {
+  const allVoted = eligibleVoters.every(id => room.currentAccuse.votes.has(id));
+  if (!allVoted) {
+    const remainingCount = eligibleVoters.filter(id => !room.currentAccuse.votes.has(id)).length;
+    return {
+      success: true,
+      voteFinished: false,
+      remainingCount,
+      votedCount: eligibleVoters.length - remainingCount,
+      totalEligibleVoters: eligibleVoters.length,
+      message: `等待其余 ${remainingCount} 位玩家投票`
+    };
+  }
+
+  // 校验是否全票赞成
+  const allAgree = eligibleVoters.every(id => room.currentAccuse.votes.get(id) === true);
+  cancelAccuseTimeout(room);
+
+  if (!allAgree) {
+    // 存在反对票 -> 无法达成全票赞成，指控失败，恢复游戏与倒计时
     const now = Date.now();
     room.gameState.phase = PHASES.PLAYING;
     room.gameState.isPaused = false;
@@ -574,29 +642,6 @@ function handleVoteAccuse(room, voterId, agree) {
       voteFinished: true,
       consensus: false,
       message: '投票未全票通过，指控失败，继续游戏'
-    };
-  }
-
-  // 检查是否所有合格表决者均已投票（动态排除离线玩家防死锁挂起）
-  let eligibleVoters = Array.from(room.players.values())
-    .filter(p => p.id !== room.currentAccuse.suspectId && p.isOnline)
-    .map(p => p.id);
-  if (eligibleVoters.length === 0) {
-    eligibleVoters = Array.from(room.players.values())
-      .filter(p => p.id !== room.currentAccuse.suspectId)
-      .map(p => p.id);
-  }
-  room.currentAccuse.totalEligibleVoters = eligibleVoters.length;
-
-  const allVoted = eligibleVoters.every(id => room.currentAccuse.votes.has(id));
-
-  if (!allVoted) {
-    const remainingCount = eligibleVoters.filter(id => !room.currentAccuse.votes.has(id)).length;
-    return {
-      success: true,
-      voteFinished: false,
-      remainingCount,
-      message: `等待其余 ${remainingCount} 位玩家投票`
     };
   }
 
@@ -635,6 +680,48 @@ function handleVoteAccuse(room, voterId, agree) {
       message: '误指控平民出局，间谍获胜！'
     };
   }
+}
+
+/**
+ * 投票表决指控
+ */
+function handleVoteAccuse(room, voterId, agree) {
+  if (!room || room.gameState.phase !== PHASES.PAUSED_ACCUSE || !room.currentAccuse) {
+    return { success: false, message: '当前没有正在进行的指控投票' };
+  }
+  if (voterId === room.currentAccuse.suspectId) {
+    return { success: false, message: '被指控者不能参与投票' };
+  }
+  if (!room.players.has(voterId)) {
+    return { success: false, message: '玩家不存在' };
+  }
+
+  room.currentAccuse.votes.set(voterId, !!agree);
+
+  // 若有人投反对票 -> 无法达成全票赞成，指控失败，恢复游戏与倒计时
+  if (!agree) {
+    cancelAccuseTimeout(room);
+    const now = Date.now();
+    room.gameState.phase = PHASES.PLAYING;
+    room.gameState.isPaused = false;
+    room.gameState.expiresAt = now + room.gameState.remainingMs;
+
+    if (room._io) {
+      room.gameEndTimer = setTimeout(() => {
+        onTimeExpired(room);
+      }, room.gameState.remainingMs);
+    }
+
+    room.currentAccuse = null;
+    return {
+      success: true,
+      voteFinished: true,
+      consensus: false,
+      message: '投票未全票通过，指控失败，继续游戏'
+    };
+  }
+
+  return checkAccuseConsensus(room);
 }
 
 /**
@@ -772,6 +859,7 @@ function resetRoomForNextGame(room) {
     clearTimeout(room.gameEndTimer);
     room.gameEndTimer = null;
   }
+  cancelAccuseTimeout(room);
   if (room.botTimers && Array.isArray(room.botTimers)) {
     room.botTimers.forEach(t => clearTimeout(t));
     room.botTimers = [];
@@ -1172,6 +1260,19 @@ function setupSpyfall(io, app) {
 
         ensureRoomHost(room);
 
+        // 如果在指控阶段且离线玩家影响了指控表决，重新评估共识
+        if (room.gameState.phase === PHASES.PAUSED_ACCUSE && room.currentAccuse) {
+          const voteRes = checkAccuseConsensus(room);
+          if (voteRes && voteRes.voteFinished) {
+            spyIo.to(room.code).emit('accuse_result', voteRes);
+            if (room.gameState.phase === PHASES.GAME_OVER) {
+              spyIo.to(room.code).emit('game_over_reveal', getSafePlayerView(room, null).settlement);
+            } else if (voteRes.nextPhase === PHASES.SPY_GUESSING) {
+              triggerBotSpyGuess(room, spyIo, 800);
+            }
+          }
+        }
+
         // 如果全部真实玩家均离线，延迟清理房间
         const humanOnlineCount = Array.from(room.players.values()).filter(p => p.isOnline && !p.isBot).length;
         if (humanOnlineCount === 0) {
@@ -1179,6 +1280,7 @@ function setupSpyfall(io, app) {
             const currentHumanOnline = Array.from(room.players.values()).filter(p => p.isOnline && !p.isBot).length;
             if (currentHumanOnline === 0) {
               if (room.gameEndTimer) clearTimeout(room.gameEndTimer);
+              cancelAccuseTimeout(room);
               if (room.botTimers && Array.isArray(room.botTimers)) {
                 room.botTimers.forEach(t => clearTimeout(t));
               }
@@ -1204,6 +1306,10 @@ module.exports = {
   handleAccuse,
   handleVoteAccuse,
   handleSpyGuess,
+  checkAccuseConsensus,
+  cancelAccuseTimeout,
+  onAccuseTimeout,
+  ACCUSE_TIMEOUT_MS,
   resetRoomForNextGame,
   addBotToRoom,
   removeBotFromRoom,

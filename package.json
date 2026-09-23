@@ -7,7 +7,7 @@
     "start": "node server.js",
     "test:undercover": "node test_undercover.js",
     "test:trapwords": "node test_trapwords.js",
-    "test:spyfall": "node test_spyfall_locations.js && node test_spyfall_server.js && node test_spyfall_routes.js && node test_spyfall_ui.js && node test_spyfall_client.js && node test_spyfall_bots.js && node test_spyfall_responsive.js && node test_spyfall_e2e.js",
+    "test:spyfall": "node test_spyfall_locations.js && node test_spyfall_server.js && node test_spyfall_routes.js && node test_spyfall_ui.js && node test_spyfall_client.js && node test_spyfall_bots.js && node test_spyfall_responsive.js && node test_spyfall_optimizations.js && node test_spyfall_e2e.js",
     "test:werewolf": "node test_werewolf_rules_config.js && node test_werewolf_god_mode.js && node test_werewolf_ui_layout.js && node test_werewolf_dealer_mode.js"
   },
   "dependencies": {

@@ -404,6 +404,18 @@
         });
       }
 
+      // 房间代码点击快速复制
+      if (this.dom.lobbyRoomCode) {
+        this.dom.lobbyRoomCode.addEventListener('click', () => {
+          this.copyRoomCode();
+        });
+      }
+      if (this.dom.roomCodeDisplay) {
+        this.dom.roomCodeDisplay.addEventListener('click', () => {
+          this.copyRoomCode();
+        });
+      }
+
       // 指控按钮
       if (this.dom.btnAccuse) {
         this.dom.btnAccuse.addEventListener('click', () => {
@@ -423,6 +435,25 @@
         this.dom.btnRestart.addEventListener('click', () => {
           this.restartGame();
         });
+      }
+    }
+
+    /**
+     * 复制房间行动代码到剪贴板
+     */
+    copyRoomCode() {
+      const code = this.currentRoomCode;
+      if (!code) return;
+      const nav = (typeof navigator !== 'undefined' ? navigator : global.navigator) || {};
+      if (nav.clipboard && typeof nav.clipboard.writeText === 'function') {
+        nav.clipboard.writeText(code).then(() => {
+          this.notify(`已复制行动代码：${code}`);
+          this.sfx.play('click');
+        }).catch(() => {
+          this.notify(`行动代码：${code}`);
+        });
+      } else {
+        this.notify(`行动代码：${code}`);
       }
     }
 
@@ -795,6 +826,17 @@
         this.renderPlayingPhase();
       }
 
+      // 处于指控投票阶段时，自动恢复/保持指控表决弹窗（防止刷新或断线重连导致丢失投票窗口）
+      if (phase === 'PAUSED_ACCUSE' && this.currentAccuse) {
+        this.recoverAccuseModalState();
+      } else if (phase === 'PLAYING') {
+        // 若从暂停恢复，且当前弹窗正在表决界面，自动关闭指控弹窗
+        const isAccuseModalActive = this.dom.modalAccuse && this.dom.modalAccuse.classList && this.dom.modalAccuse.classList.contains('active');
+        if (isAccuseModalActive && this.dom.accuseStepVote && this.dom.accuseStepVote.style.display !== 'none') {
+          this.closeModal(this.dom.modalAccuse);
+        }
+      }
+
       // 指控全票通过抓出间谍时，若自身为间谍，自动弹窗进入反击猜地点界面
       if ((data.nextPhase === 'SPY_GUESSING' || this.gameState?.phase === 'SPY_GUESSING') && this.self && this.self.isSpy) {
         const isModalActive = this.dom.modalGuess && this.dom.modalGuess.classList && this.dom.modalGuess.classList.contains('active');
@@ -914,6 +956,32 @@
 
       // 渲染底部席位轮播栏
       this.renderSeatsBar();
+
+      // 行动按钮状态与提示控制
+      const phase = this.gameState ? this.gameState.phase : 'PLAYING';
+      const isPlaying = (phase === 'PLAYING');
+      const hasAccused = this.self && this.self.hasAccused;
+
+      if (this.dom.btnAccuse) {
+        if (!isPlaying) {
+          this.dom.btnAccuse.disabled = true;
+          this.dom.btnAccuse.title = '当前阶段不可指控';
+        } else if (hasAccused) {
+          this.dom.btnAccuse.disabled = true;
+          this.dom.btnAccuse.title = '你本局已发起过指控';
+        } else {
+          this.dom.btnAccuse.disabled = false;
+          this.dom.btnAccuse.title = '对可疑特工发起紧急指控';
+        }
+      }
+
+      if (this.dom.btnSpyGuess) {
+        if (!isPlaying && phase !== 'SPY_GUESSING') {
+          this.dom.btnSpyGuess.disabled = true;
+        } else {
+          this.dom.btnSpyGuess.disabled = false;
+        }
+      }
 
       // 结算自动弹出
       if (this.gameState && this.gameState.phase === 'GAME_OVER' && this.settlement) {
@@ -1179,6 +1247,56 @@
     }
 
     /**
+     * 断线重连或状态同步时恢复指控表决弹窗界面
+     */
+    recoverAccuseModalState() {
+      if (!this.currentAccuse) return;
+      if (this.dom.accuseStepSelect) this.dom.accuseStepSelect.style.display = 'none';
+      if (this.dom.accuseFooterSelect) this.dom.accuseFooterSelect.style.display = 'none';
+      if (this.dom.accuseStepVote) this.dom.accuseStepVote.style.display = 'block';
+
+      if (this.dom.accuserName) this.dom.accuserName.textContent = this.currentAccuse.accuserName || '指控发起者';
+      if (this.dom.suspectName) this.dom.suspectName.textContent = this.currentAccuse.suspectName || '嫌疑人';
+
+      const myId = this.self ? this.self.id : this.playerId;
+      const isSuspect = (this.currentAccuse.suspectId === myId);
+      const isAccuser = (this.currentAccuse.accuserId === myId);
+      const myVote = this.currentAccuse.votes ? this.currentAccuse.votes[myId] : undefined;
+
+      const votedCount = typeof this.currentAccuse.votedCount === 'number' ? this.currentAccuse.votedCount : (this.currentAccuse.votes ? Object.keys(this.currentAccuse.votes).length : 0);
+      const totalVoters = typeof this.currentAccuse.totalEligibleVoters === 'number' ? this.currentAccuse.totalEligibleVoters : (this.players ? this.players.length - 1 : 0);
+      const progressText = `（已表决 ${votedCount}/${totalVoters} 人）`;
+
+      if (isSuspect) {
+        if (this.dom.btnVoteAgree) this.dom.btnVoteAgree.disabled = true;
+        if (this.dom.btnVoteDisagree) this.dom.btnVoteDisagree.disabled = true;
+        if (this.dom.voteStatusText) {
+          this.dom.voteStatusText.textContent = `⚠️ 你是被指控人，无法参与表决，等待其他特工公决... ${progressText}`;
+        }
+      } else if (isAccuser) {
+        if (this.dom.btnVoteAgree) this.dom.btnVoteAgree.disabled = true;
+        if (this.dom.btnVoteDisagree) this.dom.btnVoteDisagree.disabled = true;
+        if (this.dom.voteStatusText) {
+          this.dom.voteStatusText.textContent = `你已发起指控（默认赞成），等待其他特工表决... ${progressText}`;
+        }
+      } else if (myVote !== undefined) {
+        if (this.dom.btnVoteAgree) this.dom.btnVoteAgree.disabled = true;
+        if (this.dom.btnVoteDisagree) this.dom.btnVoteDisagree.disabled = true;
+        if (this.dom.voteStatusText) {
+          this.dom.voteStatusText.textContent = `你已投【${myVote ? '赞成' : '反对'}】票，等待其他特工... ${progressText}`;
+        }
+      } else {
+        if (this.dom.btnVoteAgree) this.dom.btnVoteAgree.disabled = false;
+        if (this.dom.btnVoteDisagree) this.dom.btnVoteDisagree.disabled = false;
+        if (this.dom.voteStatusText) {
+          this.dom.voteStatusText.textContent = `请进行紧急表决（全票赞成方可定罪） ${progressText}`;
+        }
+      }
+
+      this.openModal(this.dom.modalAccuse);
+    }
+
+    /**
      * 指控开始广播处理：全员进入紧急表决
      */
     handleAccuseStarted(data) {
@@ -1194,12 +1312,19 @@
 
       const myId = this.self ? this.self.id : this.playerId;
       const isSuspect = data.suspect && (data.suspect.id === myId);
+      const isAccuser = data.accuser && (data.accuser.id === myId);
 
       if (isSuspect) {
         if (this.dom.btnVoteAgree) this.dom.btnVoteAgree.disabled = true;
         if (this.dom.btnVoteDisagree) this.dom.btnVoteDisagree.disabled = true;
         if (this.dom.voteStatusText) {
           this.dom.voteStatusText.textContent = '⚠️ 你是被指控人，无法参与表决，等待其他特工公决...';
+        }
+      } else if (isAccuser) {
+        if (this.dom.btnVoteAgree) this.dom.btnVoteAgree.disabled = true;
+        if (this.dom.btnVoteDisagree) this.dom.btnVoteDisagree.disabled = true;
+        if (this.dom.voteStatusText) {
+          this.dom.voteStatusText.textContent = '你已发起指控（默认赞成），等待其他特工表决...';
         }
       } else {
         if (this.dom.btnVoteAgree) this.dom.btnVoteAgree.disabled = false;
