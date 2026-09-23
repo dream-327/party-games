@@ -41,14 +41,15 @@ function ensureRoomHost(room) {
   if (!room) return;
   const currentHost = room.players.get(room.hostId);
 
-  const isHostMissing = !currentHost;
+  const isHostMissing = !currentHost || currentHost.isBot;
   const now = Date.now();
   const isHostOfflineTimedOut = currentHost && !currentHost.isOnline && (
     (now - (currentHost.lastOfflineTime || now)) >= HOST_DISCONNECT_GRACE_PERIOD_MS
   );
 
   if (isHostMissing || isHostOfflineTimedOut) {
-    const candidate = Array.from(room.players.values()).find(p => p.isOnline)
+    const candidate = Array.from(room.players.values()).find(p => p.isOnline && !p.isBot)
+      || Array.from(room.players.values()).find(p => !p.isBot)
       || Array.from(room.players.values())[0];
     if (candidate) {
       room.hostId = candidate.id;
@@ -64,6 +65,99 @@ function ensureRoomHost(room) {
   });
 }
 
+const BOT_PROFILES = [
+  { name: '智械特工01', avatar: '🤖' },
+  { name: '赛博先锋', avatar: '🦾' },
+  { name: '量子幽灵', avatar: '👾' },
+  { name: '矩阵行者', avatar: '🦿' },
+  { name: '星际潜伏者', avatar: '🛸' },
+  { name: '天基哨兵', avatar: '🛰️' },
+  { name: '深蓝探员', avatar: '💻' },
+  { name: '图灵智核', avatar: '🔮' }
+];
+
+/**
+ * 添加 AI 机器人特工
+ */
+function addBotToRoom(room) {
+  if (!room) return { success: false, message: '房间不存在' };
+  if (room.gameState.phase !== PHASES.LOBBY) {
+    return { success: false, message: '只有在大厅等待时才能添加AI特工' };
+  }
+  if (room.players.size >= 12) {
+    return { success: false, message: '房间人数已达上限(12人)' };
+  }
+
+  const currentBots = Array.from(room.players.values()).filter(p => p.isBot);
+  const profileIndex = currentBots.length % BOT_PROFILES.length;
+  const baseProfile = BOT_PROFILES[profileIndex];
+  const botNumber = currentBots.length + 1;
+  const botName = currentBots.length < BOT_PROFILES.length
+    ? baseProfile.name
+    : `${baseProfile.name}#${botNumber}`;
+
+  const botId = `bot_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+  const bot = {
+    id: botId,
+    name: escapeHtml(botName),
+    avatar: baseProfile.avatar,
+    socketId: null,
+    isHost: false,
+    isOnline: true,
+    isBot: true,
+    hasAccused: false,
+    role: null,
+    isSpy: false
+  };
+
+  room.players.set(botId, bot);
+  return { success: true, bot, room };
+}
+
+/**
+ * 移除 AI 机器人特工
+ */
+function removeBotFromRoom(room, botId) {
+  if (!room) return { success: false, message: '房间不存在' };
+  if (room.gameState.phase !== PHASES.LOBBY) {
+    return { success: false, message: '只有在大厅等待时才能移除AI特工' };
+  }
+
+  if (!botId) {
+    const bots = Array.from(room.players.values()).filter(p => p.isBot);
+    if (bots.length === 0) return { success: false, message: '当前没有AI特工' };
+    const lastBot = bots[bots.length - 1];
+    room.players.delete(lastBot.id);
+    return { success: true, removedBotId: lastBot.id, room };
+  }
+
+  const p = room.players.get(botId);
+  if (!p || !p.isBot) {
+    return { success: false, message: '指定的AI特工不存在' };
+  }
+  room.players.delete(botId);
+  return { success: true, removedBotId: botId, room };
+}
+
+/**
+ * 清空房间内所有 AI 机器人
+ */
+function clearBotsFromRoom(room) {
+  if (!room) return { success: false, message: '房间不存在' };
+  if (room.gameState.phase !== PHASES.LOBBY) {
+    return { success: false, message: '只有在大厅等待时才能清空AI特工' };
+  }
+
+  let count = 0;
+  for (const [id, p] of room.players.entries()) {
+    if (p.isBot) {
+      room.players.delete(id);
+      count++;
+    }
+  }
+  return { success: true, count, room };
+}
+
 /**
  * 创建新房间
  */
@@ -77,6 +171,7 @@ function createGameRoom(code, hostPlayer, settings = {}) {
     socketId: (hostPlayer && hostPlayer.socketId) || null,
     isHost: true,
     isOnline: true,
+    isBot: false,
     hasAccused: false,
     role: null,
     isSpy: false
@@ -111,6 +206,7 @@ function createGameRoom(code, hostPlayer, settings = {}) {
     settlement: null,
     gameEndTimer: null,
     hostMigrateTimer: null,
+    botTimers: [],
     _io: null
   };
 
@@ -289,6 +385,7 @@ function getSafePlayerView(room, playerId) {
       avatar: me.avatar,
       isHost: me.id === room.hostId,
       isOnline: !!me.isOnline,
+      isBot: !!me.isBot,
       hasAccused: !!me.hasAccused,
       isSpy: selfIsSpy,
       location: selfLocation,
@@ -307,6 +404,7 @@ function getSafePlayerView(room, playerId) {
         avatar: p.avatar,
         isHost: p.id === room.hostId,
         isOnline: !!p.isOnline,
+        isBot: !!p.isBot,
         hasAccused: !!p.hasAccused,
         role: isSpy ? '间谍 (Spy)' : p.role,
         isSpy: isSpy
@@ -318,6 +416,7 @@ function getSafePlayerView(room, playerId) {
         avatar: p.avatar,
         isHost: p.id === room.hostId,
         isOnline: !!p.isOnline,
+        isBot: !!p.isBot,
         hasAccused: !!p.hasAccused,
         role: room.gameState.phase === PHASES.LOBBY ? null : '???',
         isSpy: undefined
@@ -578,6 +677,93 @@ function handleSpyGuess(room, guessLocationId, playerId = null) {
 }
 
 /**
+ * 触发房间内 AI 机器人自动投票表决
+ */
+function triggerBotVotes(room, spyIo = null, delay = 600) {
+  if (!room || !room.currentAccuse) return [];
+  const currentAccuse = room.currentAccuse;
+  const botVoters = Array.from(room.players.values()).filter(p =>
+    p.isBot && p.id !== currentAccuse.suspectId && !currentAccuse.votes.has(p.id)
+  );
+
+  room.botTimers = room.botTimers || [];
+  const timers = [];
+
+  botVoters.forEach((bot, index) => {
+    const actDelay = delay === 0 ? 0 : delay + (index * 200);
+    const voteAction = () => {
+      if (!room.currentAccuse || room.currentAccuse !== currentAccuse) return;
+      if (room.currentAccuse.votes.has(bot.id)) return;
+
+      const res = handleVoteAccuse(room, bot.id, true);
+      if (res.success && res.voteFinished) {
+        if (spyIo) {
+          spyIo.to(room.code).emit('accuse_result', res);
+          if (room.gameState.phase === PHASES.GAME_OVER) {
+            spyIo.to(room.code).emit('game_over_reveal', getSafePlayerView(room, null).settlement);
+          } else if (res.nextPhase === PHASES.SPY_GUESSING) {
+            triggerBotSpyGuess(room, spyIo, delay === 0 ? 0 : 800);
+          }
+        }
+      }
+      if (spyIo) {
+        broadcastRoom(spyIo, room);
+      }
+    };
+
+    if (actDelay === 0) {
+      voteAction();
+    } else {
+      const t = setTimeout(voteAction, actDelay);
+      room.botTimers.push(t);
+      timers.push(t);
+    }
+  });
+
+  return timers;
+}
+
+/**
+ * 触发 AI 间谍被抓后的自动猜地点反击
+ */
+function triggerBotSpyGuess(room, spyIo = null, delay = 800) {
+  if (!room || room.gameState.phase !== PHASES.SPY_GUESSING) return null;
+  const spy = room.players.get(room.spyId);
+  if (!spy || !spy.isBot) return null;
+
+  const guessAction = () => {
+    if (!room || room.gameState.phase !== PHASES.SPY_GUESSING) return;
+    const candidates = room.candidateLocations || [];
+    if (candidates.length === 0) return;
+
+    // AI 间谍反击：有一定概率猜对真实地点，其余随机候选地点
+    let chosenId;
+    if (Math.random() < 0.35 && room.targetLocation) {
+      chosenId = room.targetLocation.id;
+    } else {
+      const pick = candidates[Math.floor(Math.random() * candidates.length)];
+      chosenId = pick.id;
+    }
+
+    const res = handleSpyGuess(room, chosenId, spy.id);
+    if (spyIo && room.gameState.phase === PHASES.GAME_OVER) {
+      spyIo.to(room.code).emit('game_over_reveal', getSafePlayerView(room, null).settlement);
+      broadcastRoom(spyIo, room);
+    }
+    return res;
+  };
+
+  if (delay === 0) {
+    return guessAction();
+  } else {
+    room.botTimers = room.botTimers || [];
+    const t = setTimeout(guessAction, delay);
+    room.botTimers.push(t);
+    return t;
+  }
+}
+
+/**
  * 再来一局：重置房间与玩家状态，保留房间号与人员
  */
 function resetRoomForNextGame(room) {
@@ -585,6 +771,10 @@ function resetRoomForNextGame(room) {
   if (room.gameEndTimer) {
     clearTimeout(room.gameEndTimer);
     room.gameEndTimer = null;
+  }
+  if (room.botTimers && Array.isArray(room.botTimers)) {
+    room.botTimers.forEach(t => clearTimeout(t));
+    room.botTimers = [];
   }
 
   const parsedDuration = (room.settings && room.settings.durationMinutes) || 8;
@@ -611,6 +801,9 @@ function resetRoomForNextGame(room) {
     p.role = null;
     p.isSpy = false;
     p.hasAccused = false;
+    if (p.isBot) {
+      p.isOnline = true;
+    }
   });
 
   ensureRoomHost(room);
@@ -767,6 +960,88 @@ function setupSpyfall(io, app) {
       }
     });
 
+    // 添加 AI 特工机器人
+    socket.on('add_bot', (data, callback) => {
+      try {
+        const room = rooms.get(currentRoomCode);
+        if (!room) {
+          if (typeof callback === 'function') callback({ success: false, message: '房间不存在' });
+          return;
+        }
+        if (currentPlayerId !== room.hostId) {
+          if (typeof callback === 'function') callback({ success: false, message: '只有房主可以添加AI特工' });
+          return;
+        }
+
+        const res = addBotToRoom(room);
+        if (!res.success) {
+          if (typeof callback === 'function') callback(res);
+          return;
+        }
+
+        if (typeof callback === 'function') callback({ success: true, bot: res.bot });
+        broadcastRoom(spyIo, room);
+      } catch (err) {
+        console.error('[Spyfall] add_bot error:', err);
+        if (typeof callback === 'function') callback({ success: false, message: '添加AI特工失败' });
+      }
+    });
+
+    // 移除 AI 特工机器人
+    socket.on('remove_bot', (data, callback) => {
+      try {
+        const room = rooms.get(currentRoomCode);
+        if (!room) {
+          if (typeof callback === 'function') callback({ success: false, message: '房间不存在' });
+          return;
+        }
+        if (currentPlayerId !== room.hostId) {
+          if (typeof callback === 'function') callback({ success: false, message: '只有房主可以移除AI特工' });
+          return;
+        }
+
+        const botId = data && data.botId;
+        const res = removeBotFromRoom(room, botId);
+        if (!res.success) {
+          if (typeof callback === 'function') callback(res);
+          return;
+        }
+
+        if (typeof callback === 'function') callback({ success: true, removedBotId: res.removedBotId });
+        broadcastRoom(spyIo, room);
+      } catch (err) {
+        console.error('[Spyfall] remove_bot error:', err);
+        if (typeof callback === 'function') callback({ success: false, message: '移除AI特工失败' });
+      }
+    });
+
+    // 清空房间内所有 AI 特工
+    socket.on('clear_bots', (data, callback) => {
+      try {
+        const room = rooms.get(currentRoomCode);
+        if (!room) {
+          if (typeof callback === 'function') callback({ success: false, message: '房间不存在' });
+          return;
+        }
+        if (currentPlayerId !== room.hostId) {
+          if (typeof callback === 'function') callback({ success: false, message: '只有房主可以清空AI特工' });
+          return;
+        }
+
+        const res = clearBotsFromRoom(room);
+        if (!res.success) {
+          if (typeof callback === 'function') callback(res);
+          return;
+        }
+
+        if (typeof callback === 'function') callback({ success: true, count: res.count });
+        broadcastRoom(spyIo, room);
+      } catch (err) {
+        console.error('[Spyfall] clear_bots error:', err);
+        if (typeof callback === 'function') callback({ success: false, message: '清空AI特工失败' });
+      }
+    });
+
     // 发起指控
     socket.on('initiate_accuse', ({ targetPlayerId }, callback) => {
       try {
@@ -791,6 +1066,9 @@ function setupSpyfall(io, app) {
 
         if (typeof callback === 'function') callback({ success: true });
         broadcastRoom(spyIo, room);
+
+        // 触发在场 AI 机器人自动投票表决
+        triggerBotVotes(room, spyIo, 600);
       } catch (err) {
         console.error('[Spyfall] initiate_accuse error:', err);
         if (typeof callback === 'function') callback({ success: false, message: '发起指控失败' });
@@ -816,7 +1094,12 @@ function setupSpyfall(io, app) {
           spyIo.to(room.code).emit('accuse_result', res);
           if (room.gameState.phase === PHASES.GAME_OVER) {
             spyIo.to(room.code).emit('game_over_reveal', getSafePlayerView(room, null).settlement);
+          } else if (res.nextPhase === PHASES.SPY_GUESSING) {
+            triggerBotSpyGuess(room, spyIo, 800);
           }
+        } else {
+          // 若还有其他未投票的人机，触发人机补投
+          triggerBotVotes(room, spyIo, 400);
         }
 
         if (typeof callback === 'function') callback({ success: true, result: res });
@@ -889,13 +1172,16 @@ function setupSpyfall(io, app) {
 
         ensureRoomHost(room);
 
-        // 如果全部玩家均离线，延迟清理房间
-        const onlineCount = Array.from(room.players.values()).filter(p => p.isOnline).length;
-        if (onlineCount === 0) {
+        // 如果全部真实玩家均离线，延迟清理房间
+        const humanOnlineCount = Array.from(room.players.values()).filter(p => p.isOnline && !p.isBot).length;
+        if (humanOnlineCount === 0) {
           setTimeout(() => {
-            const currentOnline = Array.from(room.players.values()).filter(p => p.isOnline).length;
-            if (currentOnline === 0) {
+            const currentHumanOnline = Array.from(room.players.values()).filter(p => p.isOnline && !p.isBot).length;
+            if (currentHumanOnline === 0) {
               if (room.gameEndTimer) clearTimeout(room.gameEndTimer);
+              if (room.botTimers && Array.isArray(room.botTimers)) {
+                room.botTimers.forEach(t => clearTimeout(t));
+              }
               rooms.delete(currentRoomCode);
             }
           }, 300 * 1000);
@@ -919,5 +1205,10 @@ module.exports = {
   handleVoteAccuse,
   handleSpyGuess,
   resetRoomForNextGame,
+  addBotToRoom,
+  removeBotFromRoom,
+  clearBotsFromRoom,
+  triggerBotVotes,
+  triggerBotSpyGuess,
   rooms
 };

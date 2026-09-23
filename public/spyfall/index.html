@@ -99,9 +99,22 @@
           </div>
         </div>
 
-        <!-- 等待席位名单 -->
-        <div class="field-label" style="margin-top: 14px;">
-          <span>👥</span> 已集结特工列表 (<span id="lobby-player-count">0</span>/12)
+        <!-- 等待席位名单与 AI 人机操作栏 -->
+        <div class="roster-header-row" style="display: flex; align-items: center; justify-content: space-between; margin-top: 14px; margin-bottom: 6px;">
+          <div class="field-label" style="margin: 0;">
+            <span>👥</span> 已集结特工列表 (<span id="lobby-player-count">0</span>/12)
+          </div>
+          <div id="lobby-bot-actions" class="bot-actions-group" style="display: none; gap: 6px;">
+            <button id="btn-add-bot" class="btn btn-xs btn-outline-cyan" title="添加一名AI电脑特工协助测试">
+              <span>🤖</span> 添加AI
+            </button>
+            <button id="btn-fill-bots" class="btn btn-xs btn-outline-cyan" title="快速补齐至3人起步">
+              <span>⚡</span> 补齐3人
+            </button>
+            <button id="btn-clear-bots" class="btn btn-xs btn-outline-crimson" title="清空所有人机">
+              <span>🧹</span> 清空AI
+            </button>
+          </div>
         </div>
         <div class="player-roster" id="waiting-players">
           <!-- 动态渲染入座特工 -->

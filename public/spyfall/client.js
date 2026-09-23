@@ -91,6 +91,10 @@
         btnShare: get('btn-share'),
         selectDuration: get('select-duration'),
         lobbyPlayerCount: get('lobby-player-count'),
+        lobbyBotActions: get('lobby-bot-actions'),
+        btnAddBot: get('btn-add-bot'),
+        btnFillBots: get('btn-fill-bots'),
+        btnClearBots: get('btn-clear-bots'),
         waitingPlayers: get('waiting-players'),
         btnStartGame: get('btn-start-game'),
 
@@ -348,6 +352,33 @@
       if (this.dom.btnStartGame) {
         this.dom.btnStartGame.addEventListener('click', () => {
           this.startGame();
+        });
+      }
+
+      // 房主 AI 人机控制按钮
+      if (this.dom.btnAddBot) {
+        this.dom.btnAddBot.addEventListener('click', () => {
+          this.addBot();
+        });
+      }
+      if (this.dom.btnFillBots) {
+        this.dom.btnFillBots.addEventListener('click', () => {
+          this.fillBotsToThree();
+        });
+      }
+      if (this.dom.btnClearBots) {
+        this.dom.btnClearBots.addEventListener('click', () => {
+          this.clearBots();
+        });
+      }
+
+      // 玩家列表单个 AI 移除委托
+      if (this.dom.waitingPlayers) {
+        this.dom.waitingPlayers.addEventListener('click', (e) => {
+          const btn = e.target.closest ? e.target.closest('.btn-remove-bot') : (e.target.classList && e.target.classList.contains('btn-remove-bot') ? e.target : null);
+          if (btn && btn.dataset && btn.dataset.botId) {
+            this.removeBot(btn.dataset.botId);
+          }
         });
       }
 
@@ -619,6 +650,66 @@
     }
 
     /**
+     * 网络操作：添加一名 AI 特工
+     */
+    addBot() {
+      if (!this.socket || !this.isHost) return;
+      this.socket.emit('add_bot', {}, (res) => {
+        if (res && res.success) {
+          this.sfx.play('click');
+        } else {
+          this.notify((res && res.message) || '添加AI特工失败');
+        }
+      });
+    }
+
+    /**
+     * 网络操作：一键补齐至 3 人
+     */
+    fillBotsToThree() {
+      if (!this.socket || !this.isHost) return;
+      const currentCount = this.players ? this.players.length : 0;
+      const needed = 3 - currentCount;
+      if (needed <= 0) {
+        this.notify('当前特工已满3人或以上，已可开局！');
+        return;
+      }
+      for (let i = 0; i < needed; i++) {
+        setTimeout(() => {
+          this.addBot();
+        }, i * 120);
+      }
+    }
+
+    /**
+     * 网络操作：移除指定 AI 特工
+     */
+    removeBot(botId) {
+      if (!this.socket || !this.isHost) return;
+      this.socket.emit('remove_bot', { botId }, (res) => {
+        if (res && res.success) {
+          this.sfx.play('click');
+        } else {
+          this.notify((res && res.message) || '移除AI特工失败');
+        }
+      });
+    }
+
+    /**
+     * 网络操作：清空所有 AI 特工
+     */
+    clearBots() {
+      if (!this.socket || !this.isHost) return;
+      this.socket.emit('clear_bots', {}, (res) => {
+        if (res && res.success) {
+          this.sfx.play('click');
+        } else {
+          this.notify((res && res.message) || '清空AI特工失败');
+        }
+      });
+    }
+
+    /**
      * 网络操作：发起指控
      */
     confirmAccuse(targetPlayerId) {
@@ -756,14 +847,23 @@
       // 渲染等待玩家列表
       if (this.dom.waitingPlayers) {
         this.dom.waitingPlayers.innerHTML = this.players.map(p => `
-          <div class="player-item">
+          <div class="player-item ${p.isBot ? 'is-bot' : ''}">
             <div class="player-item-left">
               <span class="player-avatar">${p.avatar}</span>
               <span class="player-name">${p.name}</span>
+              ${p.isBot ? '<span class="badge-bot">AI</span>' : ''}
             </div>
-            ${p.isHost ? '<span class="badge-host">局长/房主</span>' : ''}
+            <div class="player-item-right" style="display: flex; align-items: center; gap: 6px;">
+              ${p.isHost ? '<span class="badge-host">局长/房主</span>' : ''}
+              ${(this.isHost && p.isBot) ? `<button class="btn-remove-bot" data-bot-id="${p.id}" title="移除该AI">×</button>` : ''}
+            </div>
           </div>
         `).join('');
+      }
+
+      // 房主 AI 人机控制栏可见性
+      if (this.dom.lobbyBotActions) {
+        this.dom.lobbyBotActions.style.display = this.isHost ? 'flex' : 'none';
       }
 
       // 开始游戏按钮权限
@@ -905,9 +1005,10 @@
         const isFirst = p.id === firstId;
 
         return `
-          <div class="seat-pill ${isSelf ? 'is-self' : ''} ${hasAccused ? 'has-accused' : ''}">
+          <div class="seat-pill ${isSelf ? 'is-self' : ''} ${hasAccused ? 'has-accused' : ''} ${p.isBot ? 'is-bot' : ''}">
             <span class="player-avatar">${p.avatar}</span>
             <span class="player-name">${p.name}</span>
+            ${p.isBot ? '<span class="badge-bot">AI</span>' : ''}
             ${p.isHost ? '<span class="badge-host">房主</span>' : ''}
             ${isFirst ? '<span style="color: var(--color-amber); font-weight: 700; font-size: 11px;">[首问]</span>' : ''}
           </div>
@@ -1065,6 +1166,7 @@
             <div style="display: flex; align-items: center; gap: 8px;">
               <span style="font-size: 18px;">${p.avatar}</span>
               <span style="font-weight: 700; color: #ffffff;">${p.name}</span>
+              ${p.isBot ? '<span class="badge-bot">AI</span>' : ''}
             </div>
             <span style="font-size: 12px; color: var(--text-muted);">怀疑是间谍</span>
           `;
@@ -1245,10 +1347,11 @@
       // 全员档案揭晓
       if (this.dom.settlementPlayersList && this.players) {
         this.dom.settlementPlayersList.innerHTML = this.players.map(p => `
-          <div class="player-item">
+          <div class="player-item ${p.isBot ? 'is-bot' : ''}">
             <div class="player-item-left">
               <span class="player-avatar">${p.avatar}</span>
               <span class="player-name">${p.name} ${p.isSpy ? '【间谍】' : ''}</span>
+              ${p.isBot ? '<span class="badge-bot">AI</span>' : ''}
             </div>
             <span style="font-size: 13px; font-weight: 700; color: ${p.isSpy ? 'var(--color-crimson)' : 'var(--color-cyan)'};">
               ${p.role || (p.isSpy ? '间谍 (Spy)' : '平民')}
@@ -1275,7 +1378,7 @@
      * 屏幕常亮 Wake Lock 控制
      */
     async setupWakeLock() {
-      if (typeof document === 'undefined') return;
+      if (typeof document === 'undefined' || typeof document.addEventListener !== 'function') return;
       document.addEventListener('visibilitychange', async () => {
         if (this.isWakeLockRequested && document.visibilityState === 'visible') {
           await this.requestWakeLock();
