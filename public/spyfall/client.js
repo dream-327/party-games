@@ -65,6 +65,7 @@
       this.bindCardRevealEvents();
       this.bindModalEvents();
       this.setupWakeLock();
+      this.renderLobbyPhase();
     }
 
     /**
@@ -97,6 +98,18 @@
         btnClearBots: get('btn-clear-bots'),
         waitingPlayers: get('waiting-players'),
         btnStartGame: get('btn-start-game'),
+
+        // 大厅解耦视图与增强组件
+        viewEntry: get('view-entry'),
+        btnRandomName: get('btn-random-name'),
+        btnGuideEntry: get('btn-guide-entry'),
+        btnGuideLobby: get('btn-guide-lobby'),
+        btnCopyInvite: get('btn-copy-invite'),
+        btnLeaveRoom: get('btn-leave-room'),
+        lobbySelfPill: get('lobby-self-pill'),
+        lobbySelfAvatar: get('lobby-self-avatar'),
+        lobbySelfName: get('lobby-self-name'),
+        lobbyGuestHint: get('lobby-guest-hint'),
 
         // 对局主屏幕顶部
         roomCodeDisplay: get('room-code-display'),
@@ -382,11 +395,33 @@
         });
       }
 
-      // 玩法指南按钮
-      if (this.dom.btnGuide) {
-        this.dom.btnGuide.addEventListener('click', () => {
-          this.openModal(this.dom.modalGuide);
-          this.sfx.play('click');
+      // 玩法指南按钮 (对局内、未进房首页、已进房大厅三处入口统一响应)
+      const openGuide = () => {
+        this.openModal(this.dom.modalGuide);
+        this.sfx.play('click');
+      };
+      if (this.dom.btnGuide) this.dom.btnGuide.addEventListener('click', openGuide);
+      if (this.dom.btnGuideEntry) this.dom.btnGuideEntry.addEventListener('click', openGuide);
+      if (this.dom.btnGuideLobby) this.dom.btnGuideLobby.addEventListener('click', openGuide);
+
+      // 随机特工代号生成
+      if (this.dom.btnRandomName) {
+        this.dom.btnRandomName.addEventListener('click', () => {
+          this.randomizeName();
+        });
+      }
+
+      // 退出行动组返回未进房大厅
+      if (this.dom.btnLeaveRoom) {
+        this.dom.btnLeaveRoom.addEventListener('click', () => {
+          this.leaveRoom();
+        });
+      }
+
+      // 复制完整邀请令
+      if (this.dom.btnCopyInvite) {
+        this.dom.btnCopyInvite.addEventListener('click', () => {
+          this.copyInviteText();
         });
       }
 
@@ -436,6 +471,72 @@
           this.restartGame();
         });
       }
+    }
+
+    /**
+     * 随机生成高质感特工代号
+     */
+    randomizeName() {
+      const AGENT_CODENAMES = [
+        '代号007', '极夜银狐', '暗影幽灵', '深海潜行者', '天眼猎手',
+        '迷雾先锋', '纸牌大师', '黑客X', '荒野夜枭', '战术尖兵',
+        '惊雷行者', '绝密信使', '蝰蛇特工', '北极光', '隐匿之刃',
+        '红雀暗桩', '深渊侦探', '白鸽密使', '钢铁特工', '代号9527'
+      ];
+      const pick = AGENT_CODENAMES[Math.floor(Math.random() * AGENT_CODENAMES.length)];
+      this.playerName = pick;
+      if (this.dom.inputName) {
+        this.dom.inputName.value = pick;
+      }
+      this.savePlayerData();
+      this.sfx.play('click');
+      this.notify(`已换上特工代号：【${pick}】`);
+    }
+
+    /**
+     * 复制预设行动邀请令与直连加入链接
+     */
+    copyInviteText() {
+      const code = this.currentRoomCode;
+      if (!code) return;
+      const win = (typeof window !== 'undefined' ? window : global.window) || {};
+      const loc = win.location || { origin: 'http://localhost:3000', pathname: '/spyfall' };
+      const origin = loc.origin || '';
+      const pathname = loc.pathname || '/spyfall';
+      const shareUrl = `${origin}${pathname}?room=${code}`;
+      const inviteMsg = `【绝密行动招募】我们在《间谍危机 (Spyfall)》等你！行动代码：【${code}】，点击链接立即潜伏加入：${shareUrl}`;
+
+      const nav = (typeof window !== 'undefined' && window.navigator) || (typeof navigator !== 'undefined' ? navigator : global.navigator) || {};
+      if (nav.clipboard && typeof nav.clipboard.writeText === 'function') {
+        nav.clipboard.writeText(inviteMsg).then(() => {
+          this.notify(`已复制完整行动邀请令！快粘贴发给微信/QQ好友吧`);
+          this.sfx.play('click');
+        }).catch(() => {
+          this.notify(inviteMsg);
+        });
+      } else {
+        this.notify(inviteMsg);
+      }
+    }
+
+    /**
+     * 主动退出房间返回未进房大厅
+     */
+    leaveRoom() {
+      if (this.socket && this.currentRoomCode) {
+        this.socket.emit('leave_room', { roomCode: this.currentRoomCode });
+      }
+      this.currentRoomCode = null;
+      if (typeof window !== 'undefined' && window.location && window.history) {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('room');
+          window.history.replaceState({}, '', url.pathname);
+        } catch (e) {}
+      }
+      this.renderLobbyPhase();
+      this.notify('已退出行动组');
+      this.sfx.play('click');
     }
 
     /**
@@ -875,15 +976,34 @@
       this.selectedSuspectId = null;
       this.selectedGuessLocationId = null;
 
-      // 展现等待面板
-      if (this.dom.lobbyRoomDetails) {
-        this.dom.lobbyRoomDetails.style.display = 'block';
+      const inRoom = !!this.currentRoomCode;
+
+      // 视图解耦流转：未进房展示首页输入卡；已进房展示独立行动大厅
+      if (this.dom.viewEntry) {
+        this.dom.viewEntry.style.display = inRoom ? 'none' : 'block';
       }
+      if (this.dom.lobbyRoomDetails) {
+        this.dom.lobbyRoomDetails.style.display = inRoom ? 'block' : 'none';
+      }
+
+      if (!inRoom) {
+        return;
+      }
+
+      // 展现等待大厅数据
       if (this.dom.lobbyRoomCode) {
         this.dom.lobbyRoomCode.textContent = this.currentRoomCode || '----';
       }
       if (this.dom.lobbyPlayerCount) {
         this.dom.lobbyPlayerCount.textContent = String(this.players.length);
+      }
+
+      // 收敛展示个人资料药丸
+      if (this.dom.lobbySelfAvatar) {
+        this.dom.lobbySelfAvatar.textContent = (this.self && this.self.avatar) || this.playerAvatar || '🕶️';
+      }
+      if (this.dom.lobbySelfName) {
+        this.dom.lobbySelfName.textContent = (this.self && this.self.name) || this.playerName || '特工';
       }
 
       // 渲染等待玩家列表
@@ -908,7 +1028,7 @@
         this.dom.lobbyBotActions.style.display = this.isHost ? 'flex' : 'none';
       }
 
-      // 开始游戏按钮权限
+      // 开始游戏按钮与非房主提示
       if (this.dom.btnStartGame) {
         const canStart = this.isHost && this.players.length >= 3;
         this.dom.btnStartGame.style.display = this.isHost ? 'block' : 'none';
@@ -916,6 +1036,10 @@
         this.dom.btnStartGame.innerHTML = canStart
           ? '<span>🚀</span> 开启绝密任务 (立即出发)'
           : `<span>🚀</span> 开启绝密任务 (至少3人，当前${this.players.length}人)`;
+      }
+
+      if (this.dom.lobbyGuestHint) {
+        this.dom.lobbyGuestHint.style.display = this.isHost ? 'none' : 'block';
       }
     }
 

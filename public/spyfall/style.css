@@ -171,9 +171,17 @@ body {
 /* ======================================================== */
 /* 1. 大厅界面 (Screen Lobby) */
 /* ======================================================== */
+.lobby-header-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0 6px;
+}
+
 .lobby-hero {
-  text-align: center;
-  padding: 16px 0 12px;
+  flex: 1;
+  text-align: left;
 }
 
 .lobby-title {
@@ -185,7 +193,7 @@ body {
   -webkit-text-fill-color: transparent;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 8px;
 }
 
@@ -193,6 +201,30 @@ body {
   font-size: 13px;
   color: var(--text-muted);
   margin-top: 4px;
+}
+
+.btn-top-memo {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  background: rgba(6, 182, 212, 0.1);
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  color: var(--color-cyan);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.btn-top-memo:hover {
+  background: rgba(6, 182, 212, 0.25);
+  border-color: var(--color-cyan);
+  box-shadow: var(--shadow-neon-cyan);
+  transform: translateY(-1px);
 }
 
 .card-panel {
@@ -218,25 +250,32 @@ body {
   gap: 6px;
 }
 
-/* 头像选择网格 */
+/* 头像选择网格 - 紧凑双行与高占比图标 */
 .avatar-selector {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   gap: 8px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .avatar-option {
-  aspect-ratio: 1;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
-  background: rgba(255, 255, 255, 0.04);
+  font-size: 28px; /* 占据格子 60%+ 面积，消除多余留白 */
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.05);
   border: 2px solid transparent;
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+
+.avatar-option:hover {
+  background: rgba(6, 182, 212, 0.1);
+  border-color: rgba(6, 182, 212, 0.4);
 }
 
 .avatar-option:active {
@@ -245,9 +284,41 @@ body {
 
 .avatar-option.selected {
   border-color: var(--color-cyan);
-  background: rgba(6, 182, 212, 0.18);
+  background: rgba(6, 182, 212, 0.22);
   box-shadow: var(--shadow-neon-cyan);
   transform: translateY(-2px);
+}
+
+/* 输入框带操作组合栏 */
+.input-with-action {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.input-with-action .input-text {
+  flex: 1;
+}
+
+.btn-dice {
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: var(--radius-md);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-dice:hover {
+  transform: scale(1.03);
+}
+
+.btn-dice:active {
+  transform: scale(0.96);
 }
 
 /* 文本输入框 */
@@ -364,14 +435,150 @@ body {
   width: 100%;
 }
 
-/* 大厅房间等待名单 */
+/* 已进房行动大厅视图 (Screen Room) */
+.lobby-room-view {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.lobby-room-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 14px;
+}
+
+.self-profile-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.self-pill-avatar {
+  font-size: 18px;
+}
+
+.self-pill-tag {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+  background: rgba(16, 185, 129, 0.18);
+  color: var(--color-emerald);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.lobby-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-leave {
+  color: var(--color-crimson);
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.btn-leave:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: var(--color-crimson);
+}
+
+/* 行动代码大Banner */
+.room-code-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.12) 0%, rgba(37, 99, 235, 0.06) 100%);
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  border-radius: var(--radius-md);
+  margin-bottom: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.room-code-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.room-code-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--text-secondary);
+}
+
+.room-code-hero {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: 3px;
+  color: var(--color-cyan);
+  text-shadow: 0 0 16px rgba(6, 182, 212, 0.7);
+  user-select: all;
+  cursor: pointer;
+}
+
+.room-code-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-copy-hero {
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 800;
+  border-radius: var(--radius-md);
+  box-shadow: 0 2px 10px rgba(6, 182, 212, 0.25);
+}
+
+/* 局长时长设置块 */
+.room-settings-block {
+  margin-bottom: 14px;
+}
+
+/* 大厅房间等待名单与独立滚动容器 */
+.player-roster-scroll-container {
+  max-height: 250px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+  padding-right: 4px;
+  border-radius: var(--radius-sm);
+}
+
+.player-roster-scroll-container::-webkit-scrollbar {
+  width: 5px;
+}
+
+.player-roster-scroll-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
 .player-roster {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin-top: 10px;
-  max-height: 220px;
-  overflow-y: auto;
+  margin-top: 6px;
 }
 
 .player-item {
@@ -412,17 +619,54 @@ body {
 
 .badge-bot {
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: 0.5px;
   color: var(--color-cyan);
-  background: rgba(6, 182, 212, 0.18);
-  border: 1px solid rgba(6, 182, 212, 0.35);
-  padding: 2px 6px;
+  background: rgba(6, 182, 212, 0.22);
+  border: 1px solid var(--color-cyan);
+  padding: 2px 7px;
   border-radius: var(--radius-full);
+  box-shadow: 0 0 8px rgba(6, 182, 212, 0.4);
 }
 
 .player-item.is-bot {
-  border-color: rgba(6, 182, 212, 0.25);
-  background: rgba(6, 182, 212, 0.04);
+  border-color: rgba(6, 182, 212, 0.35);
+  background: linear-gradient(90deg, rgba(6, 182, 212, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.player-item.is-bot::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--color-cyan);
+  box-shadow: 0 0 8px var(--color-cyan);
+}
+
+/* 底部吸底固定操作栏 (Sticky Bottom) */
+.lobby-sticky-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  padding-top: 10px;
+  background: linear-gradient(180deg, transparent 0%, rgba(13, 19, 34, 0.95) 24%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.lobby-guest-hint {
+  text-align: center;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-amber);
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px dashed rgba(245, 158, 11, 0.35);
+  border-radius: var(--radius-md);
 }
 
 .seat-pill.is-bot {
@@ -585,29 +829,28 @@ body {
   transform: scale(0.99);
 }
 
-/* 遮罩保护层 */
+/* 遮罩保护层 - 彻底杜绝半透明漏光，100% 纯实色防偷窥 */
 .card-secret-cover {
   position: absolute;
   inset: 0;
   z-index: 10;
-  background: linear-gradient(135deg, #111827 0%, #0b0f19 100%);
-  background-image: 
-    radial-gradient(circle at 50% 50%, rgba(245, 158, 11, 0.08) 0%, transparent 70%),
-    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.015) 0, rgba(255, 255, 255, 0.015) 2px, transparent 2px, transparent 8px);
+  background-color: #0b0f19 !important;
+  background: #0b0f19 radial-gradient(circle at 50% 50%, rgba(245, 158, 11, 0.08) 0%, transparent 70%), linear-gradient(135deg, #111827 0%, #080c14 100%) !important;
+  opacity: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 8px;
   padding: 16px;
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  border: 1px solid rgba(245, 158, 11, 0.4);
   border-radius: var(--radius-lg);
   transition: opacity 0.18s ease, visibility 0.18s ease;
 }
 
 .card-secret.revealed .card-secret-cover {
-  opacity: 0;
-  visibility: hidden;
+  opacity: 0 !important;
+  visibility: hidden !important;
   pointer-events: none;
 }
 
@@ -628,6 +871,18 @@ body {
   color: var(--text-muted);
 }
 
+/* 防窥双保险：未按住翻开时，底层脱敏内容强制隐藏，绝不发生任何穿透 */
+.card-secret:not(.revealed) .card-secret-content {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
+.card-secret.revealed .card-secret-content {
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
 /* 翻开脱敏内容呈现层 */
 .card-secret-content {
   padding: 16px;
@@ -637,7 +892,7 @@ body {
   justify-content: center;
   min-height: 140px;
   text-align: center;
-  background: radial-gradient(circle at 50% 50%, rgba(6, 182, 212, 0.12) 0%, transparent 80%);
+  background: #0d1322 radial-gradient(circle at 50% 50%, rgba(6, 182, 212, 0.12) 0%, transparent 80%);
 }
 
 .card-secret.is-spy .card-secret-content {
