@@ -408,3 +408,43 @@ body {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.4; transform: scale(0.8); }
 }
+
+/* ==========================================================================
+   🎮 Agent Skills Optimization: game-feel, performance-optimization, game-ui-ux
+   ========================================================================== */
+
+/* 1. Game Feel: 弹性缓动与卡片悬停反馈 (Elastic Spring) */
+.game-card {
+  will-change: transform, box-shadow;
+  transform: translateZ(0);
+  transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.28s ease, border-color 0.28s ease;
+}
+
+.game-card:hover {
+  transform: translateY(-6px) scale(1.015);
+}
+
+.modal-content {
+  animation: elasticPop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes elasticPop {
+  0% { transform: scale(0.92); opacity: 0; }
+  60% { transform: scale(1.03); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* 2. Performance: 触控响应消除延迟 */
+button,
+.btn,
+.tool-btn,
+.game-card {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 3. Game UI/UX: 移动端安全区适配 */
+.hub-wrapper {
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+}
+

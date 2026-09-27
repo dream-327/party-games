@@ -23,19 +23,58 @@
     .catch(() => {});
 
   btnShareHub.addEventListener('click', () => {
+    playHubChime();
     openHubShareModal();
   });
 
   btnCloseShareHub.addEventListener('click', () => {
+    playHubChime();
     modalShareHub.classList.add('hidden');
   });
 
   btnCopyHubLink.addEventListener('click', () => {
+    playHubChime();
     shareHubInput.select();
     navigator.clipboard.writeText(shareHubInput.value).then(() => {
       btnCopyHubLink.textContent = '已复制！';
       setTimeout(() => { btnCopyHubLink.textContent = '复制链接'; }, 1500);
     });
+  });
+
+  // Web Audio 轻量交互音效与触觉反馈 (Audio Design & Game Feel)
+  let audioCtx = null;
+  function playHubChime() {
+    try {
+      if (!audioCtx) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) audioCtx = new AudioCtx();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      if (audioCtx) {
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(580, now);
+        osc.frequency.exponentialRampToValueAtTime(880, now + 0.08);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.08);
+      }
+    } catch (e) {}
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      try { navigator.vibrate(15); } catch (e) {}
+    }
+  }
+
+  // 为所有按钮和游戏入口绑定微交互
+  document.querySelectorAll('a.btn, button.tool-btn, button.btn').forEach(el => {
+    el.addEventListener('click', () => playHubChime());
   });
 
   function openHubShareModal() {
