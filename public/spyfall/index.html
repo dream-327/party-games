@@ -26,9 +26,14 @@
             </h1>
             <p class="lobby-subtitle">暗流涌动 · 隐秘代号 · 心理博弈问答</p>
           </div>
-          <button id="btn-guide-entry" class="btn-top-memo" title="新手特工问答指南">
-            <span>📖</span> 特工备忘录
-          </button>
+          <div class="lobby-top-actions">
+            <a href="/" class="btn-top-memo btn-hub-home" title="返回聚会游戏大厅主页" style="text-decoration: none;">
+              <span>🏠</span> 游戏大厅
+            </a>
+            <button id="btn-guide-entry" class="btn-top-memo" title="新手特工问答指南">
+              <span>📖</span> 特工备忘录
+            </button>
+          </div>
         </div>
 
         <!-- 身份档案设定卡 -->
@@ -89,6 +94,9 @@
             <span class="self-pill-tag">已就绪</span>
           </div>
           <div class="lobby-header-actions">
+            <button id="btn-leave-to-hub" class="btn-icon-tag" title="返回聚会大厅主页">
+              <span>🏠</span> 大厅
+            </button>
             <button id="btn-guide-lobby" class="btn-icon-tag" title="玩法指南">
               <span>📖</span> 备忘录
             </button>
@@ -185,11 +193,17 @@
       <!-- 顶部特工状态栏 -->
       <header class="top-header">
         <div class="header-left">
+          <button id="btn-exit-hub" class="btn-icon-tag btn-exit-hub" title="退出对局并返回聚会大厅">
+            <span>🏠</span>大厅
+          </button>
           <span class="badge-brand"><span>🕵️</span>行动中</span>
           <span id="room-code-display" class="room-code-tag">----</span>
           <span class="online-tag"><span>🟢</span><span id="online-count">0</span>人</span>
         </div>
         <div class="header-actions">
+          <button id="btn-host-restart" class="btn-icon-tag btn-host-restart" style="display: none;" title="房主提前终止并重开对局">
+            <span>🔄</span>重开
+          </button>
           <button id="btn-wakelock" class="btn-icon-tag" title="屏幕常亮保持">
             <span>💡</span><span id="wakelock-label">常亮</span>
           </button>
@@ -215,6 +229,9 @@
             <div class="lock-badge-icon">🔒</div>
             <div class="cover-prompt">按住查看绝密身份</div>
             <div class="cover-subprompt">周围如有敌特侦察，松开即刻闭锁</div>
+            <button id="btn-peek-hint" class="btn-peek-hint" type="button">
+              <span>👁️</span> 点击常驻查看 (5秒)
+            </button>
           </div>
 
           <!-- 翻开脱敏内容呈现层 -->
@@ -227,6 +244,9 @@
             <div id="secret-role-desc" class="secret-role-desc">
               角色：<span id="secret-role-name">正在解密中...</span>
             </div>
+            <button id="btn-conceal-hint" class="btn-conceal-hint" type="button">
+              <span>🔒</span> 立即隐藏防窥
+            </button>
           </div>
         </div>
       </div>
@@ -238,6 +258,13 @@
         </button>
         <button id="btn-accuse" class="btn btn-action" title="平民对嫌疑特工发起紧急指控">
           <span>🔍</span> 发起指控
+        </button>
+      </div>
+
+      <!-- 房主局内应急重开控制区 -->
+      <div id="host-playing-controls" class="host-playing-controls" style="display: none;">
+        <button id="btn-host-playing-restart" class="btn btn-outline-crimson btn-block btn-sm">
+          <span>🔄</span> 房主权限：形势不利/误报？提前终止对局并重置大厅
         </button>
       </div>
 
@@ -410,10 +437,13 @@
             <!-- 动态填充全员底牌与角色 -->
           </div>
         </div>
-        <div class="modal-footer">
+        <div class="modal-footer" style="display: flex; flex-direction: column; gap: 8px;">
           <button id="btn-restart" class="btn btn-primary btn-block">
             <span>🔄</span> 开启新一轮对局 (再来一局)
           </button>
+          <a href="/" id="btn-settlement-hub" class="btn btn-secondary btn-block" style="text-align: center; text-decoration: none;">
+            <span>🏠</span> 退出游戏并返回聚会大厅
+          </a>
         </div>
       </div>
     </div>

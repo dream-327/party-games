@@ -104,6 +104,7 @@
         btnRandomName: get('btn-random-name'),
         btnGuideEntry: get('btn-guide-entry'),
         btnGuideLobby: get('btn-guide-lobby'),
+        btnLeaveToHub: get('btn-leave-to-hub'),
         btnCopyInvite: get('btn-copy-invite'),
         btnLeaveRoom: get('btn-leave-room'),
         lobbySelfPill: get('lobby-self-pill'),
@@ -112,8 +113,10 @@
         lobbyGuestHint: get('lobby-guest-hint'),
 
         // 对局主屏幕顶部
+        btnExitHub: get('btn-exit-hub'),
         roomCodeDisplay: get('room-code-display'),
         onlineCount: get('online-count'),
+        btnHostRestart: get('btn-host-restart'),
         btnWakelock: get('btn-wakelock'),
         wakelockLabel: get('wakelock-label'),
         btnGuide: get('btn-guide'),
@@ -126,6 +129,8 @@
         cardSecret: get('card-secret'),
         cardSecretCover: get('card-secret-cover'),
         cardSecretContent: get('card-secret-content'),
+        btnPeekHint: get('btn-peek-hint'),
+        btnConcealHint: get('btn-conceal-hint'),
         secretBadge: get('secret-badge'),
         secretLocationTitle: get('secret-location-title'),
         secretLocationIcon: get('secret-location-icon'),
@@ -136,6 +141,8 @@
         // 操作按钮
         btnSpyGuess: get('btn-spy-guess'),
         btnAccuse: get('btn-accuse'),
+        hostPlayingControls: get('host-playing-controls'),
+        btnHostPlayingRestart: get('btn-host-playing-restart'),
 
         // 排查板与席位
         locationScratchpad: get('location-scratchpad'),
@@ -169,7 +176,8 @@
         settlementLocation: get('settlement-location'),
         settlementSpy: get('settlement-spy'),
         settlementPlayersList: get('settlement-players-list'),
-        btnRestart: get('btn-restart')
+        btnRestart: get('btn-restart'),
+        btnSettlementHub: get('btn-settlement-hub')
       };
     }
 
@@ -465,6 +473,41 @@
         });
       }
 
+      // 房主局内提前重开按钮
+      const handleHostRestart = () => {
+        if (!this.isHost) return;
+        const win = (typeof window !== 'undefined' ? window : global.window) || {};
+        const confirmFn = win.confirm || global.confirm;
+        const ok = confirmFn ? confirmFn('确定要终止当前对局并返回等待大厅重新开局吗？') : true;
+        if (ok) {
+          this.restartGame();
+          this.sfx.play('click');
+        }
+      };
+
+      if (this.dom.btnHostRestart) {
+        this.dom.btnHostRestart.addEventListener('click', handleHostRestart);
+      }
+      if (this.dom.btnHostPlayingRestart) {
+        this.dom.btnHostPlayingRestart.addEventListener('click', handleHostRestart);
+      }
+
+      // 退出到聚会大厅
+      const handleExitToHub = (e) => {
+        if (e && e.preventDefault) e.preventDefault();
+        this.exitToHub();
+      };
+
+      if (this.dom.btnExitHub) {
+        this.dom.btnExitHub.addEventListener('click', handleExitToHub);
+      }
+      if (this.dom.btnLeaveToHub) {
+        this.dom.btnLeaveToHub.addEventListener('click', handleExitToHub);
+      }
+      if (this.dom.btnSettlementHub) {
+        this.dom.btnSettlementHub.addEventListener('click', handleExitToHub);
+      }
+
       // 再来一局重开按钮
       if (this.dom.btnRestart) {
         this.dom.btnRestart.addEventListener('click', () => {
@@ -540,6 +583,26 @@
     }
 
     /**
+     * 退出游戏并直接返回聚会游戏大厅门户
+     */
+    exitToHub() {
+      const win = (typeof window !== 'undefined' ? window : global.window) || {};
+      const confirmFn = win.confirm || global.confirm;
+      const isPlaying = this.gameState && this.gameState.phase === 'PLAYING';
+      const prompt = isPlaying ? '确定要退出当前对局并返回聚会大厅吗？' : '确定要返回聚会游戏大厅吗？';
+      const ok = confirmFn ? confirmFn(prompt) : true;
+      if (!ok) return;
+
+      if (this.currentRoomCode && this.socket) {
+        this.socket.emit('leave_room', { roomCode: this.currentRoomCode });
+      }
+      this.currentRoomCode = null;
+      if (win.location) {
+        win.location.href = '/';
+      }
+    }
+
+    /**
      * 复制房间行动代码到剪贴板
      */
     copyRoomCode() {
@@ -582,38 +645,100 @@
       const card = this.dom.cardSecret;
       if (!card) return;
 
-      const reveal = (e) => {
-        card.classList.add('revealed');
-        this.sfx.play('card');
+      let revealTimer = null;
+      let isHolding = false;
+      let touchStartX = 0;
+      let touchStartY = 0;
+
+      const reveal = () => {
+        if (revealTimer) {
+          clearTimeout(revealTimer);
+          revealTimer = null;
+        }
+        if (!card.classList.contains('revealed')) {
+          card.classList.add('revealed');
+          this.sfx.play('card');
+        }
       };
 
       const conceal = () => {
+        if (revealTimer) {
+          clearTimeout(revealTimer);
+          revealTimer = null;
+        }
+        isHolding = false;
         card.classList.remove('revealed');
       };
 
-      // 鼠标事件
-      card.addEventListener('mousedown', reveal);
+      // 鼠标事件 (按下翻开，松开/移开关闭)
+      card.addEventListener('mousedown', () => {
+        isHolding = true;
+        reveal();
+      });
       card.addEventListener('mouseup', conceal);
-      card.addEventListener('mouseleave', conceal);
+      card.addEventListener('mouseleave', () => {
+        if (isHolding) conceal();
+      });
 
-      // 触摸事件
-      card.addEventListener('touchstart', reveal, { passive: true });
+      // 触摸事件 (按住翻开，松开/取消闭锁)
+      card.addEventListener('touchstart', (e) => {
+        isHolding = true;
+        if (e && e.touches && e.touches[0]) {
+          touchStartX = e.touches[0].clientX;
+          touchStartY = e.touches[0].clientY;
+        }
+        reveal();
+      }, { passive: true });
+
       card.addEventListener('touchend', conceal, { passive: true });
       card.addEventListener('touchcancel', conceal, { passive: true });
 
-      // 防偷窥安全防御：滑动屏幕、窗口滚动、失焦、切后台立刻隐匿身份
-      const win = (typeof window !== 'undefined' ? window : global.window) || {};
-      if (typeof win.addEventListener === 'function') {
-        win.addEventListener('scroll', conceal, { passive: true });
-        win.addEventListener('blur', conceal);
+      // 便捷点击常驻查看（展示 5 秒后自动闭锁）
+      if (this.dom.btnPeekHint) {
+        this.dom.btnPeekHint.addEventListener('click', (e) => {
+          if (e && e.stopPropagation) e.stopPropagation();
+          reveal();
+          if (revealTimer) clearTimeout(revealTimer);
+          revealTimer = setTimeout(() => {
+            conceal();
+          }, 5000);
+        });
       }
+
+      // 立即隐藏防窥按钮
+      if (this.dom.btnConcealHint) {
+        this.dom.btnConcealHint.addEventListener('click', (e) => {
+          if (e && e.stopPropagation) e.stopPropagation();
+          conceal();
+          this.sfx.play('click');
+        });
+      }
+
+      // 触摸移动：只有在页面真正发生滑动（手指位移 > 25px）时才闭锁，避免微颤导致手机端无法长按
       if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
-        document.addEventListener('touchmove', conceal, { passive: true });
+        document.addEventListener('touchmove', (e) => {
+          if (!isHolding) return;
+          if (e && e.touches && e.touches[0]) {
+            const dx = e.touches[0].clientX - touchStartX;
+            const dy = e.touches[0].clientY - touchStartY;
+            if (Math.hypot(dx, dy) > 25) {
+              conceal();
+            }
+          }
+        }, { passive: true });
+
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState !== 'visible') {
             conceal();
           }
         });
+      }
+
+      // 防偷窥安全防御：窗口滚动、失焦立刻闭锁隐匿身份
+      const win = (typeof window !== 'undefined' ? window : global.window) || {};
+      if (typeof win.addEventListener === 'function') {
+        win.addEventListener('scroll', conceal, { passive: true });
+        win.addEventListener('blur', conceal);
       }
     }
 
@@ -976,6 +1101,17 @@
       this.selectedSuspectId = null;
       this.selectedGuessLocationId = null;
 
+      // 隐藏局内房主控制
+      if (this.dom.btnHostRestart) {
+        this.dom.btnHostRestart.style.display = 'none';
+      }
+      if (this.dom.hostPlayingControls) {
+        this.dom.hostPlayingControls.style.display = 'none';
+      }
+      if (this.dom.cardSecret) {
+        this.dom.cardSecret.classList.remove('revealed');
+      }
+
       const inRoom = !!this.currentRoomCode;
 
       // 视图解耦流转：未进房展示首页输入卡；已进房展示独立行动大厅
@@ -1105,6 +1241,15 @@
         } else {
           this.dom.btnSpyGuess.disabled = false;
         }
+      }
+
+      // 房主局内重置与重开按钮控制
+      const isHostPlaying = this.isHost && (phase === 'PLAYING');
+      if (this.dom.btnHostRestart) {
+        this.dom.btnHostRestart.style.display = isHostPlaying ? 'inline-flex' : 'none';
+      }
+      if (this.dom.hostPlayingControls) {
+        this.dom.hostPlayingControls.style.display = isHostPlaying ? 'block' : 'none';
       }
 
       // 结算自动弹出

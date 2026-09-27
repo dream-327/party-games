@@ -203,6 +203,13 @@ body {
   margin-top: 4px;
 }
 
+.lobby-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .btn-top-memo {
   flex-shrink: 0;
   display: inline-flex;
@@ -835,7 +842,7 @@ body {
   inset: 0;
   z-index: 10;
   background-color: #0b0f19 !important;
-  background: #0b0f19 radial-gradient(circle at 50% 50%, rgba(245, 158, 11, 0.08) 0%, transparent 70%), linear-gradient(135deg, #111827 0%, #080c14 100%) !important;
+  background-image: linear-gradient(135deg, #1e293b 0%, #0b0f19 100%) !important;
   opacity: 1;
   display: flex;
   flex-direction: column;
@@ -871,6 +878,46 @@ body {
   color: var(--text-muted);
 }
 
+.btn-peek-hint {
+  font-size: 11px;
+  color: var(--color-amber);
+  cursor: pointer;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  margin-top: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+}
+
+.btn-peek-hint:hover {
+  background: rgba(245, 158, 11, 0.25);
+  border-color: var(--color-amber);
+}
+
+.btn-conceal-hint {
+  font-size: 11px;
+  color: var(--color-cyan);
+  cursor: pointer;
+  background: rgba(6, 182, 212, 0.12);
+  border: 1px solid rgba(6, 182, 212, 0.4);
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+}
+
+.btn-conceal-hint:hover {
+  background: rgba(6, 182, 212, 0.25);
+  border-color: var(--color-cyan);
+}
+
 /* 防窥双保险：未按住翻开时，底层脱敏内容强制隐藏，绝不发生任何穿透 */
 .card-secret:not(.revealed) .card-secret-content {
   visibility: hidden !important;
@@ -883,7 +930,7 @@ body {
   opacity: 1 !important;
 }
 
-/* 翻开脱敏内容呈现层 */
+/* 翻开脱敏内容呈现层 - 彻底纯实色高对比，绝不透明 */
 .card-secret-content {
   padding: 16px;
   display: flex;
@@ -892,11 +939,14 @@ body {
   justify-content: center;
   min-height: 140px;
   text-align: center;
-  background: #0d1322 radial-gradient(circle at 50% 50%, rgba(6, 182, 212, 0.12) 0%, transparent 80%);
+  background-color: #0d1322 !important;
+  background-image: linear-gradient(135deg, #0d1322 0%, #172033 100%) !important;
+  opacity: 1;
 }
 
 .card-secret.is-spy .card-secret-content {
-  background: radial-gradient(circle at 50% 50%, rgba(239, 68, 68, 0.18) 0%, transparent 80%);
+  background-color: #1a0b12 !important;
+  background-image: linear-gradient(135deg, #1a0b12 0%, #2a0e19 100%) !important;
 }
 
 .secret-role-badge {
@@ -933,6 +983,35 @@ body {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-secondary);
+}
+
+/* 房主局内重开与大厅返回按钮 */
+.btn-host-restart {
+  color: var(--color-amber);
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.btn-host-restart:hover {
+  background: rgba(245, 158, 11, 0.28);
+  border-color: var(--color-amber);
+}
+
+.btn-exit-hub {
+  color: var(--text-secondary);
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.btn-exit-hub:hover {
+  color: var(--color-cyan);
+  border-color: var(--color-cyan);
+  background: rgba(6, 182, 212, 0.15);
+}
+
+.host-playing-controls {
+  margin-top: -4px;
+  margin-bottom: 12px;
 }
 
 /* ======================================================== */
