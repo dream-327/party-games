@@ -1656,3 +1656,63 @@ body {
   width: 100%;
 }
 
+/* ==========================================================================
+   🎮 Agent Skills Optimization: game-feel, performance-optimization, game-ui-ux
+   ========================================================================== */
+
+/* 1. Game Feel: 处决与天黑闭眼震撼屏幕微震颤动效 */
+@keyframes screenShake {
+  0% { transform: translate(0, 0); }
+  15% { transform: translate(-4px, 2px) rotate(-0.5deg); }
+  30% { transform: translate(4px, -2px) rotate(0.5deg); }
+  45% { transform: translate(-3px, -2px) rotate(-0.3deg); }
+  60% { transform: translate(3px, 2px) rotate(0.3deg); }
+  75% { transform: translate(-1px, 1px); }
+  100% { transform: translate(0, 0); }
+}
+
+.screen-shake {
+  animation: screenShake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+/* 2. Game Feel: 角色身份弹窗与操作面板弹性展开 */
+@keyframes elasticPop {
+  0% { transform: scale(0.92); opacity: 0; }
+  60% { transform: scale(1.03); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.modal.active .modal-content,
+.role-reveal-card.revealed,
+.god-action-modal.active {
+  animation: elasticPop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* 3. Performance Optimization: 独立 GPU 合成层与触控加速 */
+.player-seat,
+.modal-content,
+.dealer-player-seat-card,
+.role-card-inner,
+.timer-pill {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+button,
+.btn,
+.btn-icon,
+.player-seat,
+.rule-preset-chip {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 4. Game UI/UX: 移动端全面屏底部安全区 (Safe Area Insets) */
+.action-bottom-bar,
+.dealer-player-footer,
+.floating-god-bar {
+  padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+}
+
+

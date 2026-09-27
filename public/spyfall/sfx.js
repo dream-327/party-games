@@ -4,6 +4,7 @@
 class SoundEffects {
   constructor() {
     this.ctx = null;
+    this.masterGain = null;
     this.enabled = true;
   }
 
@@ -13,11 +14,28 @@ class SoundEffects {
                        (typeof global !== 'undefined' && global.AudioContext);
       if (AudioCtx) {
         this.ctx = new AudioCtx();
+        if (typeof this.ctx.createGain === 'function') {
+          this.masterGain = this.ctx.createGain();
+          if (this.masterGain.gain && typeof this.masterGain.gain.setValueAtTime === 'function') {
+            this.masterGain.gain.setValueAtTime(0.85, this.ctx.currentTime);
+          }
+          if (typeof this.masterGain.connect === 'function') {
+            this.masterGain.connect(this.ctx.destination);
+          }
+        }
       }
     }
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume();
     }
+  }
+
+  getMasterOut() {
+    return this.masterGain || (this.ctx ? this.ctx.destination : null);
+  }
+
+  _jitter(freq, ratio = 0.035) {
+    return freq * (1 + (Math.random() * 2 - 1) * ratio);
   }
 
   play(name) {
@@ -56,14 +74,14 @@ class SoundEffects {
     const gain = this.ctx.createGain();
 
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(1000, this.ctx.currentTime);
+    osc.frequency.setValueAtTime(this._jitter(1000), this.ctx.currentTime);
     osc.frequency.exponentialRampToValueAtTime(500, this.ctx.currentTime + 0.03);
 
     gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.03);
 
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.getMasterOut());
 
     osc.start();
     osc.stop(this.ctx.currentTime + 0.03);
@@ -76,14 +94,14 @@ class SoundEffects {
     const gain = this.ctx.createGain();
 
     osc.type = 'triangle';
-    osc.frequency.setValueAtTime(320, this.ctx.currentTime);
+    osc.frequency.setValueAtTime(this._jitter(320), this.ctx.currentTime);
     osc.frequency.exponentialRampToValueAtTime(780, this.ctx.currentTime + 0.12);
 
     gain.gain.setValueAtTime(0.18, this.ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.12);
 
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.getMasterOut());
 
     osc.start();
     osc.stop(this.ctx.currentTime + 0.12);
@@ -93,6 +111,15 @@ class SoundEffects {
   playAlarm() {
     if (!this.ctx) return;
     const now = this.ctx.currentTime;
+
+    // 触发触觉与视觉屏幕微震颤 (Game Feel / Juice)
+    this.vibrate('urgent');
+    if (typeof document !== 'undefined' && document.body) {
+      document.body.classList.remove('screen-shake');
+      void document.body.offsetWidth;
+      document.body.classList.add('screen-shake');
+      setTimeout(() => document.body.classList.remove('screen-shake'), 500);
+    }
     
     // 双音交替急促警笛
     const osc = this.ctx.createOscillator();
@@ -109,12 +136,10 @@ class SoundEffects {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
 
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.getMasterOut());
 
     osc.start(now);
     osc.stop(now + 0.45);
-
-    this.vibrate('urgent');
   }
 
   // 获胜欢呼琶音
@@ -133,7 +158,7 @@ class SoundEffects {
       gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.3);
 
       osc.connect(gain);
-      gain.connect(this.ctx.destination);
+      gain.connect(this.getMasterOut());
 
       osc.start(now + i * 0.1);
       osc.stop(now + i * 0.1 + 0.3);
@@ -157,7 +182,7 @@ class SoundEffects {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
 
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.getMasterOut());
 
     osc.start(now);
     osc.stop(now + 0.65);
@@ -172,14 +197,14 @@ class SoundEffects {
     const gain = this.ctx.createGain();
 
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(700, this.ctx.currentTime);
+    osc.frequency.setValueAtTime(this._jitter(700), this.ctx.currentTime);
     osc.frequency.exponentialRampToValueAtTime(350, this.ctx.currentTime + 0.04);
 
     gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.04);
 
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.getMasterOut());
 
     osc.start();
     osc.stop(this.ctx.currentTime + 0.04);
