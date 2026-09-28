@@ -297,41 +297,140 @@
     <div id="modal-guide" class="modal-overlay">
       <div class="modal-dialog">
         <div class="modal-header">
-          <div class="modal-title"><span>📖</span> 新手特工问答指南</div>
+          <div class="modal-title"><span>📖</span> 《间谍危机》新手指南与操作手册</div>
           <button class="modal-close" data-close="modal-guide">&times;</button>
         </div>
         <div class="modal-body">
-          <div class="guide-section">
-            <div class="guide-title">🎯 胜负目标</div>
-            <p><strong>平民</strong>：在限定时间内通过口头交流，揪出潜伏的唯一间谍；或防范间谍猜出真实地点。</p>
-            <p><strong>间谍</strong>：隐藏自身不被投票出局，并在对话线索中推断出真实地点。</p>
+          <!-- 导航标签切换栏 -->
+          <div class="guide-tabs" id="guide-tabs">
+            <button type="button" class="guide-tab-btn active" data-tab="tab-guide-rules">⚡ 30秒规则</button>
+            <button type="button" class="guide-tab-btn" data-tab="tab-guide-controls">📱 软件操作</button>
+            <button type="button" class="guide-tab-btn" data-tab="tab-guide-tips">🎭 实战话术</button>
           </div>
 
-          <div class="guide-section">
-            <div class="guide-title">🛡️ 平民发问与回答技巧</div>
-            <p><strong>目标</strong>：向同伴暗示你了解地点，同时不给间谍透露关键环境特征！</p>
-            <div class="guide-box bad-example">
-              <strong>❌ 错误示范（太直白）</strong>：<br>
-              在“综合医院”问：“你今天做手术用了几号手术刀？”（间谍秒懂是医院，送分！）
+          <!-- 标签 1: 30秒极速入门与完整规则 -->
+          <div id="tab-guide-rules" class="guide-tab-content active" style="display: block;">
+            <div class="guide-section">
+              <div class="guide-title">⚡ 30秒极速看懂</div>
+              <div class="guide-box" style="background: rgba(245, 158, 11, 0.08); border-left: 3px solid var(--color-amber); color: #fef3c7;">
+                <strong>核心机制</strong>：除了潜伏的 <strong>1 名唯一间谍</strong>，其他平民特工都在<strong>同一个秘密行动地点</strong>！平民要通过问答揪出间谍，间谍要假装知情并猜出真实地点。
+              </div>
             </div>
-            <div class="guide-box good-example">
-              <strong>✅ 优秀示范（巧妙暗号）</strong>：<br>
-              在“综合医院”问：“你平时上班进门前有没有闻到特殊的刺激性气味？”或“你平时工作对环境噪音敏感吗？”
+
+            <div class="guide-section">
+              <div class="guide-title">🎯 阵营底牌与胜负判定</div>
+              <div class="guide-step-card">
+                <div class="guide-step-title"><span class="guide-tag civilian">🛡️ 平民特工</span> 知道真实地点 + 角色身份</div>
+                <p><strong>获胜方式</strong>：通过口头问答找出间谍，投票<strong>全票指控定罪</strong>；或撑到倒计时结束间谍未猜中地点。</p>
+                <p style="color: #fca5a5; margin-top: 4px;">⚠️ <strong>失败惩罚</strong>：投票误将无辜平民定罪，间谍直接胜出！</p>
+              </div>
+
+              <div class="guide-step-card" style="margin-top: 8px;">
+                <div class="guide-step-title"><span class="guide-tag spy">🕵️ 潜伏间谍</span> 地点完全未知 (仅自己是独狼)</div>
+                <p><strong>获胜方式</strong>：隐藏自身不被全票定罪；或在任何时刻点击<strong>【自爆猜地点】</strong>选对真实地点一击制胜！</p>
+                <p style="color: #fca5a5; margin-top: 4px;">⚠️ <strong>失败惩罚</strong>：被全票指控出局且最后猜错地点；或主动自爆选错地点。</p>
+              </div>
+            </div>
+
+            <div class="guide-section">
+              <div class="guide-title">🗣️ 轮流面对面问答规则</div>
+              <ul style="padding-left: 18px; line-height: 1.7; font-size: 13px;">
+                <li>系统开局随机指定<strong>首位提问人</strong>；</li>
+                <li>提问人可向现场<strong>任意一名玩家</strong>提出 1 个口头问题；</li>
+                <li>被提问人回答后，获得下一次提问权向下一人提问；</li>
+                <li><strong style="color: var(--color-amber);">【铁律禁忌】不可立刻回问</strong>：刚提问你的人，你<strong>绝不能立刻反问他</strong>，必须问第三人！</li>
+              </ul>
+            </div>
+
+            <div class="guide-section">
+              <div class="guide-title">⚖️ 局内三大终局操作</div>
+              <p>1. <strong>间谍自爆</strong>：间谍随时点击【自爆猜地点】，猜对间谍胜，猜错平民胜。</p>
+              <p>2. <strong>发起指控</strong>：每人每局 1 次机会。除被指控人外<strong>全票赞成</strong>方可定罪翻牌！抓中真间谍有最后反击机会，抓错平民则间谍直接胜。</p>
+              <p>3. <strong>倒计时耗尽</strong>：默认 8 分钟倒计时归零，全员公决投票定罪。</p>
             </div>
           </div>
 
-          <div class="guide-section">
-            <div class="guide-title">🕵️ 间谍伪装与刺探话术</div>
-            <p><strong>套话心法</strong>：回答尽量“普适通用”、“留有回旋余地”，随风使舵。</p>
-            <div class="guide-box good-example">
-              <strong>被问：“你来这里需要穿制服吗？”</strong><br>
-              伪装回答：“按规矩是有要求的，毕竟在这儿讲究规范。”（无论医院、海盗船还是潜艇均成立）
+          <!-- 标签 2: 软件手把手操作指引 -->
+          <div id="tab-guide-controls" class="guide-tab-content" style="display: none;">
+            <div class="guide-section">
+              <div class="guide-title">🛡️ 绝密身份卡 (Hold-to-Reveal 防窥)</div>
+              <p>手机端专为防窥打造：</p>
+              <div class="guide-box">
+                <p>• <strong>按住查看</strong>：手指按住身份卡即刻翻开，松开立即闭锁隐匿。</p>
+                <p>• <strong>常驻翻看</strong>：点击【👁️ 常驻查看 (5秒)】保持 5 秒后自动上锁。</p>
+                <p>• <strong>立即隐蔽</strong>：翻开后可点击【🔒 立即隐藏防窥】瞬间收回。</p>
+                <p>• <strong>安全兜底</strong>：页面滑动、手指位移 >25px 或手机切后台，<strong>底牌瞬间自动隐藏</strong>！</p>
+              </div>
             </div>
-            <p style="margin-top: 6px;">当轮到你发问时，借力向刚才回答精妙的平民提问，引诱对方说出更多细节！</p>
+
+            <div class="guide-section">
+              <div class="guide-title">🗺️ 候选地点情报排查板 (Scratchpad)</div>
+              <p>屏幕下方显示 16~18 个混淆候选地点，点击卡片切换个人标记：</p>
+              <div class="guide-box">
+                <p>【正常】 ➔ <strong>【划线排除 ✕】</strong> ➔ <strong>【重点标星 ★】</strong> ➔ 【恢复正常】</p>
+                <p style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">* 注：排查笔记仅保存在自己手机上，任何人无法窥探。</p>
+              </div>
+            </div>
+
+            <div class="guide-section">
+              <div class="guide-title">🎮 行动按钮说明</div>
+              <p>• <strong>🎯 自爆猜地点</strong>：仅间谍可点击提交最终地点判定（平民点击有友好 Toast 提示）。</p>
+              <p>• <strong>🔍 发起指控</strong>：怀疑某人时点击，弹窗选择嫌疑人并发起全员紧急表决。</p>
+            </div>
+
+            <div class="guide-section">
+              <div class="guide-title">💡 实用便捷功能</div>
+              <p>• <strong>💡 常亮保持</strong>：点击右上角【常亮】防止手机对局中息屏锁屏。</p>
+              <p>• <strong>🔄 房主重开</strong>：局内出现误报或形势混乱，房主可随时终止并重置大厅。</p>
+              <p>• <strong>🏠 返回大厅</strong>：点击左上角【大厅】返回聚会游戏大厅门户。</p>
+              <p>• <strong>🤖 电脑AI特工</strong>：等待大厅可一键添加 AI 电脑特工，单人也能开局实测！</p>
+            </div>
+          </div>
+
+          <!-- 标签 3: 实战示范与发问秘籍 -->
+          <div id="tab-guide-tips" class="guide-tab-content" style="display: none;">
+            <div class="guide-section">
+              <div class="guide-title">🎭 实战模拟：一局经典对话</div>
+              <div class="guide-box" style="font-size: 12px; line-height: 1.6;">
+                <p style="color: var(--color-cyan); margin-bottom: 4px;"><strong>真实地点：【综合医院】</strong>（平民A主刀医生、平民B急救护士、C间谍）</p>
+                <p>• <strong>第1轮 平民A问B</strong>：“你上班进大门前闻到那股熟悉的味道了吗？”</p>
+                <p>• <strong>平民B回答</strong>：“天天闻，习惯了甚至有点提神。”（暗号对上：消毒水味）</p>
+                <p>• <strong>第2轮 平民B问C(间谍)</strong>：“你工作时周围声音环境有要求吗？”</p>
+                <p>• <strong>间谍C万能回答</strong>：“这得分时候，忙起来动静大，闲下来得安静。”（试图蒙混）</p>
+                <p>• <strong>第3轮 间谍C问A</strong>：“你迟到的话后果严重吗？”</p>
+                <p>• <strong>平民A警惕回答</strong>：“关乎人命的大事，你说严重不？”</p>
+                <p style="color: var(--color-amber); margin-top: 6px;">👉 <strong>结局走向</strong>：间谍C听到“关乎人命+刺鼻气味”猜出是医院，点击【自爆猜地点】翻盘胜；或平民发现C回答模棱两可，点击【发起指控】全票抓获间谍！</p>
+              </div>
+            </div>
+
+            <div class="guide-section">
+              <div class="guide-title">🛡️ 平民发问原则</div>
+              <div class="guide-box bad-example">
+                <strong>❌ 错误示范（太直白）</strong>：在“海盗船”问“你今天抓俘虏了吗？”（间谍秒懂是海盗船，平民送分！）
+              </div>
+              <div class="guide-box bad-example">
+                <strong>❌ 错误示范（太抽象）</strong>：在“医院”问“你今天开心吗？”（毫无特征，队友对不上暗号，还容易怀疑你！）
+              </div>
+              <div class="guide-box good-example">
+                <strong>✅ 优秀提问维度</strong>：<br>
+                • <strong>装备服装</strong>：“你上班需要穿特定制服吗？”<br>
+                • <strong>感官体验</strong>：“你附近噪音大吗？”、“有水汽/引擎声吗？”<br>
+                • <strong>消费门槛</strong>：“普通人进这里消费高吗？”
+              </div>
+            </div>
+
+            <div class="guide-section">
+              <div class="guide-title">🕵️ 间谍伪装与套话心法</div>
+              <div class="guide-box good-example">
+                <strong>1. 万能套话</strong>：“这得看情况”、“按规矩有严格要求”、“各司其职，忙的忙闲的闲”。<br>
+                <strong>2. 借力打力</strong>：轮到你提问时，追问刚才回答精妙的平民，引诱对方为了自证说出更多细节！<br>
+                <strong>3. 排除法</strong>：对照手机排查板，听到门票划掉潜艇/空间站，缩小范围果断自爆！
+              </div>
+            </div>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-primary" data-close="modal-guide">我已掌握要领</button>
+          <button class="btn btn-primary btn-block" data-close="modal-guide">我已掌握要领 · 出发！</button>
         </div>
       </div>
     </div>

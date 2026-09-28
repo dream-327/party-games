@@ -759,6 +759,21 @@
             }
           });
         });
+
+        // 玩法向导 Tab 标签切换
+        const guideTabBtns = document.querySelectorAll('.guide-tab-btn');
+        guideTabBtns.forEach(btn => {
+          btn.addEventListener('click', () => {
+            guideTabBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const targetId = btn.dataset.tab;
+            const tabContents = document.querySelectorAll('.guide-tab-content');
+            tabContents.forEach(tc => {
+              tc.style.display = (tc.id === targetId) ? 'block' : 'none';
+            });
+            this.sfx.play('click');
+          });
+        });
       }
 
       // 指控弹窗：选择嫌疑人
