@@ -672,6 +672,7 @@ body {
 /* 抽卡/看词 3D 卡牌 */
 .card-view-wrapper {
   perspective: 1000px;
+  -webkit-perspective: 1000px;
   width: 100%;
   height: 280px;
   margin: 20px 0;
@@ -715,22 +716,29 @@ body {
   height: 280px;
   position: relative;
   transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
   transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
+  backface-visibility: visible !important;
+  -webkit-backface-visibility: visible !important;
 }
 
 .secret-card.flipped {
   transform: rotateY(180deg);
+  -webkit-transform: rotateY(180deg);
 }
 
 .card-face {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
@@ -747,13 +755,26 @@ body {
   background: linear-gradient(145deg, #1e1b4b, #311042);
   border: 2px solid rgba(168, 85, 247, 0.5);
   box-shadow: var(--shadow-neon);
+  transform: rotateY(0deg);
+  -webkit-transform: rotateY(0deg);
+  z-index: 2;
 }
 
 .card-back {
   background: linear-gradient(145deg, #093c4e, #0f172a);
   border: 2px solid rgba(6, 182, 212, 0.6);
   transform: rotateY(180deg);
+  -webkit-transform: rotateY(180deg);
   box-shadow: var(--shadow-cyan);
+  z-index: 1;
+}
+
+.secret-card.flipped .card-front {
+  z-index: 1;
+}
+
+.secret-card.flipped .card-back {
+  z-index: 3;
 }
 
 .card-word-title {
@@ -768,11 +789,21 @@ body {
   font-size: 32px;
   font-weight: 800;
   letter-spacing: 2px;
-  background: linear-gradient(135deg, #67e8f9, #ffffff);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  margin-bottom: 12px;
+  color: #67e8f9;
   text-align: center;
+  margin-bottom: 12px;
+  word-break: break-all;
+  max-width: 100%;
+  text-shadow: 0 0 16px rgba(103, 232, 249, 0.4);
+}
+
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .card-word {
+    background: linear-gradient(135deg, #67e8f9, #ffffff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
 }
 
 .card-hint {
@@ -1617,6 +1648,8 @@ body {
 }
 
 .peek-modal-content .card-view-wrapper {
+  perspective: 1000px;
+  -webkit-perspective: 1000px;
   margin: 10px 0 16px 0;
   display: flex;
   justify-content: center;
@@ -1684,9 +1717,8 @@ body {
   animation: elasticPop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-/* 3. Performance Optimization: 独立 GPU 合成层与触控加速 */
+/* 3. Performance Optimization: 独立 GPU 合成层与触控加速 (secret-card 作为 3D 旋转容器保持独立透视与可见性) */
 .card,
-.secret-card,
 .player-seat,
 .modal-content,
 .floating-peek-btn,

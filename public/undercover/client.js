@@ -1228,6 +1228,10 @@
         </div>
       `;
       if (hintEl) hintEl.innerHTML = '您拥有全场全知特权，请主持发言与投票流程。';
+    } else if (me && me.isSpectator) {
+      if (titleEl) titleEl.innerText = '👀 观众席 · 旁观视角';
+      wordEl.innerText = '👀 观战中';
+      if (hintEl) hintEl.innerHTML = '您正在旁观本局对局，请静待游戏结束<br>下一局将自动参与发牌！';
     } else if (me && me.role === 'WHITEBOARD') {
       if (titleEl) titleEl.innerText = '📄 白板身份 · 无底牌词';
       wordEl.innerText = '❓ 无词';
@@ -1238,12 +1242,16 @@
       wordEl.innerText = me.word;
       if (hintEl) hintEl.innerHTML = '千万不要直接说出词语！<br>根据词语特征用一句话进行描述，注意分辨身边的卧底。';
     } else {
-      wordEl.innerText = '请等待分发...';
+      if (titleEl) titleEl.innerText = '🎴 正在获取底牌...';
+      wordEl.innerText = '请稍候...';
+      if (hintEl) hintEl.innerHTML = '正在同步对局底牌数据，请稍等片刻。';
     }
 
     // 只有在刚切入看词阶段时才重置卡片翻转状态，避免别人看词更新时自己的卡片被自动盖上
     if (isPhaseChanged) {
-      cardEl.classList.remove('flipped');
+      if (cardEl) cardEl.classList.remove('flipped');
+      const flipBtn = document.getElementById('btn-flip-card-toggle');
+      if (flipBtn) flipBtn.innerText = '🔄 点击翻转 / 查看底牌';
     }
 
     // 统计已查看人数（排除裁判）
@@ -1277,13 +1285,16 @@
   // ----------------------------------------------------
   // 看牌防窥模式控制 (按住防窥 / 点击常开)
   // ----------------------------------------------------
-  let peekMode = localStorage.getItem('undercover_peek_mode') || 'hold';
+  // 默认使用 'toggle' (点击常开) 模式，保障手机端与电脑端最直观易用；玩家亦可自由切换为按住防窥
+  let peekMode = localStorage.getItem('undercover_peek_mode') || 'toggle';
   const btnModeHold = document.getElementById('btn-mode-hold');
   const btnModeToggle = document.getElementById('btn-mode-toggle');
   const cardFlipPrompt = document.getElementById('card-flip-prompt');
   const cardHidePrompt = document.getElementById('card-hide-prompt');
   const cardElement = document.getElementById('secret-card-element');
+  const btnFlipCardToggle = document.getElementById('btn-flip-card-toggle');
   let isHoldingCard = false;
+  let cardPressStartTime = 0;
 
   // 随时查词弹窗防窥卡片元素
   const btnPeekModalHold = document.getElementById('btn-peek-modal-hold');
@@ -1291,7 +1302,9 @@
   const peekCardFlipPrompt = document.getElementById('peek-card-flip-prompt');
   const peekCardHidePrompt = document.getElementById('peek-card-hide-prompt');
   const peekCardElement = document.getElementById('peek-secret-card');
+  const btnPeekFlipCardToggle = document.getElementById('btn-peek-flip-card-toggle');
   let isHoldingPeekCard = false;
+  let peekCardPressStartTime = 0;
 
   function updatePeekModeUI() {
     if (peekMode === 'hold') {
@@ -1299,10 +1312,10 @@
       if (btnModeToggle) btnModeToggle.classList.remove('active');
       if (btnPeekModalHold) btnPeekModalHold.classList.add('active');
       if (btnPeekModalToggle) btnPeekModalToggle.classList.remove('active');
-      if (cardFlipPrompt) cardFlipPrompt.innerText = '👆 按住卡片查看底牌 (松手即盖上)';
-      if (peekCardFlipPrompt) peekCardFlipPrompt.innerText = '👆 按住卡片查看底牌 (松手即盖上)';
-      if (cardHidePrompt) cardHidePrompt.innerText = '🙈 松开手指立即隐藏';
-      if (peekCardHidePrompt) peekCardHidePrompt.innerText = '🙈 松开手指立即隐藏';
+      if (cardFlipPrompt) cardFlipPrompt.innerText = '👆 按住卡片查看底牌 (轻触常开，长按松手盖上)';
+      if (peekCardFlipPrompt) peekCardFlipPrompt.innerText = '👆 按住卡片查看底牌 (轻触常开，长按松手盖上)';
+      if (cardHidePrompt) cardHidePrompt.innerText = '🙈 松开手指或点击盖上底牌';
+      if (peekCardHidePrompt) peekCardHidePrompt.innerText = '🙈 松开手指或点击盖上底牌';
     } else {
       if (btnModeToggle) btnModeToggle.classList.add('active');
       if (btnModeHold) btnModeHold.classList.remove('active');
@@ -1323,6 +1336,8 @@
     if (mode === 'hold') {
       if (cardElement) cardElement.classList.remove('flipped');
       if (peekCardElement) peekCardElement.classList.remove('flipped');
+      if (btnFlipCardToggle) btnFlipCardToggle.innerText = '🔄 点击翻转 / 查看底牌';
+      if (btnPeekFlipCardToggle) btnPeekFlipCardToggle.innerText = '🔄 点击翻转 / 查看底牌';
     }
   }
 
@@ -1336,6 +1351,7 @@
   function revealCard() {
     if (cardElement && !cardElement.classList.contains('flipped')) {
       cardElement.classList.add('flipped');
+      if (btnFlipCardToggle) btnFlipCardToggle.innerText = '🙈 点击盖上 / 隐藏底牌';
       window.sfx.playFlip();
       window.sfx.vibrate('light');
     }
@@ -1344,41 +1360,70 @@
   function concealCard() {
     if (cardElement && cardElement.classList.contains('flipped')) {
       cardElement.classList.remove('flipped');
+      if (btnFlipCardToggle) btnFlipCardToggle.innerText = '🔄 点击翻转 / 查看底牌';
       window.sfx.playFlip();
     }
   }
 
+  function toggleCard() {
+    if (cardElement) {
+      if (cardElement.classList.contains('flipped')) {
+        concealCard();
+      } else {
+        revealCard();
+      }
+    }
+  }
+
+  if (btnFlipCardToggle) {
+    btnFlipCardToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleCard();
+    });
+  }
+
   if (cardElement) {
-    // 触摸事件 (移动端防窥按住)
+    // 触摸事件
     cardElement.addEventListener('touchstart', (e) => {
+      cardPressStartTime = Date.now();
       if (peekMode === 'hold') {
-        e.preventDefault();
         isHoldingCard = true;
         revealCard();
       }
-    }, { passive: false });
+    }, { passive: true });
 
     const handleTouchEnd = () => {
       if (peekMode === 'hold' && isHoldingCard) {
+        const pressDuration = Date.now() - cardPressStartTime;
         isHoldingCard = false;
-        concealCard();
+        // 如果是短触（小于 300ms 的点击操作），保持翻开状态，防止手机误触闪退看不到牌
+        if (pressDuration >= 300) {
+          concealCard();
+        }
       }
     };
     cardElement.addEventListener('touchend', handleTouchEnd);
     cardElement.addEventListener('touchcancel', handleTouchEnd);
 
-    // 鼠标事件 (桌面端防窥按住)
+    // 鼠标事件 (桌面端)
     cardElement.addEventListener('mousedown', (e) => {
-      if (e.button === 0 && peekMode === 'hold') {
-        isHoldingCard = true;
-        revealCard();
+      if (e.button === 0) {
+        cardPressStartTime = Date.now();
+        if (peekMode === 'hold') {
+          isHoldingCard = true;
+          revealCard();
+        }
       }
     });
 
     const handleMouseUp = () => {
       if (peekMode === 'hold' && isHoldingCard) {
+        const pressDuration = Date.now() - cardPressStartTime;
         isHoldingCard = false;
-        concealCard();
+        // 长按松手自动盖上，短点击则保持翻开
+        if (pressDuration >= 300) {
+          concealCard();
+        }
       }
     };
     window.addEventListener('mouseup', handleMouseUp);
@@ -1389,12 +1434,17 @@
       }
     });
 
-    // 点击事件 (常开模式翻转)
+    // 点击事件 (常开模式或快速点击翻转)
     cardElement.addEventListener('click', () => {
       if (peekMode === 'toggle') {
-        cardElement.classList.toggle('flipped');
-        window.sfx.playFlip();
-        window.sfx.vibrate('light');
+        toggleCard();
+      } else {
+        // 在 hold 模式下短点击翻转切换
+        if (Date.now() - cardPressStartTime < 300) {
+          if (!cardElement.classList.contains('flipped')) {
+            revealCard();
+          }
+        }
       }
     });
 
@@ -1408,6 +1458,7 @@
   function revealPeekCard() {
     if (peekCardElement && !peekCardElement.classList.contains('flipped')) {
       peekCardElement.classList.add('flipped');
+      if (btnPeekFlipCardToggle) btnPeekFlipCardToggle.innerText = '🙈 点击盖上 / 隐藏底牌';
       window.sfx.playFlip();
       window.sfx.vibrate('light');
     }
@@ -1416,39 +1467,66 @@
   function concealPeekCard() {
     if (peekCardElement && peekCardElement.classList.contains('flipped')) {
       peekCardElement.classList.remove('flipped');
+      if (btnPeekFlipCardToggle) btnPeekFlipCardToggle.innerText = '🔄 点击翻转 / 查看底牌';
       window.sfx.playFlip();
     }
   }
 
+  function togglePeekCard() {
+    if (peekCardElement) {
+      if (peekCardElement.classList.contains('flipped')) {
+        concealPeekCard();
+      } else {
+        revealPeekCard();
+      }
+    }
+  }
+
+  if (btnPeekFlipCardToggle) {
+    btnPeekFlipCardToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      togglePeekCard();
+    });
+  }
+
   if (peekCardElement) {
     peekCardElement.addEventListener('touchstart', (e) => {
+      peekCardPressStartTime = Date.now();
       if (peekMode === 'hold') {
-        e.preventDefault();
         isHoldingPeekCard = true;
         revealPeekCard();
       }
-    }, { passive: false });
+    }, { passive: true });
 
     const handlePeekTouchEnd = () => {
       if (peekMode === 'hold' && isHoldingPeekCard) {
+        const pressDuration = Date.now() - peekCardPressStartTime;
         isHoldingPeekCard = false;
-        concealPeekCard();
+        if (pressDuration >= 300) {
+          concealPeekCard();
+        }
       }
     };
     peekCardElement.addEventListener('touchend', handlePeekTouchEnd);
     peekCardElement.addEventListener('touchcancel', handlePeekTouchEnd);
 
     peekCardElement.addEventListener('mousedown', (e) => {
-      if (e.button === 0 && peekMode === 'hold') {
-        isHoldingPeekCard = true;
-        revealPeekCard();
+      if (e.button === 0) {
+        peekCardPressStartTime = Date.now();
+        if (peekMode === 'hold') {
+          isHoldingPeekCard = true;
+          revealPeekCard();
+        }
       }
     });
 
     const handlePeekMouseUp = () => {
       if (peekMode === 'hold' && isHoldingPeekCard) {
+        const pressDuration = Date.now() - peekCardPressStartTime;
         isHoldingPeekCard = false;
-        concealPeekCard();
+        if (pressDuration >= 300) {
+          concealPeekCard();
+        }
       }
     };
     window.addEventListener('mouseup', handlePeekMouseUp);
@@ -1461,9 +1539,13 @@
 
     peekCardElement.addEventListener('click', () => {
       if (peekMode === 'toggle') {
-        peekCardElement.classList.toggle('flipped');
-        window.sfx.playFlip();
-        window.sfx.vibrate('light');
+        togglePeekCard();
+      } else {
+        if (Date.now() - peekCardPressStartTime < 300) {
+          if (!peekCardElement.classList.contains('flipped')) {
+            revealPeekCard();
+          }
+        }
       }
     });
 
@@ -1636,6 +1718,8 @@
     if (cardEl) {
       cardEl.classList.remove('flipped');
     }
+    const flipBtn = document.getElementById('btn-flip-card-toggle');
+    if (flipBtn) flipBtn.innerText = '🔄 点击翻转 / 查看底牌';
     const confirmBtn = document.getElementById('btn-card-confirm');
     if (confirmBtn) {
       confirmBtn.disabled = false;

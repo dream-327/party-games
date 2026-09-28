@@ -234,7 +234,7 @@
           <div class="card-face card-front">
             <div style="font-size: 48px; margin-bottom: 8px;">🤫</div>
             <div style="font-size: 18px; font-weight: 700; color: #d8b4fe;">你的秘密词语</div>
-            <div class="card-flip-prompt" id="card-flip-prompt">👆 按住卡片查看底牌 (松手即盖上)</div>
+            <div class="card-flip-prompt" id="card-flip-prompt">👆 点击或按住卡片查看底牌</div>
           </div>
           <!-- 背面 (词语) -->
           <div class="card-face card-back">
@@ -243,9 +243,15 @@
             <div class="card-hint" id="card-hint">
               千万不要直接说出词语！<br>根据词语特征用一句话进行描述。
             </div>
-            <div class="card-hide-prompt" id="card-hide-prompt">🙈 松开手指立即隐藏</div>
+            <div class="card-hide-prompt" id="card-hide-prompt">🙈 点击或松开手指盖上底牌</div>
           </div>
         </div>
+      </div>
+
+      <div style="display: flex; justify-content: center; margin-bottom: 12px;">
+        <button id="btn-flip-card-toggle" type="button" class="btn btn-secondary-outline" style="padding: 7px 18px; font-size: 13px; border-radius: 20px; font-weight: 600;">
+          🔄 点击翻转 / 查看底牌
+        </button>
       </div>
 
       <button id="btn-card-confirm" class="btn btn-success">
@@ -919,9 +925,15 @@
               <div class="card-hint" id="my-peek-role-desc">
                 不要直接说出词语，根据特征描述！
               </div>
-              <div class="card-hide-prompt" id="peek-card-hide-prompt">🙈 松开手指立即隐藏</div>
+              <div class="card-hide-prompt" id="peek-card-hide-prompt">🙈 点击或松开手指盖上底牌</div>
             </div>
           </div>
+        </div>
+
+        <div style="display: flex; justify-content: center; margin-bottom: 12px;">
+          <button id="btn-peek-flip-card-toggle" type="button" class="btn btn-secondary-outline" style="padding: 6px 16px; font-size: 12px; border-radius: 20px; font-weight: 600;">
+            🔄 点击翻转 / 查看底牌
+          </button>
         </div>
 
         <button id="btn-close-peek-word-bottom" class="btn btn-primary" style="width: 100%; padding: 10px; font-size: 14px; font-weight: 700;">
