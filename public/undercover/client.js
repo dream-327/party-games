@@ -1295,6 +1295,7 @@
   const btnFlipCardToggle = document.getElementById('btn-flip-card-toggle');
   let isHoldingCard = false;
   let cardPressStartTime = 0;
+  let cardWasFlippedOnPress = false;
 
   // 随时查词弹窗防窥卡片元素
   const btnPeekModalHold = document.getElementById('btn-peek-modal-hold');
@@ -1305,6 +1306,7 @@
   const btnPeekFlipCardToggle = document.getElementById('btn-peek-flip-card-toggle');
   let isHoldingPeekCard = false;
   let peekCardPressStartTime = 0;
+  let peekCardWasFlippedOnPress = false;
 
   function updatePeekModeUI() {
     if (peekMode === 'hold') {
@@ -1386,9 +1388,12 @@
     // 触摸事件
     cardElement.addEventListener('touchstart', (e) => {
       cardPressStartTime = Date.now();
+      cardWasFlippedOnPress = cardElement.classList.contains('flipped');
       if (peekMode === 'hold') {
-        isHoldingCard = true;
-        revealCard();
+        if (!cardWasFlippedOnPress) {
+          isHoldingCard = true;
+          revealCard();
+        }
       }
     }, { passive: true });
 
@@ -1396,7 +1401,7 @@
       if (peekMode === 'hold' && isHoldingCard) {
         const pressDuration = Date.now() - cardPressStartTime;
         isHoldingCard = false;
-        // 如果是短触（小于 300ms 的点击操作），保持翻开状态，防止手机误触闪退看不到牌
+        // 如果是长按（大于等于 300ms），松手自动盖上；短触保持翻开
         if (pressDuration >= 300) {
           concealCard();
         }
@@ -1409,9 +1414,12 @@
     cardElement.addEventListener('mousedown', (e) => {
       if (e.button === 0) {
         cardPressStartTime = Date.now();
+        cardWasFlippedOnPress = cardElement.classList.contains('flipped');
         if (peekMode === 'hold') {
-          isHoldingCard = true;
-          revealCard();
+          if (!cardWasFlippedOnPress) {
+            isHoldingCard = true;
+            revealCard();
+          }
         }
       }
     });
@@ -1439,9 +1447,11 @@
       if (peekMode === 'toggle') {
         toggleCard();
       } else {
-        // 在 hold 模式下短点击翻转切换
+        // 在 hold 模式下短点击：若之前已经是翻开状态，短点击翻转盖上；若之前是盖上状态，则翻开
         if (Date.now() - cardPressStartTime < 300) {
-          if (!cardElement.classList.contains('flipped')) {
+          if (cardWasFlippedOnPress) {
+            concealCard();
+          } else {
             revealCard();
           }
         }
@@ -1492,9 +1502,12 @@
   if (peekCardElement) {
     peekCardElement.addEventListener('touchstart', (e) => {
       peekCardPressStartTime = Date.now();
+      peekCardWasFlippedOnPress = peekCardElement.classList.contains('flipped');
       if (peekMode === 'hold') {
-        isHoldingPeekCard = true;
-        revealPeekCard();
+        if (!peekCardWasFlippedOnPress) {
+          isHoldingPeekCard = true;
+          revealPeekCard();
+        }
       }
     }, { passive: true });
 
@@ -1513,9 +1526,12 @@
     peekCardElement.addEventListener('mousedown', (e) => {
       if (e.button === 0) {
         peekCardPressStartTime = Date.now();
+        peekCardWasFlippedOnPress = peekCardElement.classList.contains('flipped');
         if (peekMode === 'hold') {
-          isHoldingPeekCard = true;
-          revealPeekCard();
+          if (!peekCardWasFlippedOnPress) {
+            isHoldingPeekCard = true;
+            revealPeekCard();
+          }
         }
       }
     });
@@ -1542,7 +1558,9 @@
         togglePeekCard();
       } else {
         if (Date.now() - peekCardPressStartTime < 300) {
-          if (!peekCardElement.classList.contains('flipped')) {
+          if (peekCardWasFlippedOnPress) {
+            concealPeekCard();
+          } else {
             revealPeekCard();
           }
         }
