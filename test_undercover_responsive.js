@@ -34,9 +34,11 @@ assert(cssContent.includes('backface-visibility: visible !important'), '.secret-
 assert(cssContent.includes('-webkit-backface-visibility: hidden'), '.card-face 必须具备 -webkit-backface-visibility 兼容隐藏');
 assert(cssContent.includes('.secret-card.flipped .card-back'), '必须包含翻转后背面 z-index 置顶规则');
 assert(cssContent.includes('.secret-card.flipped .card-front'), '必须包含翻转后正面 z-index 置底规则');
+assert(cssContent.includes('opacity: 0 !important') && cssContent.includes('visibility: hidden !important'), '翻开时正面必须强制隐藏，防止覆盖背面');
 
-// 文字颜色兜底
-assert(cssContent.includes('color: #67e8f9;'), '.card-word 必须具备实色青色文本兜底，杜绝透明文字消失');
+// 文字颜色兜底与透视保护
+assert(cssContent.includes('color: #67e8f9 !important;'), '.card-word 必须具备实色青色文本兜底，杜绝透明文字消失');
+assert(cssContent.includes('#view-card') && cssContent.includes('backdrop-filter: none !important'), '主看牌界面必须隔离 backdrop-filter 防止打平 3D 透视');
 assert(cssContent.includes('safe-area-inset-bottom'), '必须具备移动端底部安全区 safe-area-inset-bottom');
 assert(cssContent.includes('height: 100dvh'), '弹窗背景层必须具备 100dvh 动态视口高度适配');
 

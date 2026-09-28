@@ -228,6 +228,11 @@ body {
   }
 }
 
+#view-card {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
 /* 公屏卡片基础与响应式 */
 .public-screen-card {
   margin-bottom: 16px;
@@ -755,26 +760,41 @@ body {
   background: linear-gradient(145deg, #1e1b4b, #311042);
   border: 2px solid rgba(168, 85, 247, 0.5);
   box-shadow: var(--shadow-neon);
-  transform: rotateY(0deg);
-  -webkit-transform: rotateY(0deg);
+  transform: rotateY(0deg) translateZ(1px);
+  -webkit-transform: rotateY(0deg) translateZ(1px);
   z-index: 2;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
 }
 
 .card-back {
   background: linear-gradient(145deg, #093c4e, #0f172a);
   border: 2px solid rgba(6, 182, 212, 0.6);
-  transform: rotateY(180deg);
-  -webkit-transform: rotateY(180deg);
+  transform: rotateY(180deg) translateZ(1px);
+  -webkit-transform: rotateY(180deg) translateZ(1px);
   box-shadow: var(--shadow-cyan);
   z-index: 1;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
 }
 
+/* 翻转激活态：正面彻底隐藏并置底，背面完全展现并置顶，绝不发生覆盖！ */
 .secret-card.flipped .card-front {
-  z-index: 1;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  z-index: 1 !important;
 }
 
 .secret-card.flipped .card-back {
-  z-index: 3;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  z-index: 5 !important;
 }
 
 .card-word-title {
@@ -789,21 +809,13 @@ body {
   font-size: 32px;
   font-weight: 800;
   letter-spacing: 2px;
-  color: #67e8f9;
+  color: #67e8f9 !important;
+  -webkit-text-fill-color: #67e8f9 !important;
   text-align: center;
   margin-bottom: 12px;
   word-break: break-all;
   max-width: 100%;
-  text-shadow: 0 0 16px rgba(103, 232, 249, 0.4);
-}
-
-@supports ((-webkit-background-clip: text) or (background-clip: text)) {
-  .card-word {
-    background: linear-gradient(135deg, #67e8f9, #ffffff);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
+  text-shadow: 0 0 16px rgba(103, 232, 249, 0.6), 0 0 32px rgba(56, 189, 248, 0.4);
 }
 
 .card-hint {
@@ -1674,7 +1686,8 @@ body {
 .peek-modal-content .card-word {
   font-size: 26px;
   font-weight: 800;
-  color: #38bdf8;
+  color: #38bdf8 !important;
+  -webkit-text-fill-color: #38bdf8 !important;
   margin: 8px 0;
   text-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
 }
