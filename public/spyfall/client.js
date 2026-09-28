@@ -1294,8 +1294,15 @@
         if (card.classList && typeof card.classList.add === 'function') {
           card.classList.add('location-card', `state-${currentState}`);
         }
-        card.dataset = card.dataset || {};
-        card.dataset.locationId = loc.id;
+        if (!card.dataset) {
+          try { card.dataset = {}; } catch (e) {}
+        }
+        if (card.dataset) {
+          card.dataset.locationId = loc.id;
+        }
+        if (typeof card.setAttribute === 'function') {
+          card.setAttribute('data-location-id', loc.id);
+        }
         card.innerHTML = `
           <span class="location-icon">${loc.icon || '📍'}</span>
           <div class="location-info">
@@ -1497,8 +1504,15 @@
           if (opt.classList && typeof opt.classList.add === 'function') {
             opt.classList.add('suspect-option');
           }
-          opt.dataset = opt.dataset || {};
-          opt.dataset.playerId = p.id;
+          if (!opt.dataset) {
+            try { opt.dataset = {}; } catch (e) {}
+          }
+          if (opt.dataset) {
+            opt.dataset.playerId = p.id;
+          }
+          if (typeof opt.setAttribute === 'function') {
+            opt.setAttribute('data-player-id', p.id);
+          }
           opt.innerHTML = `
             <div style="display: flex; align-items: center; gap: 8px;">
               <span style="font-size: 18px;">${p.avatar}</span>
@@ -1673,8 +1687,15 @@
           if (card.classList && typeof card.classList.add === 'function') {
             card.classList.add('guess-card');
           }
-          card.dataset = card.dataset || {};
-          card.dataset.locationId = loc.id;
+          if (!card.dataset) {
+            try { card.dataset = {}; } catch (e) {}
+          }
+          if (card.dataset) {
+            card.dataset.locationId = loc.id;
+          }
+          if (typeof card.setAttribute === 'function') {
+            card.setAttribute('data-location-id', loc.id);
+          }
           card.innerHTML = `
             <div style="font-size: 22px;">${loc.icon || '📍'}</div>
             <div style="font-size: 12px; font-weight: 700; color: #ffffff; margin-top: 4px;">${loc.name}</div>
@@ -1844,9 +1865,26 @@
     }
 
     /**
-     * 轻量提示信息
+     * 轻量提示信息 (优先使用现代化轻量浮层 Toast，兼顾传统弹窗与测试环境)
      */
     notify(message) {
+      if (!message) return;
+      if (typeof document !== 'undefined' && document.body) {
+        let toast = document.getElementById('spyfall-toast');
+        if (!toast) {
+          toast = document.createElement('div');
+          toast.id = 'spyfall-toast';
+          toast.className = 'spyfall-toast';
+          document.body.appendChild(toast);
+        }
+        toast.textContent = message;
+        toast.classList.add('show');
+        if (this._toastTimer) clearTimeout(this._toastTimer);
+        this._toastTimer = setTimeout(() => {
+          if (toast && toast.classList) toast.classList.remove('show');
+        }, 2800);
+        return;
+      }
       const win = (typeof window !== 'undefined' ? window : global.window) || {};
       const alertFn = win.alert || global.alert;
       if (alertFn) {
